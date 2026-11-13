@@ -15,6 +15,7 @@ pub fn build(state: AppState) -> Router {
         .route("/api/health", get(handlers::health))
         .route("/api/prices", get(handlers::prices))
         .route("/ws", get(handlers::ws_handler))  // ← 추가
+        .route("/api/candles", get(handlers::candles))
         .with_state(state)
 }
 

@@ -1,8 +1,8 @@
-
 // ============================================================
 // 파일명: server/handlers.rs
 // 설명: HTTP + WebSocket 핸들러
 //       - GET /api/health, GET /api/prices
+//       - GET /api/candles (1분봉)
 //       - GET /ws (실시간 체결 푸시)
 // 작성일: 2026-11-14
 // ============================================================
@@ -14,12 +14,13 @@ use crate::master::FuturesSymbol;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Query, State,
     },
     response::IntoResponse,
     Json,
 };
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 pub async fn health(State(state): State<AppState>) -> Json<Value> {
     Json(json!({ "status": "ok", "regular": state.regular.name, "mini": state.mini.name }))
@@ -30,9 +31,13 @@ async fn fetch_one(state: &AppState, symbol: &FuturesSymbol) -> Result<CachedPri
     if let Ok(Some(cached)) = redis_cache::get(&mut conn, &symbol.code).await {
         return Ok(cached);
     }
-    let price = kis::get_futures_price(&state.app_key, &state.app_secret, &state.access_token, &symbol.code)
-        .await
-        .map_err(|e| format!("KIS 호출 실패({}): {}", symbol.code, e))?;
+    let price = kis::get_futures_price(
+        &state.http_client,
+        &state.app_key,
+        &state.app_secret,
+        &state.access_token,
+        &symbol.code,
+    ).await.map_err(|e| format!("KIS 호출 실패({}): {}", symbol.code, e))?;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     let cached = CachedPrice {
         code: symbol.code.clone(),
@@ -60,11 +65,72 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-/// GET /ws — 브라우저 WebSocket 연결. KIS 체결을 실시간 중계.
-pub async fn ws_handler(
-    ws: WebSocketUpgrade,
+pub async fn candles(
     State(state): State<AppState>,
-) -> impl IntoResponse {
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Value> {
+    let code = match params.get("code") {
+        Some(c) => c.clone(),
+        None => return Json(json!({ "ok": false, "error": "code 파라미터 필요" })),
+    };
+
+    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
+        .format("%Y%m%d").to_string();
+
+    let mut all_candles = Vec::new();
+    let mut hour = "154500".to_string();
+
+    for _ in 0..5 {
+        match kis::get_minute_chart(
+            &state.http_client,
+            &state.app_key,
+            &state.app_secret,
+            &state.access_token,
+            &code,
+            &yesterday,
+            &hour,
+        ).await {
+            Ok(candles) => {
+                if candles.is_empty() { break; }
+                let earliest = candles.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
+                if earliest.is_empty() { break; }
+                hour = subtract_one_minute(&earliest);
+                all_candles.extend(candles);
+            }
+            Err(e) => { tracing::warn!("분봉 조회 실패: {}", e); break; }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    all_candles.sort_by(|a, b| a.stck_cntg_hour.cmp(&b.stck_cntg_hour));
+    all_candles.dedup_by(|a, b| a.stck_cntg_hour == b.stck_cntg_hour);
+
+    let result: Vec<Value> = all_candles.iter().map(|c| {
+        json!({
+            "time": format!("{}-{}-{}", &yesterday[0..4], &yesterday[4..6], &yesterday[6..8]),
+            "hour": c.stck_cntg_hour,
+            "open": c.futs_oprc.parse::<f64>().unwrap_or(0.0),
+            "high": c.futs_hgpr.parse::<f64>().unwrap_or(0.0),
+            "low": c.futs_lwpr.parse::<f64>().unwrap_or(0.0),
+            "close": c.futs_prpr.parse::<f64>().unwrap_or(0.0),
+            "volume": c.cntg_vol.parse::<f64>().unwrap_or(0.0),
+        })
+    }).collect();
+
+    Json(json!({ "ok": true, "data": result }))
+}
+
+fn subtract_one_minute(hhmmss: &str) -> String {
+    if hhmmss.len() < 6 { return "154500".to_string(); }
+    let h: u32 = hhmmss[0..2].parse().unwrap_or(15);
+    let m: u32 = hhmmss[2..4].parse().unwrap_or(45);
+    let s: u32 = hhmmss[4..6].parse().unwrap_or(0);
+    let total = h * 3600 + m * 60 + s;
+    let new_total = if total >= 60 { total - 60 } else { 0 };
+    format!("{:02}{:02}{:02}", new_total / 3600, (new_total % 3600) / 60, new_total % 60)
+}
+
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
@@ -74,7 +140,6 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
     loop {
         tokio::select! {
-            // KIS 체결 → 브라우저 전송
             result = rx.recv() => {
                 match result {
                     Ok(tick) => {
@@ -88,14 +153,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                             "last_qty": tick.last_qty,
                             "time": tick.time,
                         })).unwrap_or_default();
-                        if socket.send(Message::Text(json.into())).await.is_err() {
-                            break;
-                        }
+                        if socket.send(Message::Text(json.into())).await.is_err() { break; }
                     }
                     Err(_) => break,
                 }
             }
-            // 브라우저에서 오는 메시지 (ping 등)
             msg = socket.recv() => {
                 match msg {
                     Some(Ok(Message::Close(_))) | None => break,
@@ -106,5 +168,4 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     tracing::info!("브라우저 WebSocket 연결 종료");
 }
-
 

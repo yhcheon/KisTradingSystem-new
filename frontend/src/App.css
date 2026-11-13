@@ -1,7 +1,7 @@
 
 /* ============================================================
    파일명: App.css
-   설명: 대시보드 스타일 (전일종가/시가/고가/저가 그리드 포함)
+   설명: 대시보드 레이아웃 (좌: 시세 카드 세로, 우: 차트)
    작성일: 2026-11-14
    ============================================================ */
 
@@ -14,51 +14,90 @@ body {
   min-height: 100vh;
 }
 
-.app { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+.app {
+  max-width: 1920px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
 
-header h1 { font-size: 26px; margin-bottom: 8px; color: #f8fafc; }
+header h1 { font-size: 24px; margin-bottom: 6px; color: #f8fafc; }
 
-.status { font-size: 13px; margin-bottom: 24px; }
+.status { font-size: 13px; margin-bottom: 20px; }
 .status .ok { color: #10b981; }
 .status .error { color: #ef4444; }
 
-.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+/* ── 좌우 2단 레이아웃 ── */
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  /*align-items: start; */
+}
 
+/* 좌측: 시세 카드 세로 배치 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 우측: 차트 영역 */
+.chart-area {
+  background: #000000;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  min-height: 600px;
+  overflow: hidden;
+}
+
+
+.chart-title {
+  font-size: 15px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* ── 시세 카드 ── */
 .card {
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
 }
 
 .card h2 {
-  font-size: 15px; color: #94a3b8; font-weight: 600;
-  margin-bottom: 12px; letter-spacing: 0.5px;
+  font-size: 14px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
 }
 
-.symbol { font-size: 14px; color: #cbd5e1; margin-bottom: 12px; }
-.symbol .code { color: #64748b; font-size: 12px; }
+.symbol { font-size: 13px; color: #cbd5e1; margin-bottom: 8px; }
+.symbol .code { color: #64748b; font-size: 11px; }
 
-.price { font-size: 36px; font-weight: 700; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.change { font-size: 16px; margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+.price { font-size: 28px; font-weight: 700; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.change { font-size: 14px; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   background: #0f172a;
   border-radius: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
-.grid > div { display: flex; justify-content: space-between; font-size: 13px; }
+.grid > div { display: flex; justify-content: space-between; font-size: 12px; }
 .grid .label { color: #94a3b8; }
 .grid .value { color: #cbd5e1; font-variant-numeric: tabular-nums; }
 .grid .value.high { color: #ef4444; }
 .grid .value.low { color: #3b82f6; }
 
-.volume { font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+.volume { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
 .updated { font-size: 11px; color: #64748b; }
 
 .up { color: #ef4444; }
@@ -68,6 +107,20 @@ header h1 { font-size: 26px; margin-bottom: 8px; color: #f8fafc; }
 .loading { color: #94a3b8; font-size: 14px; }
 .error { color: #ef4444; font-size: 14px; }
 
-footer { margin-top: 40px; text-align: center; font-size: 12px; color: #64748b; }
+footer { margin-top: 32px; text-align: center; font-size: 12px; color: #64748b; }
+
+/* ── 반응형: 화면이 좁으면 세로 1열로 ── */
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .sidebar > .card {
+    flex: 1 1 240px;
+  }
+}
 
 

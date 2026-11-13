@@ -1,25 +1,34 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 메인 대시보드
-//       - 최초 1회 REST(/api/prices)로 스냅샷 조회
-//       - 이후 /ws WebSocket으로 실시간 체결 수신
-//       - 체결 시 현재가/전일대비/거래량 갱신
+// 설명: 메인 대시보드 (좌: 시세 카드 세로, 우: 차트)
 // 작성일: 2026-11-14
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
 import PriceCard from './PriceCard';
-import type { CachedPrice, PricesResponse, RealtimeTick } from './types';
+import CandleChart from './CandleChart';
+import type { PricesResponse, RealtimeTick } from './types';
 import './App.css';
+
+interface CandleData {
+  time: string;
+  hour: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
 export default function App() {
   const [data, setData] = useState<PricesResponse | null>(null);
+  const [candles, setCandles] = useState<CandleData[]>([]);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
 
-  // 1) 최초 REST 조회
+  // 최초 REST 조회 + 분봉 조회
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -29,6 +38,15 @@ export default function App() {
         setData(json);
         setLastFetch(new Date());
         setError(null);
+
+        if (json.regular.ok && json.regular.data) {
+          const code = json.regular.data.code;
+          const cres = await fetch(`/api/candles?code=${code}`);
+          if (cres.ok) {
+            const cjson = await cres.json();
+            if (cjson.ok) setCandles(cjson.data);
+          }
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -36,57 +54,39 @@ export default function App() {
     fetchPrices();
   }, []);
 
-  // 2) WebSocket 연결
+  // WebSocket
   useEffect(() => {
     const url = `ws://${window.location.hostname}:8080/ws`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
-
-    ws.onopen = () => {
-      setWsStatus('open');
-      console.log('✅ WebSocket connected:', url);
-    };
-
+    ws.onopen = () => setWsStatus('open');
     ws.onmessage = (e) => {
       try {
         const tick: RealtimeTick = JSON.parse(e.data);
         if (tick.type !== 'tick') return;
-
-        // 해당 종목의 현재가/전일대비/거래량만 갱신
         setData((prev) => {
           if (!prev) return prev;
           const updateOne = (result: PricesResponse['regular']) => {
             if (!result.ok || !result.data) return result;
             if (result.data.code !== tick.code) return result;
-            const updated: CachedPrice = {
-              ...result.data,
-              price: tick.price,
-              change: tick.change,
-              change_rate: tick.change_rate,
-              volume: tick.volume,
-              cached_at: Math.floor(Date.now() / 1000),
+            return {
+              ok: true,
+              data: {
+                ...result.data,
+                price: tick.price,
+                change: tick.change,
+                change_rate: tick.change_rate,
+                volume: tick.volume,
+                cached_at: Math.floor(Date.now() / 1000),
+              },
             };
-            return { ok: true, data: updated };
           };
-          return {
-            regular: updateOne(prev.regular),
-            mini: updateOne(prev.mini),
-          };
+          return { regular: updateOne(prev.regular), mini: updateOne(prev.mini) };
         });
-      } catch (err) {
-        console.warn('WS 메시지 파싱 실패:', e.data);
-      }
+      } catch {}
     };
-
-    ws.onerror = (e) => console.error('❌ WebSocket error', e);
-    ws.onclose = () => {
-      setWsStatus('closed');
-      console.log('WebSocket closed');
-    };
-
-    return () => {
-      ws.close();
-    };
+    ws.onclose = () => setWsStatus('closed');
+    return () => ws.close();
   }, []);
 
   return (
@@ -105,9 +105,22 @@ export default function App() {
         </div>
       </header>
 
-      <main className="cards">
-        <PriceCard title="정규선물" result={data?.regular ?? null} />
-        <PriceCard title="미니선물" result={data?.mini ?? null} />
+      <main className="layout">
+        <aside className="sidebar">
+          <PriceCard title="정규선물" result={data?.regular ?? null} />
+          <PriceCard title="미니선물" result={data?.mini ?? null} />
+        </aside>
+
+        <section className="chart-area">
+          <h2 className="chart-title">
+            전일 1분봉 (정규선물) {candles.length > 0 && `— ${candles.length}건`}
+          </h2>
+          {candles.length > 0 ? (
+            <CandleChart data={candles} />
+          ) : (
+            <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
+          )}
+        </section>
       </main>
 
       <footer>
@@ -116,5 +129,4 @@ export default function App() {
     </div>
   );
 }
-
 

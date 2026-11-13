@@ -4,12 +4,13 @@
 //       - approval_key로 접속
 //       - 정규선물/미니선물 2종목 구독
 //       - 수신한 체결가를 tokio::sync::broadcast로 중계
+//       - KIS PINGPONG에 원본 그대로 응답 (연결 유지)
 // 작성일: 2026-11-14
 // ============================================================
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -53,6 +54,9 @@ async fn connect_and_listen(
     let (mut ws, _) = connect_async(WS_URL).await?;
     tracing::info!("KIS WS 연결됨");
 
+    // PINGPONG 응답을 위한 mpsc 채널
+    let (pong_tx, mut pong_rx) = mpsc::channel::<String>(32);
+
     // 1) 구독 등록 메시지 전송
     for symbol in symbols {
         let msg = json!({
@@ -70,40 +74,67 @@ async fn connect_and_listen(
             }
         });
         ws.send(Message::Text(msg.to_string().into())).await?;
-
         tracing::info!("구독 등록: {}", symbol);
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 
-    // 2) 수신 루프
-    while let Some(msg) = ws.next().await {
-        let msg = msg?;
-        match msg {
-            Message::Text(text) => handle_text(&text, tx),
-            Message::Ping(p) => {
-                ws.send(Message::Pong(p)).await?;
+    // 2) 수신 루프 + PINGPONG 응답 전송
+    loop {
+        tokio::select! {
+            // KIS에서 오는 메시지
+            msg = ws.next() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        handle_text(&text, tx, &pong_tx);
+                    }
+                    Some(Ok(Message::Ping(p))) => {
+                        ws.send(Message::Pong(p)).await?;
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        tracing::warn!("KIS WS 서버에서 연결 종료");
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        tracing::error!("KIS WS 수신 오류: {}", e);
+                        break;
+                    }
+                    _ => {}
+                }
             }
-            Message::Close(_) => {
-                tracing::warn!("KIS WS 서버에서 연결 종료");
-                break;
+            // PINGPONG 응답 전송
+            pong_msg = pong_rx.recv() => {
+                if let Some(text) = pong_msg {
+                    if let Err(e) = ws.send(Message::Text(text.into())).await {
+                        tracing::error!("PINGPONG 응답 전송 실패: {}", e);
+                        break;
+                    }
+                    tracing::debug!("PINGPONG 응답 전송 완료");
+                }
             }
-            _ => {}
         }
     }
     Ok(())
 }
 
 /// KIS WebSocket 텍스트 메시지 처리
-/// 형식 1: JSON (구독 응답)  — {"header":{...},"body":{...}}
-/// 형식 2: `|` 구분 (실시간 데이터)
-///         예: `0|H0IFCNT0|001|A01612^093000^...`
-fn handle_text(text: &str, tx: &broadcast::Sender<RealtimeTick>) {
-    // 실시간 데이터: 암호화 구분자 `|`로 시작
+fn handle_text(
+    text: &str,
+    tx: &broadcast::Sender<RealtimeTick>,
+    pong_tx: &mpsc::Sender<String>,
+) {
+    // PINGPONG 감지 → 받은 그대로 되돌려보내기 위해 pong_tx로 전달
+    if text.contains("\"tr_id\":\"PINGPONG\"") {
+        tracing::debug!("PINGPONG 수신, 응답 전송 예약");
+        let _ = pong_tx.try_send(text.to_string());
+        return;
+    }
+
+    // 실시간 데이터: `|` 구분자로 시작
+    // 예: `0|H0IFCNT0|001|A01612^093000^...`
     let parts: Vec<&str> = text.split('|').collect();
     if parts.len() >= 4 && parts[1] == TR_ID {
-        // parts[3] = "^"로 구분된 필드들
         let fields: Vec<&str> = parts[3].split('^').collect();
-        // H0IFCNT0 필드 순서 (문서 기준):
+        // H0IFCNT0 필드 순서:
         // 0: FUTS_SHRN_ISCD, 1: BSOP_HOUR, 2: FUTS_PRDY_VRSS, 3: PRDY_VRSS_SIGN,
         // 4: FUTS_PRDY_CTRT, 5: FUTS_PRPR, ..., 9: LAST_CNQN, 10: ACML_VOL, ...
         if fields.len() > 10 {
@@ -130,5 +161,4 @@ fn handle_text(text: &str, tx: &broadcast::Sender<RealtimeTick>) {
     // 구독 응답 (JSON)
     tracing::debug!("WS 응답: {}", text);
 }
-
 
