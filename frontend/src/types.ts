@@ -1,18 +1,17 @@
-
 // ============================================================
 // 파일명: types.ts
-// 설명: 백엔드 API 응답 타입 정의
+// 설명: 백엔드 API + WebSocket 메시지 타입 정의
 // 작성일: 2026-11-14
 // ============================================================
 
 export interface CachedPrice {
   code: string;
   name: string;
-  price: string;        // 현재가
-  prev_close: string;   // 전일 종가
-  open: string;         // 시가
-  high: string;         // 고가
-  low: string;          // 저가
+  price: string;
+  prev_close: string;
+  open: string;
+  high: string;
+  low: string;
   change: string;
   change_rate: string;
   volume: string;
@@ -30,4 +29,15 @@ export interface PricesResponse {
   mini: PriceResult;
 }
 
+/** WebSocket 실시간 체결 메시지 */
+export interface RealtimeTick {
+  type: 'tick';
+  code: string;
+  price: string;
+  change: string;
+  change_rate: string;
+  volume: string;
+  last_qty: string;
+  time: string;
+}
 

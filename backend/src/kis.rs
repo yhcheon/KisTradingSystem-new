@@ -136,3 +136,47 @@ pub async fn get_futures_price(
 }
 
 
+// ── WebSocket 접속키 발급 ──
+
+#[derive(Debug, Serialize)]
+struct ApprovalRequest {
+    grant_type: String,
+    appkey: String,
+    secretkey: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApprovalResponse {
+    pub approval_key: String,
+}
+
+/// WebSocket 접속키(approval_key) 발급
+pub async fn get_approval_key(
+    app_key: &str,
+    app_secret: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let body = ApprovalRequest {
+        grant_type: "client_credentials".to_string(),
+        appkey: app_key.to_string(),
+        secretkey: app_secret.to_string(),
+    };
+
+    let resp = client
+        .post("https://openapi.koreainvestment.com:9443/oauth2/Approval")
+        .header("Content-Type", "application/json; charset=UTF-8")
+        .json(&body)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<ApprovalResponse>()
+        .await?;
+
+    Ok(resp.approval_key)
+}
+
+
+
+
+
+

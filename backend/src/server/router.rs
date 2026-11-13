@@ -1,6 +1,7 @@
+
 // ============================================================
 // 파일명: server/router.rs
-// 설명: Axum 라우터 구성
+// 설명: Axum 라우터 (HTTP + WebSocket)
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -13,6 +14,7 @@ pub fn build(state: AppState) -> Router {
         .route("/", get(|| async { "backend ok" }))
         .route("/api/health", get(handlers::health))
         .route("/api/prices", get(handlers::prices))
+        .route("/ws", get(handlers::ws_handler))  // ← 추가
         .with_state(state)
 }
 

@@ -23,3 +23,9 @@ chrono = "0.4"
 tracing-appender = "0.2"
 
 
+
+futures-util = "0.3"
+tokio-tungstenite = "0.29"
+
+
+

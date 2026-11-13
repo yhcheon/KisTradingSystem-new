@@ -180,4 +180,61 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 - [ ] 분봉 차트
 
 
+#### [백엔드] 9. KIS WebSocket 실시간 체결 수신
+
+- **파일**:
+  - `backend/src/kis.rs` (get_approval_key 추가)
+  - `backend/src/kis_ws.rs` (신규, H0IFCNT0 WebSocket 클라이언트)
+  - `backend/src/main.rs` (KIS WS 백그라운드 시작, AppState에 ws_tx 추가)
+  - `backend/Cargo.toml` (futures-util, tokio-tungstenite 추가)
+- **내용**:
+  - `approval_key` 발급 → KIS WS 접속
+  - 정규선물/미니선물 2종목 구독 (`tr_type: "1"`)
+  - 수신한 체결을 `broadcast` 채널로 중계
+  - 5초 후 자동 재연결 (loop)
+- **결과**:
+  - KIS WS 연결 + 구독 `SUBSCRIBE SUCCESS` ✅
+  - PING/PONG으로 연결 유지 확인 ✅
+  - 실시간 `[WS]` 로그는 장중에만 발생 (야간장은 코드 다름)
+
+#### [백엔드] 10. Axum WebSocket 엔드포인트 (/ws)
+
+- **파일**:
+  - `backend/src/core/state.rs` (AppState에 ws_tx 추가)
+  - `backend/src/server/handlers.rs` (ws_handler 추가, broadcast 구독 → 브라우저 전송)
+  - `backend/src/server/router.rs` (/ws 라우트)
+- **내용**:
+  - `broadcast::Sender<RealtimeTick>`를 AppState로 공유
+  - 브라우저 연결 시 `subscribe()`로 수신
+  - JSON `{ type: "tick", code, price, change, ... }` 형태로 전송
+- **결과**:
+  - 브라우저 콘솔 `✅ connected` ✅
+  - 장중 체결 시 `tick: {...}` 수신 예정
+
+#### [프론트엔드] 3. WebSocket 실시간 갱신
+
+- **파일**:
+  - `frontend/src/types.ts` (RealtimeTick 타입)
+  - `frontend/src/App.tsx` (WebSocket 연결 + 상태 갱신)
+- **내용**:
+  - 최초 REST 조회 → WebSocket 연결
+  - 체결 수신 시 해당 종목의 현재가/전일대비/거래량만 갱신
+  - 시가/고가/저가/전일종가는 최초 값 유지
+  - 상단에 `실시간: 연결됨` 상태 표시
+- **결과**:
+  - 장중 체결 시 카드 실시간 갱신 예정
+
+  ### 백엔드
+- [x] Axum API 엔드포인트
+- [x] KIS WebSocket 실시간 체결 수신
+- [x] Axum WebSocket 엔드포인트 (/ws)
+- [ ] 분봉 차트 데이터
+
+### 프론트엔드
+- [x] React 프로젝트 초기 설정
+- [x] 시세 대시보드
+- [x] WebSocket 실시간 푸시
+- [ ] 분봉 차트
+
+
 
