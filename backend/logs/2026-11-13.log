@@ -1,0 +1,70 @@
+2026-11-13T17:20:11.493562Z  INFO backend: src\main.rs:24: === 백엔드 시작 ===
+2026-11-13T17:20:11.512142Z  INFO backend: src\main.rs:30: Redis PING → PONG
+2026-11-13T17:20:11.513570Z  INFO backend: src\main.rs:38: KIS token: eyJ0eXAiOiJKV1QiLCJh...
+2026-11-13T17:20:11.513953Z  INFO backend: src\main.rs:39: expires at: 2026-11-15 01:55:58
+2026-11-13T17:20:11.514179Z  INFO backend: src\main.rs:49: 마스터 파일 다운로드 중
+2026-11-13T17:20:11.515757Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://new.real.download.dws.co.kr/
+2026-11-13T17:20:11.540987Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 140.150.21.21:443
+2026-11-13T17:20:11.551522Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 140.150.21.21:443
+2026-11-13T17:20:11.788370Z  INFO backend: src\main.rs:57: 총 13개 선물 종목 파싱됨
+2026-11-13T17:20:11.794965Z  INFO backend: src\main.rs:60: 정규선물 최근월물: F 202612 (A01612)
+2026-11-13T17:20:11.795236Z  INFO backend: src\main.rs:63: 미니선물 최근월물: 미니F 202612 (A05612)
+2026-11-13T17:20:11.795518Z  INFO backend: src\main.rs:68: 정규선물 시세 조회: F 202612 (A01612)
+2026-11-13T17:20:11.796311Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://openapi.koreainvestment.com:9443/
+2026-11-13T17:20:11.807421Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 210.107.75.32:9443
+2026-11-13T17:20:11.818496Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 210.107.75.32:9443
+2026-11-13T17:20:11.955901Z DEBUG hyper_util::client::legacy::pool: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\pool.rs:400: pooling idle connection for ("https", openapi.koreainvestment.com:9443)
+2026-11-13T17:20:11.956125Z  INFO backend: src\main.rs:71: 결과코드: 0
+2026-11-13T17:20:11.956763Z  INFO backend: src\main.rs:72: 응답 메시지: MCA00000 - 정상처리 되었습니다.
+2026-11-13T17:20:11.957040Z  INFO backend: src\main.rs:73: 종목명: F 202612
+2026-11-13T17:20:11.957295Z  INFO backend: src\main.rs:74: 현재가: 822.35
+2026-11-13T17:20:11.957508Z  INFO backend: src\main.rs:75: 전일대비: -5.15 (-0.62%)
+2026-11-13T17:20:11.957722Z  INFO backend: src\main.rs:76: 거래량: 114342
+2026-11-13T17:20:11.957948Z DEBUG backend: src\main.rs:77: output2 디버그: FuturesPriceOutput2 { extra: {"hts_kor_isnm": String("종합"), "bstp_nmix_prdy_ctrt": String("-0.98"), "bstp_nmix_prpr": String("5290.53"), "bstp_cls_code": String("0001"), "bstp_nmix_prdy_vrss": String("-52.20"), "prdy_vrss_sign": String("5")} }
+2026-11-13T17:20:11.958935Z  INFO backend: src\main.rs:86: backend listening on http://127.0.0.1:8080
+2026-11-13T17:23:07.513634Z  INFO backend: src\main.rs:24: === 백엔드 시작 ===
+2026-11-13T17:23:07.521187Z  INFO backend: src\main.rs:30: Redis PING → PONG
+2026-11-13T17:23:07.521649Z  INFO backend::kis: src\kis.rs:49: KIS token loaded from cache
+2026-11-13T17:23:07.521671Z  INFO backend: src\main.rs:38: KIS token: eyJ0eXAiOiJKV1QiLCJh...
+2026-11-13T17:23:07.521676Z  INFO backend: src\main.rs:39: expires at: 2026-11-15 01:55:58
+2026-11-13T17:23:07.521680Z  INFO backend: src\main.rs:49: 마스터 파일 다운로드 중
+2026-11-13T17:23:07.522672Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://new.real.download.dws.co.kr/
+2026-11-13T17:23:08.220305Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 140.150.21.21:443
+2026-11-13T17:23:08.251334Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 140.150.21.21:443
+2026-11-13T17:23:08.339902Z  INFO backend: src\main.rs:57: 총 13개 선물 종목 파싱됨
+2026-11-13T17:23:08.341263Z  INFO backend: src\main.rs:60: 정규선물 최근월물: F 202612 (A01612)
+2026-11-13T17:23:08.341289Z  INFO backend: src\main.rs:63: 미니선물 최근월물: 미니F 202612 (A05612)
+2026-11-13T17:23:08.341302Z  INFO backend: src\main.rs:68: 정규선물 시세 조회: F 202612 (A01612)
+2026-11-13T17:23:08.341572Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://openapi.koreainvestment.com:9443/
+2026-11-13T17:23:08.349246Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 210.107.75.32:9443
+2026-11-13T17:23:08.356850Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 210.107.75.32:9443
+2026-11-13T17:23:08.444995Z DEBUG hyper_util::client::legacy::pool: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\pool.rs:400: pooling idle connection for ("https", openapi.koreainvestment.com:9443)
+2026-11-13T17:23:08.446345Z  INFO backend: src\main.rs:71: 결과코드: 0
+2026-11-13T17:23:08.446417Z  INFO backend: src\main.rs:72: 응답 메시지: MCA00000 - 정상처리 되었습니다.
+2026-11-13T17:23:08.446615Z  INFO backend: src\main.rs:73: 종목명: F 202612
+2026-11-13T17:23:08.446633Z  INFO backend: src\main.rs:74: 현재가: 822.35
+2026-11-13T17:23:08.446653Z  INFO backend: src\main.rs:75: 전일대비: -5.15 (-0.62%)
+2026-11-13T17:23:08.446665Z  INFO backend: src\main.rs:76: 거래량: 114342
+2026-11-13T17:23:08.446677Z DEBUG backend: src\main.rs:77: output2 디버그: FuturesPriceOutput2 { extra: {"bstp_nmix_prdy_ctrt": String("-0.98"), "prdy_vrss_sign": String("5"), "bstp_nmix_prdy_vrss": String("-52.20"), "bstp_cls_code": String("0001"), "hts_kor_isnm": String("종합"), "bstp_nmix_prpr": String("5290.53")} }
+2026-11-13T17:23:08.447844Z  INFO backend: src\main.rs:86: backend listening on http://127.0.0.1:8080
+2026-11-13T17:29:32.201646Z  INFO backend: src\main.rs:25: === 백엔드 시작 ===
+2026-11-13T17:29:32.209439Z  INFO backend: src\main.rs:31: Redis PING → PONG
+2026-11-13T17:29:32.210098Z  INFO backend::kis: src\kis.rs:49: KIS token loaded from cache
+2026-11-13T17:29:32.210166Z  INFO backend: src\main.rs:39: KIS token: eyJ0eXAiOiJKV1QiLCJh...
+2026-11-13T17:29:32.210192Z  INFO backend: src\main.rs:49: 마스터 파일 다운로드 중
+2026-11-13T17:29:32.211290Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://new.real.download.dws.co.kr/
+2026-11-13T17:29:33.044759Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 14.0.113.102:443
+2026-11-13T17:29:33.053118Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 14.0.113.102:443
+2026-11-13T17:29:33.153111Z  INFO backend: src\main.rs:57: 총 13개 선물 종목 파싱됨
+2026-11-13T17:29:33.154464Z  INFO backend: src\main.rs:61: 정규선물 시세 조회 (캐시 우선): F 202612 (A01612)
+2026-11-13T17:29:33.156652Z  INFO backend: src\main.rs:69: [CACHE MISS] KIS API 호출
+2026-11-13T17:29:33.156961Z DEBUG reqwest::connect: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\reqwest-0.12.28\src\connect.rs:929: starting new connection: https://openapi.koreainvestment.com:9443/
+2026-11-13T17:29:33.164706Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:786: connecting to 210.107.75.32:9443
+2026-11-13T17:29:33.172209Z DEBUG hyper_util::client::legacy::connect::http: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\connect\http.rs:789: connected to 210.107.75.32:9443
+2026-11-13T17:29:33.238888Z DEBUG hyper_util::client::legacy::pool: C:\Users\yhche\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-util-0.1.21\src\client\legacy\pool.rs:400: pooling idle connection for ("https", openapi.koreainvestment.com:9443)
+2026-11-13T17:29:33.239485Z  INFO backend: src\main.rs:72: 결과코드: 0
+2026-11-13T17:29:33.239514Z  INFO backend: src\main.rs:73: 현재가: 822.35
+2026-11-13T17:29:33.239520Z  INFO backend: src\main.rs:74: 전일대비: -5.15 (-0.62%)
+2026-11-13T17:29:33.239528Z  INFO backend: src\main.rs:75: 거래량: 114342
+2026-11-13T17:29:33.242560Z  INFO backend: src\main.rs:94: [CACHE SET] A01612 (TTL 3초)
+2026-11-13T17:29:33.243060Z  INFO backend: src\main.rs:107: backend listening on http://127.0.0.1:8080
