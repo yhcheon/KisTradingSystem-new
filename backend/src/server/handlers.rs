@@ -14,7 +14,6 @@ use crate::master::FuturesSymbol;
 use axum::{extract::State, Json};
 use serde_json::{json, Value};
 
-/// GET /api/health
 pub async fn health(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "status": "ok",
@@ -23,14 +22,13 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-/// 시세 1건 조회 (캐시 우선). 실패 시 캐시만 반환.
 async fn fetch_one(
     state: &AppState,
     symbol: &FuturesSymbol,
 ) -> Result<CachedPrice, String> {
     let mut conn = state.redis.lock().await;
 
-    // 1) 캐시 확인
+    // 1) 캐시 확인 (TTL 3초 이내면 재사용)
     match redis_cache::get(&mut conn, &symbol.code).await {
         Ok(Some(cached)) => return Ok(cached),
         Ok(None) => {}
@@ -56,6 +54,10 @@ async fn fetch_one(
         code: symbol.code.clone(),
         name: price.output1.hts_kor_isnm.clone(),
         price: price.output1.futs_prpr.clone(),
+        prev_close: price.output1.futs_prdy_clpr.clone(),
+        open: price.output1.futs_oprc.clone(),
+        high: price.output1.futs_hgpr.clone(),
+        low: price.output1.futs_lwpr.clone(),
         change: price.output1.futs_prdy_vrss.clone(),
         change_rate: price.output1.futs_prdy_ctrt.clone(),
         volume: price.output1.acml_vol.clone(),
@@ -70,7 +72,6 @@ async fn fetch_one(
     Ok(cached)
 }
 
-/// GET /api/prices
 pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     let regular = fetch_one(&state, &state.regular).await;
     let mini = fetch_one(&state, &state.mini).await;

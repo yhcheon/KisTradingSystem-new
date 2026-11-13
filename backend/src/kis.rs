@@ -3,14 +3,14 @@
 // 파일명: kis.rs
 // 설명: 한국투자증권(KIS) API 클라이언트
 //       - OAuth 토큰 발급 및 파일 캐시
-//       - 국내 선물옵션 시세 조회
+//       - 국내 선물옵션 시세 조회 (전일종가/시가/고가/저가 포함)
 // 작성일: 2026-11-14
 // ============================================================
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// ── 토큰 관련 ──
+// ── 토큰 관련 (기존과 동일) ──
 
 #[derive(Debug, Serialize)]
 struct TokenRequest {
@@ -33,7 +33,6 @@ struct CachedToken {
     issued_at: u64,
 }
 
-/// 캐시 파일에서 유효한 토큰을 읽거나, 없으면 새로 발급
 pub async fn get_or_issue_token(
     app_key: &str,
     app_secret: &str,
@@ -80,21 +79,23 @@ pub async fn get_or_issue_token(
     Ok(token)
 }
 
-
-// ── 선물옵션 시세 (KIS 실제 스펙) ──
+// ── 선물옵션 시세 (전일종가/시가/고가/저가 포함) ──
 
 #[derive(Debug, Deserialize)]
 pub struct FuturesPriceOutput1 {
-    pub hts_kor_isnm: String,    // HTS 한글 종목명
-    pub futs_prpr: String,       // 선물 현재가
-    pub futs_prdy_vrss: String,  // 선물 전일 대비
-    pub futs_prdy_ctrt: String,  // 선물 전일 대비율
-    pub acml_vol: String,        // 누적 거래량
+    pub hts_kor_isnm: String,     // 종목명
+    pub futs_prpr: String,        // 현재가
+    pub futs_prdy_vrss: String,   // 전일 대비
+    pub futs_prdy_ctrt: String,   // 전일 대비율
+    pub futs_oprc: String,        // 시가
+    pub futs_hgpr: String,        // 고가
+    pub futs_lwpr: String,        // 저가
+    pub futs_prdy_clpr: String,   // 전일 종가
+    pub acml_vol: String,         // 누적 거래량
 }
 
 #[derive(Debug, Deserialize)]
 pub struct FuturesPriceOutput2 {
-    // 필요 시 추가 필드. 일단 디버그 출력용으로 빈 구조체 허용
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
@@ -108,7 +109,6 @@ pub struct FuturesPriceResponse {
     pub output2: FuturesPriceOutput2,
 }
 
-/// 국내 선물옵션 현재가 조회
 pub async fn get_futures_price(
     app_key: &str,
     app_secret: &str,
@@ -134,7 +134,5 @@ pub async fn get_futures_price(
         .await?;
     Ok(resp)
 }
-
-
 
 

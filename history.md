@@ -153,3 +153,31 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 - [x] Axum API 엔드포인트 (`/api/prices`, `/api/health`)
 - [ ] WebSocket 실시간 푸시
 - [ ] 분봉 차트 데이터
+
+
+#### [프론트엔드] 2. 시세 카드 5개 필드 표시
+
+- **파일**:
+  - `backend/src/kis.rs` (FuturesPriceOutput1에 futs_oprc/futs_hgpr/futs_lwpr/futs_prdy_clpr 추가)
+  - `backend/src/cache/redis_cache.rs` (CachedPrice에 prev_close/open/high/low 추가)
+  - `backend/src/server/handlers.rs` (fetch_one에서 새 필드 매핑)
+  - `frontend/src/types.ts` (필드 추가)
+  - `frontend/src/PriceCard.tsx` (5개 필드 그리드 표시)
+  - `frontend/src/App.tsx` (3초 폴링 제거, 최초 1회만 조회)
+  - `frontend/src/App.css` (그리드 스타일)
+- **내용**:
+  - 폴링 제거 → WebSocket 실시간 푸시로 전환 예정
+  - 전일종가/시가/고가/저가/현재가 5개 필드 표시
+- **결과**:
+  - 브라우저에서 2종목 × 5필드 표시 ✅
+  - **HTS 실제 수치와 일치 검증 완료** ✅
+
+
+### 프론트엔드
+- [x] React 프로젝트 초기 설정
+- [x] 시세 대시보드 (5개 필드)
+- [ ] WebSocket 실시간 푸시
+- [ ] 분봉 차트
+
+
+
