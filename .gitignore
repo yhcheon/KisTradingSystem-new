@@ -1,0 +1,7 @@
+﻿backend/target/
+backend/.env
+backend/.token
+backend/logs/
+frontend/node_modules/
+frontend/dist/
+.env
