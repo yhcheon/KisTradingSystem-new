@@ -132,3 +132,24 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 - [ ] 분봉 차트
 
 
+
+#### [백엔드] 8. Axum API 엔드포인트 추가
+
+- **파일**:
+  - `backend/src/core/mod.rs`, `backend/src/core/state.rs` (신규)
+  - `backend/src/server/mod.rs`, `backend/src/server/router.rs`, `backend/src/server/handlers.rs` (신규)
+  - `backend/src/main.rs` (정리: 시세 테스트 제거, AppState 구성 후 서버 시작)
+- **내용**:
+  - `AppState`: 토큰, Redis 연결, 정규/미니 최근월물 공유
+  - `GET /api/health`: 서버 상태 + 종목명
+  - `GET /api/prices`: 정규선물 + 미니선물 시세 (캐시 우선, TTL 3초)
+  - 실패 시 `{ ok: false, error }` 형태로 부분 실패 허용
+- **결과**:
+  - `/api/health` → `{ status: "ok", regular: "F 202612", mini: "미니F 202612" }` ✅
+  - `/api/prices` → 두 종목 시세 JSON 반환 ✅
+  - 3초 이내 재요청 시 캐시 히트 (KIS 호출 없음) 예정
+
+### 백엔드
+- [x] Axum API 엔드포인트 (`/api/prices`, `/api/health`)
+- [ ] WebSocket 실시간 푸시
+- [ ] 분봉 차트 데이터
