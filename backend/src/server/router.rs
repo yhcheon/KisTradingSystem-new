@@ -5,7 +5,7 @@
 
 use crate::core::state::AppState;
 use crate::server::handlers::{content, market};
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 
 pub fn build(state: AppState) -> Router {
     Router::new()
