@@ -220,7 +220,7 @@ async fn main() {
                 if c.stck_cntg_hour.len() < 6 {
                     continue;
                 }
-                if earliest.is_empty() || c.stck_cntg_hour < earliest {
+                if earliest.is_empty() || c.stck_cntg_hour.as_str() < earliest.as_str() {
                     earliest = c.stck_cntg_hour.clone();
                 }
 
@@ -235,7 +235,7 @@ async fn main() {
                 });
             }
 
-            if earliest.is_empty() || earliest <= "084500" {
+            if earliest.is_empty() || earliest.as_str() <= "084500" {
                 break;
             }
             hour = subtract_one_minute(&earliest);
@@ -294,7 +294,7 @@ async fn main() {
                                 volume: c.cntg_vol.parse().unwrap_or(0),
                             });
                         }
-                        if earliest.is_empty() || earliest <= "084500" {
+                        if earliest.is_empty() || earliest.as_str() <= "084500" {
                             break;
                         }
                         hour = subtract_one_minute(&earliest);
