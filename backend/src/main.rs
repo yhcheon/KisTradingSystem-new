@@ -135,16 +135,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 과거 및 당일 1분봉 초기 데이터 로드
-    let candle_store = Arc::new(Mutex::new(
-        market::history::load_initial_candles(
-            &http_client,
-            &app_key,
-            &app_secret,
-            &token.access_token,
-            &[regular.clone(), mini.clone()],
-        )
-        .await,
-    ));
+    let candle_store = market::history::load_initial_candles(
+        &http_client,
+        &app_key,
+        &app_secret,
+        &token.access_token,
+        &[regular.clone(), mini.clone()],
+    )
+    .await;
 
     // ★ CandleStore를 Arc<Mutex<>>로 감싸기 (WS와 공유)
     let candle_store = Arc::new(Mutex::new(candle_store));
