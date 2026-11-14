@@ -1,8 +1,8 @@
 // ============================================================
 // 파일명: App.tsx
 // 설명: 메인 대시보드 + 탭 ([시세] [분석])
-//       - Supabase 로그인 세션 확인
-//       - 로그인 안 되어 있으면 Login 페이지 표시
+//       - 게스트: 시세 탭만 (로그인 없이)
+//       - 로그인: 분석 탭 접근 가능
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -39,7 +39,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('prices');
 
-  // Supabase 세션 확인
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -51,24 +50,40 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (authLoading) return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
-  if (!session) return <Login />;
+  if (authLoading) {
+    return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
+  }
 
   return (
     <div className="app">
       <header className="top-bar">
         <h1>KOSPI200 선물 시세</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setTab('prices')} className={tab === 'prices' ? 'active' : ''}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => setTab('prices')}
+            className={tab === 'prices' ? 'active' : ''}
+          >
             시세
           </button>
-          <button onClick={() => setTab('analysis')} className={tab === 'analysis' ? 'active' : ''}>
+          <button
+            onClick={() => setTab('analysis')}
+            className={tab === 'analysis' ? 'active' : ''}
+          >
             분석
           </button>
+          {session ? (
+            <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
+          ) : null}
         </div>
       </header>
 
-      {tab === 'prices' ? <PricesTab /> : <Analysis />}
+      {tab === 'prices' ? (
+        <PricesTab />
+      ) : session ? (
+        <Analysis />
+      ) : (
+        <Login />
+      )}
     </div>
   );
 }
@@ -85,7 +100,7 @@ function PricesTab() {
   const wsRef = useRef<WebSocket | null>(null);
   const selectedCodeRef = useRef<string | null>(null);
 
-  // 1) 최초 REST 조회 (시세 카드 데이터)
+  // 1) 최초 REST 조회
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -102,7 +117,7 @@ function PricesTab() {
     fetchPrices();
   }, []);
 
-  // 2) 선택 종목 또는 interval 변경 시 REST로 초기 봉 로드
+  // 2) 분봉 로드
   useEffect(() => {
     if (!data) return;
     const result = selected === 'regular' ? data.regular : data.mini;
@@ -157,7 +172,7 @@ function PricesTab() {
     fetchCandles();
   }, [selected, interval, data]);
 
-  // 3) WebSocket 연결
+  // 3) WebSocket
   useEffect(() => {
     const url = `ws://${window.location.hostname}:8080/ws`;
     const ws = new WebSocket(url);
@@ -244,7 +259,6 @@ function PricesTab() {
     return () => ws.close();
   }, [interval]);
 
-  // 차트 제목
   const chartTitle = (() => {
     const target = selected === 'regular' ? data?.regular : data?.mini;
     if (!target?.ok || !target.data) {
@@ -300,5 +314,4 @@ function PricesTab() {
     </main>
   );
 }
-
 

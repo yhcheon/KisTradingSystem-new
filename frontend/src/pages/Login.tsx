@@ -1,6 +1,6 @@
 // ============================================================
 // 파일명: pages/Login.tsx
-// 설명: 로그인 페이지 (구글 OAuth)
+// 설명: 로그인 유도 컴포넌트 (분석 탭 안에 삽입됨)
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -10,17 +10,16 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
+      options: { redirectTo: window.location.origin },
     });
     if (error) alert(`로그인 실패: ${error.message}`);
   };
 
   return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <h1>KOSPI200 선물 시세</h1>
-      <p style={{ color: '#94a3b8', marginBottom: 24 }}>로그인이 필요합니다</p>
+      <p style={{ color: '#94a3b8', marginBottom: 24, fontSize: 15 }}>
+        분석 콘텐츠는 로그인 후 이용 가능합니다
+      </p>
       <button
         onClick={handleGoogleLogin}
         style={{
