@@ -96,15 +96,24 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
             </span>
           )}
         </div>
+
+
         <div className="stat-row">
           <span className="label">시가</span>
-          <span className="value">{d.open}</span>
+          <span
+            className={`value ${
+              parseFloat(d.open) > parseFloat(d.prev_close) ? 'up'
+                : parseFloat(d.open) < parseFloat(d.prev_close) ? 'down' : ''
+            }`}
+          > {d.open}
+          </span>
           {openDiff && (
             <span className={`diff ${openDiff.sign === '▲' ? 'up' : openDiff.sign === '▼' ? 'down' : 'flat'}`}>
               {openDiff.sign} {openDiff.abs}
             </span>
           )}
         </div>
+
         <div className="stat-row">
           <span className="label">저가</span>
           <span className="value low">{d.low}</span>

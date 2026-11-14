@@ -7,22 +7,38 @@
 /* ── 전역 CSS 변수(Custom Properties) 정의 ── */
 /* 색상이나 테두리를 일괄적으로 관리하기 위해 :root에 정의합니다. */
 :root {
-  --bg-main: #0f172a;        /* 앱 전체 배경색 */
-  --bg-card: #1e293b;        /* 시세 카드 배경색 */
-  --bg-chart: #000000;       /* 차트 영역 배경색 */
-  --border-color: #334155;   /* 기본 테두리 색상 */
-  --border-hover: #475569;   /* 호버 시 테두리 색상 */
-  --text-main: #e2e8f0;      /* 기본 본문 텍스트 색상 */
-  --text-muted: #94a3b8;     /* 보조/흐린 텍스트 색상 */
-  --text-sub: #64748b;       /* 더 흐린 서브 텍스트 색상 */
-  --color-up: #ef4444;       /* 상승 (빨간색 계열) */
-  --color-down: #3b82f6;     /* 하락 (파란색 계열) */
-  --color-ok: #10b981;       /* 정상/연결됨 (초록색 계열) */
-  --accent-blue: #3b82f6;    /* 포인트 블루 (선택됨, 버튼 활성화) */
+  --bg-main: #0f172a;
+  /* 앱 전체 배경색 */
+  --bg-card: #1e293b;
+  /* 시세 카드 배경색 */
+  --bg-chart: #000000;
+  /* 차트 영역 배경색 */
+  --border-color: #334155;
+  /* 기본 테두리 색상 */
+  --border-hover: #475569;
+  /* 호버 시 테두리 색상 */
+  --text-main: #e2e8f0;
+  /* 기본 본문 텍스트 색상 */
+  --text-muted: #94a3b8;
+  /* 보조/흐린 텍스트 색상 */
+  --text-sub: #64748b;
+  /* 더 흐린 서브 텍스트 색상 */
+  --color-up: #ef4444;
+  /* 상승 (빨간색 계열) */
+  --color-down: #3b82f6;
+  /* 하락 (파란색 계열) */
+  --color-ok: #10b981;
+  /* 정상/연결됨 (초록색 계열) */
+  --accent-blue: #3b82f6;
+  /* 포인트 블루 (선택됨, 버튼 활성화) */
 }
 
 /* [전체 선택자] 모든 요소의 박스 사이즈를 border-box로 설정하고 기본 마진과 패딩을 초기화합니다. */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 /* [기본 바디 스타일] 전체 앱의 폰트, 배경색, 기본 글자색, 최소 높이를 설정합니다. */
 body {
@@ -49,14 +65,29 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
+
 /* 상단 바 타이틀(h1) 폰트 크기 및 색상 */
-.top-bar h1 { font-size: 24px; margin: 0; color: #f8fafc; }
+.top-bar h1 {
+  font-size: 24px;
+  margin: 0;
+  color: #f8fafc;
+}
+
 /* 상단 바 상태 텍스트 크기 */
-.top-bar .status { font-size: 13px; margin: 0; }
+.top-bar .status {
+  font-size: 13px;
+  margin: 0;
+}
+
 /* 연결 상태 양호 색상 */
-.status .ok { color: var(--color-ok); }
+.status .ok {
+  color: var(--color-ok);
+}
+
 /* 연결 상태 오류 색상 */
-.status .error { color: var(--color-up); }
+.status .error {
+  color: var(--color-up);
+}
 
 /* ── 좌우 2단 레이아웃 ── */
 /* CSS Grid를 사용하여 왼쪽(시세 카드, 280px)과 오른쪽(차트, 남은 공간) 영역을 나눕니다. */
@@ -94,6 +125,7 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
+
 /* 차트 타이틀 폰트 스타일 */
 .chart-title {
   font-size: 15px;
@@ -101,8 +133,13 @@ body {
   font-weight: 600;
   margin: 0;
 }
+
 /* 주기 버튼 그룹 배치 간격 */
-.interval-buttons { display: flex; gap: 4px; }
+.interval-buttons {
+  display: flex;
+  gap: 4px;
+}
+
 /* 개별 주기 버튼의 기본 스타일 */
 .interval-buttons button {
   background: var(--bg-main);
@@ -114,8 +151,13 @@ body {
   cursor: pointer;
   transition: all 0.15s;
 }
+
 /* 주기 버튼 마우스 호버 시 스타일 */
-.interval-buttons button:hover { color: var(--text-main); border-color: var(--border-hover); }
+.interval-buttons button:hover {
+  color: var(--text-main);
+  border-color: var(--border-hover);
+}
+
 /* 선택된(active) 주기 버튼 스타일 */
 .interval-buttons button.active {
   background: var(--accent-blue);
@@ -143,7 +185,8 @@ body {
 
 /* 카드 내 타이틀(h2) 폰트 크기 및 색상 */
 .card h2 {
-  font-size: 16px;          /* ← 14px → 16px (조금 키움) */
+  font-size: 16px;
+  /* ← 14px → 16px (조금 키움) */
   color: var(--text-muted);
   font-weight: 600;
   margin: 0;
@@ -153,17 +196,35 @@ body {
 /* 월물 텍스트 스타일 (약간 흐린 색상) */
 .card .month {
   font-size: 14px;
-  color: var(--text-sub);           
+  color: var(--text-sub);
   font-weight: 500;
 }
 
 /* 종목 심볼 코드 스타일 */
-.symbol { font-size: 13px; color: #cbd5e1; margin-bottom: 8px; }
-.symbol .code { color: var(--text-sub); font-size: 11px; }
+.symbol {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.symbol .code {
+  color: var(--text-sub);
+  font-size: 11px;
+}
 
 /* 현재가 및 변동률 기본 폰트 크기 설정 */
-.price { font-size: 28px; font-weight: 700; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
-.change { font-size: 14px; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.price {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.change {
+  font-size: 16px;
+  margin-bottom: 12px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* 가격과 등락률을 한 줄에 배치하는 행 스타일 */
 .price-row {
@@ -172,8 +233,14 @@ body {
   gap: 10px;
   margin-bottom: 12px;
 }
-.price-row .price { margin-bottom: 0; }
-.price-row .change { margin-bottom: 0; }
+
+.price-row .price {
+  margin-bottom: 0;
+}
+
+.price-row .change {
+  margin-bottom: 0;
+}
 
 /* ── 시세 상세 (배경 제거, 넓이 확보) ── */
 /* 시세 상세 항목(전일종가, 고가, 시가, 저가) 목록을 세로로 정렬합니다. */
@@ -183,41 +250,79 @@ body {
   gap: 6px;
   margin-bottom: 10px;
 }
+
 /* 각 시세 상세 데이터의 가로 그리드 배치 (라벨, 값, 차이 영역) */
 .stat-row {
   display: grid;
-  grid-template-columns: 72px 1fr 70px;
+  grid-template-columns: 70px 1fr 100px;
   align-items: center;
-  font-size: 13px;
+  font-size: 16px;
 }
+
 /* 항목 이름 라벨 색상 */
-.stat-row .label { color: var(--text-muted); }
+.stat-row .label {
+  color: var(--text-muted);
+}
+
 /* 항목 데이터 값 색상 및 숫자 정렬 */
-.stat-row .value { color: #cbd5e1; font-variant-numeric: tabular-nums; text-align: right; }
+.stat-row .value {
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* 고가 항목 값 색상 (빨간색 계열) */
-.stat-row .value.high { color: var(--color-up); }
+.stat-row .value.high {
+  color: var(--color-up);
+}
+
 /* 저가 항목 값 색상 (파란색 계열) */
-.stat-row .value.low { color: var(--color-down); }
+.stat-row .value.low {
+  color: var(--color-down);
+}
+
 /* 전일 대비 차이(등락폭) 텍스트 스타일 (고정폭 폰트 적용) */
 .stat-row .diff {
-  font-size: 12px;
+  font-size: 14px;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: 'Consolas', 'Menlo', monospace;   /* ← 고정폭 추가 */
-  white-space: pre;   /* ← 공백 유지 */
+  font-family: 'Consolas', 'Menlo', monospace;
+  /* ← 고정폭 추가 */
+  white-space: pre;
+  /* ← 공백 유지 */
 }
 
 /* 상승/하락/보합에 따른 공통 텍스트 색상 정의 */
-.up { color: var(--color-up); }
-.down { color: var(--color-down); }
-.flat { color: var(--text-muted); }
+.up {
+  color: var(--color-up);
+}
+
+.down {
+  color: var(--color-down);
+}
+
+.flat {
+  color: var(--text-muted);
+}
 
 /* 로딩 및 에러 메시지 폰트 스타일 */
-.loading { color: var(--text-muted); font-size: 14px; }
-.error { color: var(--color-up); font-size: 14px; }
+.loading {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.error {
+  color: var(--color-up);
+  font-size: 14px;
+}
 
 /* 하단 푸터 영역 여백 및 정렬 */
-footer { margin-top: 32px; text-align: center; font-size: 12px; color: var(--text-sub); }
+footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-sub);
+}
 
 /* ── 카드 클릭 + 선택 강조 ── */
 /* 카드를 클릭할 수 있을 때의 커서 및 전환 효과 설정 */
@@ -225,8 +330,12 @@ footer { margin-top: 32px; text-align: center; font-size: 12px; color: var(--tex
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
+
 /* 카드 호버 시 테두리 색상 변경 */
-.card.clickable:hover { border-color: var(--border-hover); }
+.card.clickable:hover {
+  border-color: var(--border-hover);
+}
+
 /* 카드가 선택되었을 때(selected)의 테두리 및 그림자 강조 효과 */
 .card.selected {
   border-color: var(--accent-blue);
@@ -235,11 +344,20 @@ footer { margin-top: 32px; text-align: center; font-size: 12px; color: var(--tex
 
 /* ── 반응형 (화면 너비 1024px 이하일 때) ── */
 @media (max-width: 1024px) {
-  /* 레이아웃을 1열로 변경 */
-  .layout { grid-template-columns: 1fr; }
-  /* 사이드바 내부 아이템들을 가로로 배치 가능하게 변경 */
-  .sidebar { flex-direction: row; flex-wrap: wrap; }
-  .sidebar > .card { flex: 1 1 240px; }
-}
 
+  /* 레이아웃을 1열로 변경 */
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* 사이드바 내부 아이템들을 가로로 배치 가능하게 변경 */
+  .sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .sidebar>.card {
+    flex: 1 1 240px;
+  }
+}
 

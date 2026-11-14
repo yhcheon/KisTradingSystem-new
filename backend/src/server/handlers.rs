@@ -11,6 +11,8 @@ use crate::cache::redis_cache::{self, CachedPrice};
 use crate::core::state::AppState;
 use crate::kis;
 use crate::master::FuturesSymbol;
+use chrono::Timelike;
+
 use axum::{
     Json,
     extract::{
@@ -171,4 +173,151 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         }
     }
     tracing::info!("브라우저 WebSocket 연결 종료");
+}
+
+// ── 인증 미들웨어 ──
+
+use crate::auth::jwt;
+use axum::http::HeaderMap;
+
+/// Authorization 헤더에서 JWT 추출 + 검증
+async fn require_auth(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<jwt::Claims, (axum::http::StatusCode, String)> {
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or((
+            axum::http::StatusCode::UNAUTHORIZED,
+            "Authorization 헤더 필요".to_string(),
+        ))?;
+
+    let token = auth.strip_prefix("Bearer ").ok_or((
+        axum::http::StatusCode::UNAUTHORIZED,
+        "Bearer 토큰 필요".to_string(),
+    ))?;
+
+    jwt::verify_jwt(token, &state.jwt_secret).map_err(|e| (axum::http::StatusCode::UNAUTHORIZED, e))
+}
+
+/// 관리자 여부 확인 (user_profiles.tier = 'admin')
+async fn require_admin(
+    claims: &jwt::Claims,
+    state: &AppState,
+) -> Result<(), (axum::http::StatusCode, String)> {
+    let query = format!("user_profiles?user_id=eq.{}&select=tier", claims.sub);
+    let resp = state
+        .supabase
+        .select(&query)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    let tier = resp
+        .get(0)
+        .and_then(|v| v.get("tier"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("free");
+
+    if tier != "admin" {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            "관리자 권한 필요".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+// ── 콘텐츠 API ──
+
+/// GET /api/notes
+pub async fn notes(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
+    let claims = require_auth(&headers, &state).await?;
+
+    // 등급 확인 + 무료 회원 14시 제한
+    let tier_query = format!("user_profiles?user_id=eq.{}&select=tier", claims.sub);
+    let tier_resp = state
+        .supabase
+        .select(&tier_query)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let tier = tier_resp
+        .get(0)
+        .and_then(|v| v.get("tier"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("free");
+
+    if tier == "free" {
+        let kst_hour = chrono::Utc::now()
+            .with_timezone(&chrono_tz::Asia::Seoul)
+            .hour();
+        if kst_hour < 14 {
+            return Err((
+                axum::http::StatusCode::FORBIDDEN,
+                "무료 회원은 오후 2시부터 열람 가능합니다".to_string(),
+            ));
+        }
+    }
+
+    // 글 조회
+    let category = params.get("category").map(|s| s.as_str()).unwrap_or("");
+    let query = if category.is_empty() {
+        "notes?select=id,title,category,created_at&order=created_at.desc&limit=20".to_string()
+    } else {
+        format!(
+            "notes?select=id,title,category,created_at&category=eq.{}&order=created_at.desc&limit=20",
+            category
+        )
+    };
+
+    let data = state
+        .supabase
+        .select(&query)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    Ok(Json(json!({ "ok": true, "data": data })))
+}
+
+/// POST /api/admin/notes (관리자만)
+pub async fn create_note(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
+    let claims = require_auth(&headers, &state).await?;
+    require_admin(&claims, &state).await?;
+
+    let title = body.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let content = body.get("content").and_then(|v| v.as_str()).unwrap_or("");
+    let category = body
+        .get("category")
+        .and_then(|v| v.as_str())
+        .unwrap_or("us_market");
+
+    if title.is_empty() || content.is_empty() {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "제목과 본문 필요".to_string(),
+        ));
+    }
+
+    let note = json!({
+        "title": title,
+        "content": content,
+        "category": category,
+        "author_email": claims.email.unwrap_or_default(),
+    });
+
+    state
+        .supabase
+        .insert("notes", &note)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    Ok(Json(json!({ "ok": true })))
 }

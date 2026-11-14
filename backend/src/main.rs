@@ -8,6 +8,7 @@
 // 작성일: 2026-11-14
 // ============================================================
 
+mod auth;
 mod cache;
 mod core;
 mod kis;
@@ -240,6 +241,50 @@ async fn main() {
     // ★ CandleStore를 Arc<Mutex<>>로 감싸기 (WS와 공유)
     let candle_store = Arc::new(Mutex::new(candle_store));
 
+    // ── Supabase 초기화 ──
+    let supabase_url = std::env::var("SUPABASE_URL").expect("SUPABASE_URL missing");
+    let supabase_service_key =
+        std::env::var("SUPABASE_SERVICE_ROLE_KEY").expect("SUPABASE_SERVICE_ROLE_KEY missing");
+    let supabase_jwt_secret =
+        std::env::var("SUPABASE_JWT_SECRET").expect("SUPABASE_JWT_SECRET missing");
+    let supabase =
+        core::db::SupabaseClient::new(supabase_url, supabase_service_key, http_client.clone());
+
+    // 매일 KST 07:00에 30일 지난 데이터 삭제 (백그라운드)
+    {
+        let supabase_cleanup = supabase.clone();
+        tokio::spawn(async move {
+            use chrono::TimeZone;
+            let kst = chrono_tz::Asia::Seoul;
+            loop {
+                let now = chrono::Utc::now().with_timezone(&kst);
+                let today_7am = now.date_naive().and_hms_opt(7, 0, 0).unwrap();
+                let next_7am = if now.time() < chrono::NaiveTime::from_hms_opt(7, 0, 0).unwrap() {
+                    kst.from_local_datetime(&today_7am).unwrap()
+                } else {
+                    kst.from_local_datetime(&(today_7am + chrono::Duration::days(1)))
+                        .unwrap()
+                };
+                let wait = (next_7am - now)
+                    .to_std()
+                    .unwrap_or(std::time::Duration::from_secs(60));
+
+                tracing::info!(
+                    "다음 데이터 삭제 예정: {} ({}초 후)",
+                    next_7am,
+                    wait.as_secs()
+                );
+                tokio::time::sleep(wait).await;
+
+                if let Err(e) = supabase_cleanup.cleanup_old_data().await {
+                    tracing::warn!("오래된 데이터 삭제 실패: {}", e);
+                } else {
+                    tracing::info!("30일 지난 데이터 삭제 완료");
+                }
+            }
+        });
+    }
+
     // KIS WebSocket (candle_store 전달)
     let approval_key = match kis::get_approval_key(&http_client, &app_key, &app_secret).await {
         Ok(k) => {
@@ -274,6 +319,8 @@ async fn main() {
         ws_tx,
         http_client,
         candles: candle_store, // ★ Arc<Mutex<>> 그대로
+        supabase,
+        jwt_secret: supabase_jwt_secret,
     };
 
     // 서버

@@ -113,6 +113,7 @@ async fn connect_and_listen(
                         tracing::error!("PINGPONG 응답 전송 실패: {}", e);
                         break;
                     }
+                    tracing::debug!("PINGPONG 응답 전송 완료");
                 }
             }
         }
@@ -122,6 +123,7 @@ async fn connect_and_listen(
 
 fn handle_text(text: &str, tx: &broadcast::Sender<RealtimeTick>, pong_tx: &mpsc::Sender<String>) {
     if text.contains("\"tr_id\":\"PINGPONG\"") {
+        tracing::debug!("PINGPONG 수신, 응답 전송 예약");
         let _ = pong_tx.try_send(text.to_string());
         return;
     }

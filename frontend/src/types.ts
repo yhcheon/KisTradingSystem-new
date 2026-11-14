@@ -41,3 +41,21 @@ export interface RealtimeTick {
   time: string;
 }
 
+
+// 기존 코드 아래에 추가
+export interface Note {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  author_email: string;
+  created_at: string;
+}
+
+export interface NoteListItem {
+  id: string;
+  category: string;
+  title: string;
+  created_at: string;
+}
+

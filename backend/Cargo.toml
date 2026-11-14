@@ -28,4 +28,10 @@ futures-util = "0.3"
 tokio-tungstenite = "0.29"
 
 
+# Supabase JWT 검증용
+jsonwebtoken = "9"
+# Supabase REST API 호출용 (reqwest 재사용)
+# 이미 reqwest가 있으므로 추가 불필요
+# KST 시간대 계산용
+chrono-tz = "0.10"
 

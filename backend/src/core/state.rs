@@ -9,6 +9,7 @@
 // ============================================================
 
 use crate::core::candles::CandleStore;
+use crate::core::db::SupabaseClient;
 use crate::kis_ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::Arc;
@@ -25,4 +26,8 @@ pub struct AppState {
     pub ws_tx: broadcast::Sender<RealtimeTick>,
     pub http_client: reqwest::Client,
     pub candles: Arc<Mutex<CandleStore>>, // ← 추가
+
+    // ... 기존 필드 ...
+    pub supabase: SupabaseClient, // 추가
+    pub jwt_secret: String,       // 추가
 }

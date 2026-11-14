@@ -1,13 +1,16 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 메인 대시보드 (좌: 시세 카드, 우: 차트)
-//       - 최초 REST로 시세 카드 데이터 로드
-//       - REST로 초기 봉 로드 (분봉 변경 시에만)
-//       - WebSocket 체결로 현재 interval 봉 자체 조립
+// 설명: 메인 대시보드 + 탭 ([시세] [분석])
+//       - Supabase 로그인 세션 확인
+//       - 로그인 안 되어 있으면 Login 페이지 표시
 // 작성일: 2026-11-14
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
+import Login from './pages/Login';
+import Analysis from './pages/Analysis';
 import PriceCard from './PriceCard';
 import CandleChart from './CandleChart';
 import type { PricesResponse, RealtimeTick } from './types';
@@ -15,7 +18,7 @@ import './App.css';
 
 interface CandleData {
   date: string;
-  time: string;   // "HHMMSS"
+  time: string;
   open: number;
   high: number;
   low: number;
@@ -24,15 +27,54 @@ interface CandleData {
 }
 
 const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
-
 type SymbolKind = 'regular' | 'mini';
+type Tab = 'prices' | 'analysis';
 
-// "1m" → 1, "5m" → 5, ...
 function intervalToMinutes(interval: string): number {
-  return parseInt(interval.replace('m', ''), 10);
+  return parseInt(interval.replace('m'), 10);
 }
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('prices');
+
+  // Supabase 세션 확인
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (authLoading) return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
+  if (!session) return <Login />;
+
+  return (
+    <div className="app">
+      <header className="top-bar">
+        <h1>KOSPI200 선물 시세</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setTab('prices')} className={tab === 'prices' ? 'active' : ''}>
+            시세
+          </button>
+          <button onClick={() => setTab('analysis')} className={tab === 'analysis' ? 'active' : ''}>
+            분석
+          </button>
+        </div>
+      </header>
+
+      {tab === 'prices' ? <PricesTab /> : <Analysis />}
+    </div>
+  );
+}
+
+// ── 시세 탭 (기존 App.tsx의 시세 로직 전체) ──
+function PricesTab() {
   const [data, setData] = useState<PricesResponse | null>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [interval, setInterval] = useState<string>('1m');
@@ -43,7 +85,7 @@ export default function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const selectedCodeRef = useRef<string | null>(null);
 
-  // ★ 1) 최초 REST 조회 (시세 카드 데이터)
+  // 1) 최초 REST 조회 (시세 카드 데이터)
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -79,7 +121,6 @@ export default function App() {
         const raw: CandleData[] = cjson.data;
         if (raw.length === 0) { setCandles([]); return; }
 
-        // 오늘 날짜 (KST, YYYYMMDD)
         const todayStr = new Date(Date.now() + 9 * 3600 * 1000)
           .toISOString().slice(0, 10).replace(/-/g, '');
 
@@ -129,7 +170,6 @@ export default function App() {
         const tick: RealtimeTick = JSON.parse(e.data);
         if (tick.type !== 'tick') return;
 
-        // 1) 시세 카드 갱신
         setData((prev) => {
           if (!prev) return prev;
           const updateOne = (result: PricesResponse['regular']) => {
@@ -150,7 +190,6 @@ export default function App() {
           return { regular: updateOne(prev.regular), mini: updateOne(prev.mini) };
         });
 
-        // 2) 차트 봉 자체 조립 (현재 보고 있는 종목만)
         if (tick.code !== selectedCodeRef.current) return;
 
         const price = parseFloat(tick.price);
@@ -205,7 +244,7 @@ export default function App() {
     return () => ws.close();
   }, [interval]);
 
-  // 차트 제목용
+  // 차트 제목
   const chartTitle = (() => {
     const target = selected === 'regular' ? data?.regular : data?.mini;
     if (!target?.ok || !target.data) {
@@ -221,64 +260,45 @@ export default function App() {
   })();
 
   return (
-    <div className="app">
-      <header className="top-bar">
-        <h1>KOSPI200 선물 시세</h1>
-        <div className="status">
-          {error && <span className="error">연결 오류: {error}</span>}
-          {!error && lastFetch && (
-            <span className="ok">최초 조회: {lastFetch.toLocaleTimeString('ko-KR')}</span>
-          )}
-          {' · '}
-          <span className={wsStatus === 'open' ? 'ok' : wsStatus === 'connecting' ? '' : 'error'}>
-            실시간: {wsStatus === 'open' ? '연결됨' : wsStatus === 'connecting' ? '연결 중...' : '끊김'}
-          </span>
-        </div>
-      </header>
+    <main className="layout">
+      <aside className="sidebar">
+        <PriceCard
+          title="정규선물"
+          result={data?.regular ?? null}
+          selected={selected === 'regular'}
+          onClick={() => setSelected('regular')}
+        />
+        <PriceCard
+          title="미니선물"
+          result={data?.mini ?? null}
+          selected={selected === 'mini'}
+          onClick={() => setSelected('mini')}
+        />
+      </aside>
 
-      <main className="layout">
-        <aside className="sidebar">
-          <PriceCard
-            title="정규선물"
-            result={data?.regular ?? null}
-            selected={selected === 'regular'}
-            onClick={() => setSelected('regular')}
-          />
-          <PriceCard
-            title="미니선물"
-            result={data?.mini ?? null}
-            selected={selected === 'mini'}
-            onClick={() => setSelected('mini')}
-          />
-        </aside>
-
-        <section className="chart-area">
-          <div className="chart-header">
-            <h2 className="chart-title">{chartTitle}</h2>
-            <div className="interval-buttons">
-              {INTERVALS.map((iv) => (
-                <button
-                  key={iv}
-                  className={interval === iv ? 'active' : ''}
-                  onClick={() => setInterval(iv)}
-                >
-                  {iv.replace('m', '분')}
-                </button>
-              ))}
-            </div>
+      <section className="chart-area">
+        <div className="chart-header">
+          <h2 className="chart-title">{chartTitle}</h2>
+          <div className="interval-buttons">
+            {INTERVALS.map((iv) => (
+              <button
+                key={iv}
+                className={interval === iv ? 'active' : ''}
+                onClick={() => setInterval(iv)}
+              >
+                {iv.replace('m', '분')}
+              </button>
+            ))}
           </div>
-          {candles.length > 0 ? (
-            <CandleChart data={candles} interval={interval} />
-          ) : (
-            <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
-          )}
-        </section>
-      </main>
-
-      <footer>
-        <p>데이터 출처: 한국투자증권 KIS Open API</p>
-      </footer>
-    </div>
+        </div>
+        {candles.length > 0 ? (
+          <CandleChart data={candles} interval={interval} />
+        ) : (
+          <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
+        )}
+      </section>
+    </main>
   );
 }
+
 
