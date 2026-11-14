@@ -1,6 +1,6 @@
 // ============================================================
-// 파일명: server/handlers/content
-// 설명: HTTP/WebSocket 및 콘텐츠 핸들러 모듈 진입점
+// 파일명: server/handlers/content.rs
+// 설명: JWT 인증, 콘텐츠 조회 및 관리자 콘텐츠 API
 // ============================================================
 
 use crate::auth::jwt;
@@ -11,9 +11,6 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 
 // ── 인증 미들웨어 ──
-
-use crate::auth::jwt;
-use axum::http::HeaderMap;
 
 /// Authorization 헤더에서 JWT 추출 + 검증
 async fn require_auth(
