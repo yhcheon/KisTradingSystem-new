@@ -186,7 +186,7 @@ async fn main() {
         // 다음 조회 커서로 사용해 동일 거래일의 과거 분봉을 이어서 가져옵니다.
         for page in 0..5 {
             let chunk = if page == 0 {
-                first_chunk.clone()
+                std::mem::take(&mut first_chunk)
             } else {
                 match kis::get_minute_chart(
                     &http_client,
