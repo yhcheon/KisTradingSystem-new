@@ -323,8 +323,21 @@ async fn main() {
         jwt_secret: supabase_jwt_secret,
     };
 
-    // 서버
-    let app = server::router::build(state);
+
+        // ── CORS 설정 ──
+    use tower_http::cors::{Any, CorsLayer};
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+
+
+    // 서버    // 서버 (CORS 적용)
+    let app = server::router::build(state).layer(cors);
+
+
+
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await
         .unwrap();

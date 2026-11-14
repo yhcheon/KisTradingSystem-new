@@ -20,10 +20,17 @@ pub struct Claims {
 
 /// Supabase JWT 검증
 pub fn verify_jwt(token: &str, jwt_secret: &str) -> Result<Claims, String> {
-    let validation = Validation::new(Algorithm::HS256);
+    let mut validation = Validation::new(Algorithm::HS256);
+
+    // Supabase JWT의 aud는 보통 "authenticated" 이므로, 검증을 비활성화하거나 허용
+    validation.validate_aud = false; // 또는 validation.set_audience(&["authenticated"]);
+
+
     let decoding_key = DecodingKey::from_secret(jwt_secret.as_bytes());
 
     decode::<Claims>(token, &decoding_key, &validation)
         .map(|data| data.claims)
         .map_err(|e| format!("JWT 검증 실패: {}", e))
+
+
 }

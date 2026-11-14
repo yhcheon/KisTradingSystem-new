@@ -1,8 +1,9 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 메인 대시보드 + 탭 ([시세] [분석])
-//       - 게스트: 시세 탭만 (로그인 없이)
-//       - 로그인: 분석 탭 접근 가능
+// 설명: 메인 대시보드 + 탭 ([시세] [분석] [관리자])
+//       - 게스트: 시세 탭만
+//       - 로그인: 분석 탭
+//       - admin: 관리자 탭 추가
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -11,6 +12,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Login from './pages/Login';
 import Analysis from './pages/Analysis';
+import Admin from './pages/Admin';
 import PriceCard from './PriceCard';
 import CandleChart from './CandleChart';
 import type { PricesResponse, RealtimeTick } from './types';
@@ -28,7 +30,7 @@ interface CandleData {
 
 const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
 type SymbolKind = 'regular' | 'mini';
-type Tab = 'prices' | 'analysis';
+type Tab = 'prices' | 'analysis' | 'admin';
 
 function intervalToMinutes(interval: string): number {
   return parseInt(interval.replace('m'), 10);
@@ -38,6 +40,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('prices');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -49,6 +52,20 @@ export default function App() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // 로그인 시 admin 여부 확인
+  useEffect(() => {
+    if (!session) { setIsAdmin(false); return; }
+    const checkAdmin = async () => {
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('tier')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      setIsAdmin(data?.tier === 'admin');
+    };
+    checkAdmin();
+  }, [session]);
 
   if (authLoading) {
     return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
@@ -71,6 +88,14 @@ export default function App() {
           >
             분석
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setTab('admin')}
+              className={tab === 'admin' ? 'active' : ''}
+            >
+              관리자
+            </button>
+          )}
           {session ? (
             <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
           ) : null}
@@ -79,11 +104,11 @@ export default function App() {
 
       {tab === 'prices' ? (
         <PricesTab />
-      ) : session ? (
-        <Analysis />
-      ) : (
-        <Login />
-      )}
+      ) : tab === 'analysis' ? (
+        session ? <Analysis /> : <Login />
+      ) : tab === 'admin' ? (
+        isAdmin ? <Admin /> : <p style={{ padding: 20 }}>관리자 권한이 없습니다</p>
+      ) : null}
     </div>
   );
 }

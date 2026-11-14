@@ -1,11 +1,9 @@
-
 [package]
 name = "backend"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
@@ -15,23 +13,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", features = ["json"] }
 dotenvy = "0.15"
 redis = { version = "0.27", features = ["tokio-comp"] }
-
 zip = "2"
 encoding_rs = "0.8"
 chrono = "0.4"
-
 tracing-appender = "0.2"
-
-
-
 futures-util = "0.3"
 tokio-tungstenite = "0.29"
-
-
-# Supabase JWT 검증용
 jsonwebtoken = "9"
-# Supabase REST API 호출용 (reqwest 재사용)
-# 이미 reqwest가 있으므로 추가 불필요
-# KST 시간대 계산용
 chrono-tz = "0.10"
+
+# CORS
+tower-http = { version = "0.6", features = ["cors"] }
 
