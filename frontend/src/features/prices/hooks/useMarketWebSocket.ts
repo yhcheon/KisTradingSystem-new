@@ -18,7 +18,10 @@ export function useMarketWebSocket({
   setCandles,
 }: UseMarketWebSocketOptions): void {
   const selectedCodeRef = useRef<string | null>(selectedCode);
-  selectedCodeRef.current = selectedCode;
+
+  useEffect(() => {
+    selectedCodeRef.current = selectedCode;
+  }, [selectedCode]);
 
   useEffect(() => {
     const url = `ws://${window.location.hostname}:8080/ws`;
