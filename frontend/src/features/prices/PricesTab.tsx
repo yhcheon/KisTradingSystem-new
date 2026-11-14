@@ -32,7 +32,7 @@ export default function PricesTab() {
     }
 
     const name = target.data.name;
-    const monthMatch = name.match(/20(\\d{2})(\\d{2})/);
+    const monthMatch = name.match(/20(\d{2})(\d{2})/);
     const label = selected === 'regular' ? '정규선물' : '미니선물';
 
     if (monthMatch) {
