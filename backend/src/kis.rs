@@ -9,12 +9,11 @@ pub mod candles;
 pub mod quotes;
 
 // 기존 호출부와 외부 모듈의 타입 경로 호환성을 위해 재노출합니다.
-pub use auth::{
-    get_approval_key, get_or_issue_token, ApprovalResponse, TokenResponse,
-};
-pub use candles::{
-    get_minute_chart, MinuteCandle, MinuteChartOutput2, MinuteChartResponse,
-};
+#[allow(unused_imports)]
+pub use auth::{ApprovalResponse, TokenResponse, get_approval_key, get_or_issue_token};
+#[allow(unused_imports)]
+pub use candles::{MinuteCandle, MinuteChartOutput2, MinuteChartResponse, get_minute_chart};
+#[allow(unused_imports)]
 pub use quotes::{
-    get_futures_price, FuturesPriceOutput1, FuturesPriceOutput2, FuturesPriceResponse,
+    FuturesPriceOutput1, FuturesPriceOutput2, FuturesPriceResponse, get_futures_price,
 };
