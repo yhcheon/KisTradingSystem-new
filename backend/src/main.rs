@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _log_guard = logging::init();
     dotenvy::dotenv().ok();
 
@@ -35,20 +35,44 @@ async fn main() {
     tracing::info!("============================================================");
 
     // Redis
-    let client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-    let mut conn = client.get_multiplexed_async_connection().await.unwrap();
-    let pong: String = redis::cmd("PING").query_async(&mut conn).await.unwrap();
+    let client = redis::Client::open("redis://127.0.0.1:6379").map_err(|e| {
+        tracing::error!("Redis 클라이언트 생성 실패: {}", e);
+        e
+    })?;
+    let mut conn = client
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|e| {
+            tracing::error!("Redis 연결 실패: {}", e);
+            e
+        })?;
+    let pong: String = redis::cmd("PING")
+        .query_async(&mut conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Redis PING 실패: {}", e);
+            e
+        })?;
     tracing::info!("Redis PING → {}", pong);
 
     // HTTP 클라이언트
     let http_client = reqwest::Client::builder()
         .pool_idle_timeout(std::time::Duration::from_secs(90))
         .build()
-        .unwrap();
+        .map_err(|e| {
+            tracing::error!("HTTP 클라이언트 생성 실패: {}", e);
+            e
+        })?;
 
     // KIS 토큰
-    let app_key = std::env::var("KIS_APP_KEY").expect("KIS_APP_KEY missing");
-    let app_secret = std::env::var("KIS_APP_SECRET").expect("KIS_APP_SECRET missing");
+    let app_key = std::env::var("KIS_APP_KEY").map_err(|e| {
+        tracing::error!("필수 환경변수 KIS_APP_KEY를 읽을 수 없습니다: {}", e);
+        e
+    })?;
+    let app_secret = std::env::var("KIS_APP_SECRET").map_err(|e| {
+        tracing::error!("필수 환경변수 KIS_APP_SECRET를 읽을 수 없습니다: {}", e);
+        e
+    })?;
     let cache_path = std::env::var("TOKEN_CACHE_FILE").unwrap_or("./.token".to_string());
     let token =
         match kis::get_or_issue_token(&http_client, &app_key, &app_secret, &cache_path).await {
@@ -58,8 +82,12 @@ async fn main() {
                 t
             }
             Err(e) => {
-                tracing::error!("KIS token failed: {}", e);
-                return;
+                tracing::error!("KIS 토큰 초기화 실패: {}", e);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "KIS 토큰 초기화 실패",
+                )
+                .into());
             }
         };
 
@@ -69,7 +97,11 @@ async fn main() {
         Ok(text) => master::parse_master(&text),
         Err(e) => {
             tracing::error!("마스터 다운로드 실패: {}", e);
-            return;
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "마스터 파일 다운로드 실패",
+            )
+            .into());
         }
     };
     let regular = match master::pick_nearest(&symbols, "1") {
@@ -79,7 +111,11 @@ async fn main() {
         }
         None => {
             tracing::error!("정규선물 최근월물 없음");
-            return;
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "정규선물 최근월물 없음",
+            )
+            .into());
         }
     };
     let mini = match master::pick_nearest(&symbols, "B") {
@@ -89,7 +125,11 @@ async fn main() {
         }
         None => {
             tracing::error!("미니선물 최근월물 없음");
-            return;
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "미니선물 최근월물 없음",
+            )
+            .into());
         }
     };
 
@@ -316,11 +356,21 @@ async fn main() {
     let candle_store = Arc::new(Mutex::new(candle_store));
 
     // ── Supabase 초기화 ──
-    let supabase_url = std::env::var("SUPABASE_URL").expect("SUPABASE_URL missing");
-    let supabase_service_key =
-        std::env::var("SUPABASE_SERVICE_ROLE_KEY").expect("SUPABASE_SERVICE_ROLE_KEY missing");
-    let supabase_jwt_secret =
-        std::env::var("SUPABASE_JWT_SECRET").expect("SUPABASE_JWT_SECRET missing");
+    let supabase_url = std::env::var("SUPABASE_URL").map_err(|e| {
+        tracing::error!("필수 환경변수 SUPABASE_URL을 읽을 수 없습니다: {}", e);
+        e
+    })?;
+    let supabase_service_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").map_err(|e| {
+        tracing::error!(
+            "필수 환경변수 SUPABASE_SERVICE_ROLE_KEY를 읽을 수 없습니다: {}",
+            e
+        );
+        e
+    })?;
+    let supabase_jwt_secret = std::env::var("SUPABASE_JWT_SECRET").map_err(|e| {
+        tracing::error!("필수 환경변수 SUPABASE_JWT_SECRET를 읽을 수 없습니다: {}", e);
+        e
+    })?;
     let supabase =
         core::db::SupabaseClient::new(supabase_url.clone(), supabase_service_key, http_client.clone());
 
@@ -332,12 +382,30 @@ async fn main() {
             let kst = chrono_tz::Asia::Seoul;
             loop {
                 let now = chrono::Utc::now().with_timezone(&kst);
-                let today_7am = now.date_naive().and_hms_opt(7, 0, 0).unwrap();
-                let next_7am = if now.time() < chrono::NaiveTime::from_hms_opt(7, 0, 0).unwrap() {
-                    kst.from_local_datetime(&today_7am).unwrap()
+                let Some(today_7am) = now.date_naive().and_hms_opt(7, 0, 0) else {
+                    tracing::error!("KST 데이터 정리 기준 시각 계산 실패");
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    continue;
+                };
+                let Some(seven_am) = chrono::NaiveTime::from_hms_opt(7, 0, 0) else {
+                    tracing::error!("KST 데이터 정리 시각 생성 실패");
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    continue;
+                };
+                let target_local = if now.time() < seven_am {
+                    Some(today_7am)
                 } else {
-                    kst.from_local_datetime(&(today_7am + chrono::Duration::days(1)))
-                        .unwrap()
+                    today_7am.checked_add_signed(chrono::Duration::days(1))
+                };
+                let Some(target_local) = target_local else {
+                    tracing::error!("다음 데이터 정리 날짜 계산 실패");
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    continue;
+                };
+                let Some(next_7am) = kst.from_local_datetime(&target_local).single() else {
+                    tracing::error!("다음 KST 데이터 정리 시각 변환 실패");
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    continue;
                 };
                 let wait = (next_7am - now)
                     .to_std()
@@ -368,7 +436,11 @@ async fn main() {
         }
         Err(e) => {
             tracing::error!("approval_key 발급 실패: {}", e);
-            return;
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "KIS WebSocket approval key 발급 실패",
+            )
+            .into());
         }
     };
     let (ws_tx, _) = tokio::sync::broadcast::channel::<kis_ws::RealtimeTick>(256);
@@ -414,15 +486,21 @@ async fn main() {
         .map(str::trim)
         .filter(|origin| !origin.is_empty())
         .map(|origin| {
-            origin
-                .parse::<HeaderValue>()
-                .expect("CORS_ALLOWED_ORIGINS contains an invalid origin")
+            origin.parse::<HeaderValue>().map_err(|e| {
+                tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}", origin),
+                )
+            })
         })
-        .collect::<Vec<_>>();
-    assert!(
-        !allowed_origins.is_empty(),
-        "CORS_ALLOWED_ORIGINS must contain at least one origin"
-    );
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if allowed_origins.is_empty() {
+        let message = "CORS_ALLOWED_ORIGINS에 허용 Origin을 하나 이상 설정해야 합니다.";
+        tracing::error!("{}", message);
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, message).into());
+    }
 
     let cors = CorsLayer::new()
         .allow_origin(allowed_origins)
@@ -442,9 +520,18 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await
-        .unwrap();
+        .map_err(|e| {
+            tracing::error!("백엔드 서버 주소(127.0.0.1:8080) 바인딩 실패: {}", e);
+            e
+        })?;
     tracing::info!("backend listening on http://127.0.0.1:8080");
-    axum::serve(listener, app).await.unwrap();
+
+    axum::serve(listener, app).await.map_err(|e| {
+        tracing::error!("Axum 서버 실행 중 오류: {}", e);
+        e
+    })?;
+
+    Ok(())
 }
 
 /// "HHMMSS"에서 1분 전 계산
