@@ -7,7 +7,7 @@
 use crate::core::state::AppState;
 use crate::server::handlers;
 use axum::{
-    routing::{get, post, put},
+    routing::get,
     Router,
 };
 
