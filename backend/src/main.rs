@@ -267,7 +267,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         supabase_url: supabase_url.clone(),
     };
 
-        // HTTP 서버 실행 (라우터, CORS, listener)
+    // HTTP 서버 실행 (라우터, CORS, listener)
     server::runtime::serve(state).await?;
 
     Ok(())
