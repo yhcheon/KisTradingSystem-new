@@ -22,7 +22,7 @@ const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
 type SymbolKind = 'regular' | 'mini';
 
 function intervalToMinutes(interval: string): number {
-  return parseInt(interval.replace('m'), 10);
+  return parseInt(interval.replace('m', ''), 10);
 }
 
 export default function PricesTab() {
