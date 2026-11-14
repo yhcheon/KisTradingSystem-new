@@ -36,10 +36,11 @@ fn interval_to_minutes(interval: &str) -> Option<u32> {
     }
 }
 
-/// 캔들 저장소
+
+
 pub struct CandleStore {
-    // 종목코드 → interval → 봉 배열
-    data: HashMap<String, HashMap<String, Vec<Candle>>>,
+    // 종목코드 → 날짜("YYYY-MM-DD") → interval → 봉 배열
+    data: HashMap<String, BTreeMap<String, HashMap<String, Vec<Candle>>>>,
 }
 
 impl CandleStore {
@@ -47,53 +48,66 @@ impl CandleStore {
         Self { data: HashMap::new() }
     }
 
-    /// 1분봉 일괄 로드 + 모든 interval 파생 계산
-    /// - source: KIS REST에서 받은 1분봉 (날짜순 오름차순 정렬)
-    pub fn load_1m(&mut self, code: &str, candles_1m: Vec<Candle>) {
+    pub fn load_1m(&mut self, code: &str, date: &str, candles_1m: Vec<Candle>) {
         let mut per_interval: HashMap<String, Vec<Candle>> = HashMap::new();
-
-        // 1m 원본
         per_interval.insert("1m".to_string(), candles_1m.clone());
 
-        // 상위 interval 파생
         for &interval in INTERVALS {
             if interval == "1m" { continue; }
             let n = match interval_to_minutes(interval) {
                 Some(v) => v,
                 None => continue,
             };
-            let agg = aggregate(&candles_1m, n);
-            per_interval.insert(interval.to_string(), agg);
+            per_interval.insert(interval.to_string(), aggregate(&candles_1m, n));
         }
 
-        self.data.insert(code.to_string(), per_interval);
+        self.data
+            .entry(code.to_string())
+            .or_default()
+            .insert(date.to_string(), per_interval);
+
+        if let Some(dates) = self.data.get_mut(code) {
+            while dates.len() > 2 {
+                if let Some(oldest) = dates.keys().next().cloned() {
+                    dates.remove(&oldest);
+                }
+            }
+        }
+
         tracing::info!(
-            "[CandleStore] {} 로드 완료: 1m={}건, 5m={}건, 60m={}건",
-            code,
-            self.count(code, "1m"),
-            self.count(code, "5m"),
-            self.count(code, "60m"),
+            "[CandleStore] {} {} 로드: 1m={}건, 5m={}건, 60m={}건",
+            code, date,
+            self.count(code, date, "1m"),
+            self.count(code, date, "5m"),
+            self.count(code, date, "60m"),
         );
     }
 
-    /// interval 조회 (메모리에서 복사만)
-    pub fn get(&self, code: &str, interval: &str) -> Vec<Candle> {
+    pub fn get(&self, code: &str, date: &str, interval: &str) -> Vec<Candle> {
         self.data
             .get(code)
-            .and_then(|m| m.get(interval))
+            .and_then(|dates| dates.get(date))
+            .and_then(|intervals| intervals.get(interval))
             .cloned()
             .unwrap_or_default()
     }
 
-    /// interval별 봉 개수
-    pub fn count(&self, code: &str, interval: &str) -> usize {
+    pub fn count(&self, code: &str, date: &str, interval: &str) -> usize {
         self.data
             .get(code)
-            .and_then(|m| m.get(interval))
+            .and_then(|dates| dates.get(date))
+            .and_then(|intervals| intervals.get(interval))
             .map(|v| v.len())
             .unwrap_or(0)
     }
 }
+
+
+
+
+
+
+
 
 /// 1분봉을 N분봉으로 파생
 /// 그룹 키 = (날짜, 분 / N)

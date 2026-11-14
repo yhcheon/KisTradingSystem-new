@@ -67,14 +67,25 @@ async fn main() {
         None => { tracing::error!("미니선물 최근월물 없음"); return; }
     };
 
-    // ── 전일 1분봉 로드 → CandleStore 파생 계산 ──
+
+
+
+
+        // ── 전일 + 당일 1분봉 로드 ──
     let mut candle_store = core::candles::CandleStore::new();
-    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-        .format("%Y%m%d").to_string();
-    tracing::info!("전일({}) 1분봉 로드 시작", yesterday);
+    let today_dt = chrono::Local::now();
+    let yesterday = (today_dt - chrono::Duration::days(1)).format("%Y%m%d").to_string();
+    let today = today_dt.format("%Y%m%d").to_string();
+
+    let now_hhmm = today_dt.format("%H%M").to_string().parse::<u32>().unwrap_or(0);
+    let is_weekday = today_dt.format("%u").to_string().parse::<u32>().unwrap_or(7) <= 5;
+    let is_market_hours = is_weekday && now_hhmm >= 845 && now_hhmm <= 1545;
+
+    tracing::info!("전일({}) 1분봉 로드 시작 (장중: {})", yesterday, is_market_hours);
 
     for symbol in [&regular, &mini] {
-        let mut all_1m = Vec::new();
+        // 전일
+        let mut y_1m = Vec::new();
         let mut hour = "154500".to_string();
         for _ in 0..5 {
             match kis::get_minute_chart(
@@ -85,12 +96,9 @@ async fn main() {
                     if chunk.is_empty() { break; }
                     let earliest = chunk.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
                     if earliest.is_empty() { break; }
-                    // MinuteCandle → Candle 변환
                     for c in &chunk {
-                        let hhmm = if c.stck_cntg_hour.len() >= 4 {
-                            c.stck_cntg_hour[0..4].to_string()
-                        } else { continue; };
-                        all_1m.push(core::candles::Candle {
+                        let hhmm = if c.stck_cntg_hour.len() >= 4 { c.stck_cntg_hour[0..4].to_string() } else { continue; };
+                        y_1m.push(core::candles::Candle {
                             time: hhmm,
                             open: c.futs_oprc.parse().unwrap_or(0.0),
                             high: c.futs_hgpr.parse().unwrap_or(0.0),
@@ -105,12 +113,51 @@ async fn main() {
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        // 중복 제거 + 오름차순 정렬
-        all_1m.sort_by(|a, b| a.time.cmp(&b.time));
-        all_1m.dedup_by(|a, b| a.time == b.time);
+        y_1m.sort_by(|a, b| a.time.cmp(&b.time));
+        y_1m.dedup_by(|a, b| a.time == b.time);
+        candle_store.load_1m(&symbol.code, &yesterday, y_1m);
 
-        candle_store.load_1m(&symbol.code, all_1m);
+        // 당일 (장중일 때만)
+        if is_market_hours {
+            tracing::info!("장중이므로 당일({}) 1분봉도 로드", today);
+            let mut t_1m = Vec::new();
+            let mut hour = format!("{:02}{:02}00", now_hhmm / 100, now_hhmm % 100);
+            for _ in 0..5 {
+                match kis::get_minute_chart(
+                    &http_client, &app_key, &app_secret, &token.access_token,
+                    &symbol.code, &today, &hour,
+                ).await {
+                    Ok(chunk) => {
+                        if chunk.is_empty() { break; }
+                        let earliest = chunk.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
+                        if earliest.is_empty() { break; }
+                        for c in &chunk {
+                            let hhmm = if c.stck_cntg_hour.len() >= 4 { c.stck_cntg_hour[0..4].to_string() } else { continue; };
+                            t_1m.push(core::candles::Candle {
+                                time: hhmm,
+                                open: c.futs_oprc.parse().unwrap_or(0.0),
+                                high: c.futs_hgpr.parse().unwrap_or(0.0),
+                                low: c.futs_lwpr.parse().unwrap_or(0.0),
+                                close: c.futs_prpr.parse().unwrap_or(0.0),
+                                volume: c.cntg_vol.parse().unwrap_or(0),
+                            });
+                        }
+                        hour = subtract_one_minute(&earliest);
+                        if hour < "084500".to_string() { break; }
+                    }
+                    Err(e) => { tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e); break; }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+            t_1m.sort_by(|a, b| a.time.cmp(&b.time));
+            t_1m.dedup_by(|a, b| a.time == b.time);
+            candle_store.load_1m(&symbol.code, &today, t_1m);
+        }
     }
+
+
+
+
 
     // KIS WebSocket
     let approval_key = match kis::get_approval_key(&http_client, &app_key, &app_secret).await {

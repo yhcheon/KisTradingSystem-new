@@ -4,7 +4,7 @@
 //       - 배경 검정, 양봉 초록, 음봉 빨강
 //       - interval 변경 시 차트 재생성
 //       - 컨테이너 크기 변화에 반응 (ResizeObserver)
-//       - KST 입력을 UTC로 변환해 축 표시
+//       - date(YYYYMMDD) + time(HHMMSS) → UTC timestamp
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -12,8 +12,8 @@ import { useEffect, useRef } from 'react';
 import { createChart, CandlestickSeries } from 'lightweight-charts';
 
 interface Candle {
-  time: string;
-  hour: string;
+  date: string;   // "YYYYMMDD" (예: "20261113")
+  time: string;   // "HHMMSS" (예: "093000")
   open: number;
   high: number;
   low: number;
@@ -36,7 +36,7 @@ export default function CandleChart({ data, interval }: Props) {
       width: containerRef.current.clientWidth,
       height: 560,
       layout: {
-        background: { color: '#000000' },   // ← 배경 검정
+        background: { color: '#000000' },
         textColor: '#e2e8f0',
       },
       grid: {
@@ -50,17 +50,19 @@ export default function CandleChart({ data, interval }: Props) {
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#66bb6a',       // ← 양봉(상승) 초록
-      downColor: '#b71c1c',     // ← 음봉(하락) 빨강
+      upColor: '#66bb6a',       // 양봉(상승) 초록
+      downColor: '#b71c1c',     // 음봉(하락) 빨강
       borderVisible: false,
-      wickUpColor: '#66bb6a',   // ← 양봉 꼬리 초록
-      wickDownColor: '#b71c1c', // ← 음봉 꼬리 빨강
+      wickUpColor: '#66bb6a',
+      wickDownColor: '#b71c1c',
     });
 
     const chartData = data.map((c) => {
-      const [y, m, d] = c.time.split('-').map(Number);
-      const hh = Number(c.hour.slice(0, 2));
-      const mm = Number(c.hour.slice(2, 4));
+      const y = Number(c.date.slice(0, 4));
+      const m = Number(c.date.slice(4, 6));
+      const d = Number(c.date.slice(6, 8));
+      const hh = Number(c.time.slice(0, 2));
+      const mm = Number(c.time.slice(2, 4));
       const ts = Math.floor(Date.UTC(y, m - 1, d, hh, mm) / 1000);
       return {
         time: ts as any,

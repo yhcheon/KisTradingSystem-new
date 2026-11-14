@@ -349,6 +349,53 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 - [x] 차트 색상 커스텀 (검정 배경, 초록/빨강)
 
 
+#### [백엔드] 14. CandleStore 날짜별 관리 + 전일/당일 로드
+
+- **파일**:
+  - `backend/src/core/candles.rs` (`CandleStore`를 날짜별 `BTreeMap`으로 확장)
+  - `backend/src/main.rs` (전일 + 당일(장중) 1분봉 로드)
+  - `backend/src/server/handlers.rs` (`/api/candles?date=yesterday|today|both`)
+- **내용**:
+  - `HashMap<code, BTreeMap<date, HashMap<interval, Vec<Candle>>>>` 구조
+  - 최대 2일치 보관 (3일째 되면 가장 오래된 날짜 제거)
+  - 장중 여부 판단 (평일 08:45~15:45) → 당일 1분봉도 REST 로드
+- **결과**:
+  - 전일 411건 + 당일(장중이면) 로드 ✅
+  - `/api/candles?date=both`로 어제+오늘 봉 반환 ✅
+
+#### [프론트엔드] 7. 어제+오늘 가상 시간 이어붙임
+
+- **파일**:
+  - `frontend/src/App.tsx` (가상 시간 매핑 + `date`/`time` 필드)
+  - `frontend/src/CandleChart.tsx` (`date`+`time` → UTC timestamp 변환)
+- **내용**:
+  - 어제 마지막 봉 + 1분 = 오늘 첫 봉으로 매핑
+  - 빈 공간 없이 어제→오늘 이어붙임
+  - X축 시각은 가상 시간(실제와 다를 수 있음)
+- **결과**:
+  - 토요일(장 마감) 기준 전일 데이터만 정상 표시 ✅
+  - 장중에는 어제 + 오늘 봉이 이어서 표시 예정
+
+  ### 백엔드
+- [x] Axum API 엔드포인트
+- [x] KIS WebSocket 실시간 체결 수신
+- [x] Axum WebSocket 엔드포인트 (/ws)
+- [x] KIS WebSocket PINGPONG 응답 처리
+- [x] reqwest::Client 연결 풀 공유
+- [x] CandleStore + N분봉 파생
+- [x] CandleStore 날짜별 관리 + 전일/당일 로드
+- [ ] 장중 실시간 1분봉 누적 (on_tick)
+
+### 프론트엔드
+- [x] React 프로젝트 초기 설정
+- [x] 시세 대시보드 (5개 필드)
+- [x] WebSocket 실시간 푸시
+- [x] 전일 1분봉 차트
+- [x] 좌우 2단 레이아웃
+- [x] 분봉 선택 버튼 (1~60분)
+- [x] 차트 색상 커스텀 (검정 배경, 초록/빨강)
+- [x] 어제+오늘 가상 시간 이어붙임
+- [ ] 장중 실시간 봉 갱신 (폴링)
 
 
 

@@ -70,6 +70,7 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
 
 
 
+
 pub async fn candles(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
@@ -79,28 +80,39 @@ pub async fn candles(
         None => return Json(json!({ "ok": false, "error": "code 파라미터 필요" })),
     };
     let interval = params.get("interval").map(|s| s.as_str()).unwrap_or("1m");
+    let date = params.get("date").map(|s| s.as_str()).unwrap_or("both");
 
-    // CandleStore에서 조회 (계산 없음, 복사만)
     let store = state.candles.lock().await;
-    let raw = store.get(&code, interval);
+    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
+        .format("%Y%m%d").to_string();   // ← 수정
+    let today = chrono::Local::now().format("%Y%m%d").to_string();   // ← 수정
 
-    // 프론트엔드 형식으로 변환
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let result: Vec<Value> = raw.iter().map(|c| {
-        json!({
-            "time": today,
-            "hour": format!("{}00", c.time),   // "0930" → "093000"
-            "open": c.open,
-            "high": c.high,
-            "low": c.low,
-            "close": c.close,
-            "volume": c.volume as f64,
-        })
-    }).collect();
+    let to_json = |candles: &[crate::core::candles::Candle], date_str: &str| -> Vec<Value> {
+        candles.iter().map(|c| {
+            json!({
+                "date": date_str,
+                "time": format!("{}00", c.time),
+                "open": c.open,
+                "high": c.high,
+                "low": c.low,
+                "close": c.close,
+                "volume": c.volume as f64,
+            })
+        }).collect()
+    };
+
+    let result = match date {
+        "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
+        "today" => to_json(&store.get(&code, &today, interval), &today),
+        _ => {
+            let mut all = to_json(&store.get(&code, &yesterday, interval), &yesterday);
+            all.extend(to_json(&store.get(&code, &today, interval), &today));
+            all
+        }
+    };
 
     Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
-
 
 
 
