@@ -11,10 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use jsonwebtoken::{
-    Algorithm, DecodingKey, Validation, decode, decode_header,
-    jwk::JwkSet,
-};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, OnceCell};
 
@@ -43,7 +40,11 @@ async fn get_es256_decoding_key(
     kid: &str,
 ) -> Result<DecodingKey, String> {
     let project_url = supabase_url.trim_end_matches('/').to_string();
-    let cache = JWKS_CACHE.get_or_init(|| async { Mutex::new(HashMap::new()) });
+
+    let cache = JWKS_CACHE
+        .get_or_init(|| async { Mutex::new(HashMap::new()) })
+        .await;
+
     let mut cache = cache.lock().await;
 
     let needs_refresh = cache
