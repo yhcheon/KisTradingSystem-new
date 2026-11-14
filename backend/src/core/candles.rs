@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 /// 캔들 1개 (1분봉 또는 N분봉)
 #[derive(Debug, Clone)]
 pub struct Candle {
-    pub time: String,   // "HHMM" (예: "0930")
+    pub time: String, // "HHMM" (예: "0930")
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -36,8 +36,6 @@ fn interval_to_minutes(interval: &str) -> Option<u32> {
     }
 }
 
-
-
 pub struct CandleStore {
     // 종목코드 → 날짜("YYYY-MM-DD") → interval → 봉 배열
     data: HashMap<String, BTreeMap<String, HashMap<String, Vec<Candle>>>>,
@@ -45,7 +43,9 @@ pub struct CandleStore {
 
 impl CandleStore {
     pub fn new() -> Self {
-        Self { data: HashMap::new() }
+        Self {
+            data: HashMap::new(),
+        }
     }
 
     pub fn load_1m(&mut self, code: &str, date: &str, candles_1m: Vec<Candle>) {
@@ -53,7 +53,9 @@ impl CandleStore {
         per_interval.insert("1m".to_string(), candles_1m.clone());
 
         for &interval in INTERVALS {
-            if interval == "1m" { continue; }
+            if interval == "1m" {
+                continue;
+            }
             let n = match interval_to_minutes(interval) {
                 Some(v) => v,
                 None => continue,
@@ -76,7 +78,8 @@ impl CandleStore {
 
         tracing::info!(
             "[CandleStore] {} {} 로드: 1m={}건, 5m={}건, 60m={}건",
-            code, date,
+            code,
+            date,
             self.count(code, date, "1m"),
             self.count(code, date, "5m"),
             self.count(code, date, "60m"),
@@ -100,14 +103,72 @@ impl CandleStore {
             .map(|v| v.len())
             .unwrap_or(0)
     }
+
+    /// WebSocket 체결 수신 → 모든 interval 봉 실시간 갱신
+    /// - date: "YYYYMMDD" (예: "20261114")
+    /// - hhmmss: "HHMMSS" (예: "093015")
+    pub fn on_tick(&mut self, code: &str, date: &str, hhmmss: &str, price: f64, qty: u64) {
+        if hhmmss.len() < 4 || price <= 0.0 {
+            return;
+        }
+        let hhmm = &hhmmss[0..4]; // "HHMM"
+        let hh: u32 = hhmm[0..2].parse().unwrap_or(0);
+        let mm: u32 = hhmm[2..4].parse().unwrap_or(0);
+        let total_min = hh * 60 + mm;
+
+        for &interval in INTERVALS {
+            let n = match interval_to_minutes(interval) {
+                Some(v) => v,
+                None => continue,
+            };
+            let group_key = total_min / n;
+
+            let per_date = self
+                .data
+                .entry(code.to_string())
+                .or_default()
+                .entry(date.to_string())
+                .or_default();
+
+            let candles = per_date.entry(interval.to_string()).or_default();
+
+            // 마지막 봉이 같은 그룹이면 갱신, 아니면 새 봉 시작
+            let need_new = candles
+                .last()
+                .map(|c| parse_hhmm_to_minutes(&c.time) / n != group_key)
+                .unwrap_or(true);
+
+            if need_new {
+                candles.push(Candle {
+                    time: hhmm.to_string(),
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                    volume: qty,
+                });
+            } else if let Some(last) = candles.last_mut() {
+                if price > last.high {
+                    last.high = price;
+                }
+                if price < last.low {
+                    last.low = price;
+                }
+                last.close = price;
+                last.volume += qty;
+            }
+        }
+
+        // 2일치 초과 시 가장 오래된 날짜 제거
+        if let Some(dates) = self.data.get_mut(code) {
+            while dates.len() > 2 {
+                if let Some(oldest) = dates.keys().next().cloned() {
+                    dates.remove(&oldest);
+                }
+            }
+        }
+    }
 }
-
-
-
-
-
-
-
 
 /// 1분봉을 N분봉으로 파생
 /// 그룹 키 = (날짜, 분 / N)
@@ -126,8 +187,12 @@ pub fn aggregate(candles: &[Candle], n: u32) -> Vec<Candle> {
         groups
             .entry(group_key)
             .and_modify(|agg| {
-                if c.high > agg.high { agg.high = c.high; }
-                if c.low < agg.low { agg.low = c.low; }
+                if c.high > agg.high {
+                    agg.high = c.high;
+                }
+                if c.low < agg.low {
+                    agg.low = c.low;
+                }
                 agg.close = c.close;
                 agg.volume += c.volume;
             })
@@ -139,7 +204,9 @@ pub fn aggregate(candles: &[Candle], n: u32) -> Vec<Candle> {
 
 /// "HHMM" → 분 단위 숫자 (예: "0930" → 570)
 fn parse_hhmm_to_minutes(hhmm: &str) -> u32 {
-    if hhmm.len() < 4 { return 0; }
+    if hhmm.len() < 4 {
+        return 0;
+    }
     let h: u32 = hhmm[0..2].parse().unwrap_or(0);
     let m: u32 = hhmm[2..4].parse().unwrap_or(0);
     h * 60 + m
@@ -151,7 +218,12 @@ mod tests {
 
     fn c(time: &str, open: f64, high: f64, low: f64, close: f64, volume: u64) -> Candle {
         Candle {
-            time: time.to_string(), open, high, low, close, volume,
+            time: time.to_string(),
+            open,
+            high,
+            low,
+            close,
+            volume,
         }
     }
 
@@ -172,7 +244,7 @@ mod tests {
         assert_eq!(result[0].low, 99.0);
         assert_eq!(result[0].close, 110.0);
         assert_eq!(result[0].volume, 65);
-        assert_eq!(result[0].time, "0900");   // 그룹 첫 봉 시각
+        assert_eq!(result[0].time, "0900"); // 그룹 첫 봉 시각
     }
 
     #[test]
@@ -195,5 +267,3 @@ mod tests {
         assert_eq!(result[0].close, 104.0);
     }
 }
-
-

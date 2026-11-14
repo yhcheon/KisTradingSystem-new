@@ -424,4 +424,44 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 - [ ] 장중 실시간 봉 갱신 (폴링)
 
 
+#### [백엔드] 15. WebSocket 체결 → CandleStore::on_tick 연동
+
+- **파일**:
+  - `backend/src/core/candles.rs` (`on_tick` 함수 추가)
+  - `backend/src/kis_ws.rs` (`RealtimeTick.date` 추가, `Arc<Mutex<CandleStore>>` 전달 및 `on_tick` 호출)
+  - `backend/src/main.rs` (`candle_store`를 `Arc<Mutex<>>`로 감싸서 WS에 전달)
+- **내용**:
+  - WebSocket 체결 수신 시 **모든 interval(1m~60m) 봉을 메모리에 실시간 누적**
+  - 분이 바뀌면 이전 봉 확정 후 새 봉 시작 (그룹 키 = `분 / N` 방식)
+- **결과**: 컴파일 성공 ✅ (월요일 장중 실시간 테스트 예정)
+
+#### [프론트엔드] 9. 프론트엔드 자체 봉 조립 및 UI 개선
+
+- **파일**:
+  - `frontend/src/App.tsx` (WebSocket 체결로 현재 interval 봉 자체 조립, 시세 카드 데이터 로드)
+  - `frontend/src/PriceCard.tsx` (제목+월물 표시, 종목 코드 줄 삭제)
+  - `frontend/src/App.css` (CSS 변수 도입, 카드 제목/월물 스타일 추가)
+- **내용**:
+  - WebSocket 체결 수신 시 **프론트엔드가 현재 보고 있는 interval 봉을 직접 계산하여 갱신** (REST 폴링 없음)
+  - 카드 UI 개선: "미니F 202612(A05612)" 줄 삭제, 제목 옆에 "2026년 12월" 표시
+  - `:root`에 CSS 변수 정의로 테마 색상 일괄 관리
+- **결과**:
+  - 카드 UI 정상 표시 ✅
+  - 분봉 변경 시 차트 정상 렌더링 ✅
+  - 월요일 장중 실시간 봉 조립 테스트 예정
+
+### 백엔드
+- [x] WebSocket 체결 → CandleStore::on_tick 연동 (모든 interval 실시간 누적)
+
+### 프론트엔드
+- [x] 프론트엔드 자체 봉 조립 (WebSocket 체결)
+- [x] 카드 UI 개선 (제목+월물)
+- [x] CSS 변수 도입
+- [ ] (월요일) 장중 실시간 봉 조립 최종 테스트
+
+
+
+
+
+
 

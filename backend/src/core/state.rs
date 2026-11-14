@@ -12,7 +12,7 @@ use crate::core::candles::CandleStore;
 use crate::kis_ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{Mutex, broadcast};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,7 +24,5 @@ pub struct AppState {
     pub mini: FuturesSymbol,
     pub ws_tx: broadcast::Sender<RealtimeTick>,
     pub http_client: reqwest::Client,
-    pub candles: Arc<Mutex<CandleStore>>,   // ← 추가
+    pub candles: Arc<Mutex<CandleStore>>, // ← 추가
 }
-
-

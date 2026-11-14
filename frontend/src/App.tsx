@@ -1,8 +1,9 @@
 // ============================================================
 // 파일명: App.tsx
 // 설명: 메인 대시보드 (좌: 시세 카드, 우: 차트)
-//       - 카드 클릭 시 해당 종목 차트 표시
-//       - 기본 선택: 정규선물
+//       - 최초 REST로 시세 카드 데이터 로드
+//       - REST로 초기 봉 로드 (분봉 변경 시에만)
+//       - WebSocket 체결로 현재 interval 봉 자체 조립
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -14,7 +15,7 @@ import './App.css';
 
 interface CandleData {
   date: string;
-  time: string;
+  time: string;   // "HHMMSS"
   open: number;
   high: number;
   low: number;
@@ -26,6 +27,11 @@ const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
 
 type SymbolKind = 'regular' | 'mini';
 
+// "1m" → 1, "5m" → 5, ...
+function intervalToMinutes(interval: string): number {
+  return parseInt(interval.replace('m', ''), 10);
+}
+
 export default function App() {
   const [data, setData] = useState<PricesResponse | null>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
@@ -35,8 +41,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
+  const selectedCodeRef = useRef<string | null>(null);
 
-  // 최초 REST 조회
+  // ★ 1) 최초 REST 조회 (시세 카드 데이터)
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -53,13 +60,15 @@ export default function App() {
     fetchPrices();
   }, []);
 
-  // 선택 종목 또는 interval 변경 시 분봉 재조회
+  // 2) 선택 종목 또는 interval 변경 시 REST로 초기 봉 로드
   useEffect(() => {
     if (!data) return;
     const result = selected === 'regular' ? data.regular : data.mini;
     if (!result.ok || !result.data) return;
 
     const code = result.data.code;
+    selectedCodeRef.current = code;
+
     const fetchCandles = async () => {
       try {
         const cres = await fetch(`/api/candles?code=${code}&interval=${interval}&date=both`);
@@ -107,16 +116,20 @@ export default function App() {
     fetchCandles();
   }, [selected, interval, data]);
 
-  // WebSocket
+  // 3) WebSocket 연결
   useEffect(() => {
     const url = `ws://${window.location.hostname}:8080/ws`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
     ws.onopen = () => setWsStatus('open');
+    ws.onclose = () => setWsStatus('closed');
+
     ws.onmessage = (e) => {
       try {
         const tick: RealtimeTick = JSON.parse(e.data);
         if (tick.type !== 'tick') return;
+
+        // 1) 시세 카드 갱신
         setData((prev) => {
           if (!prev) return prev;
           const updateOne = (result: PricesResponse['regular']) => {
@@ -136,38 +149,79 @@ export default function App() {
           };
           return { regular: updateOne(prev.regular), mini: updateOne(prev.mini) };
         });
+
+        // 2) 차트 봉 자체 조립 (현재 보고 있는 종목만)
+        if (tick.code !== selectedCodeRef.current) return;
+
+        const price = parseFloat(tick.price);
+        const qty = parseInt(tick.last_qty, 10);
+        if (isNaN(price) || price <= 0) return;
+
+        const hhmmss = tick.time;
+        if (hhmmss.length < 4) return;
+        const hhmm = hhmmss.slice(0, 4);
+
+        const n = intervalToMinutes(interval);
+        const hh = Number(hhmm.slice(0, 2));
+        const mm = Number(hhmm.slice(2, 4));
+        const groupKey = Math.floor((hh * 60 + mm) / n);
+
+        setCandles((prev) => {
+          if (prev.length === 0) return prev;
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+
+          const lastHh = Number(last.time.slice(0, 2));
+          const lastMm = Number(last.time.slice(2, 4));
+          const lastGroupKey = Math.floor((lastHh * 60 + lastMm) / n);
+
+          if (groupKey === lastGroupKey) {
+            updated[updated.length - 1] = {
+              ...last,
+              high: Math.max(last.high, price),
+              low: Math.min(last.low, price),
+              close: price,
+              volume: last.volume + qty,
+            };
+          } else if (groupKey > lastGroupKey) {
+            const newMinute = groupKey * n;
+            const newHh = String(Math.floor(newMinute / 60)).padStart(2, '0');
+            const newMm = String(newMinute % 60).padStart(2, '0');
+            updated.push({
+              date: last.date,
+              time: `${newHh}${newMm}00`,
+              open: price,
+              high: price,
+              low: price,
+              close: price,
+              volume: qty,
+            });
+          }
+          return updated;
+        });
       } catch {}
     };
-    ws.onclose = () => setWsStatus('closed');
+
     return () => ws.close();
-  }, []);
+  }, [interval]);
 
-
-
-
-    // 차트 제목용 (예: "정규선물(2026년 12월)")
-  
-    const chartTitle = (() => {
-      const target = selected === 'regular' ? data?.regular : data?.mini;
+  // 차트 제목용
+  const chartTitle = (() => {
+    const target = selected === 'regular' ? data?.regular : data?.mini;
     if (!target?.ok || !target.data) {
       return selected === 'regular' ? '정규선물' : '미니선물';
     }
-    const name = target.data.name;   // 예: "F 202612" 또는 "미니F 202612"
+    const name = target.data.name;
     const monthMatch = name.match(/20(\d{2})(\d{2})/);
     const label = selected === 'regular' ? '정규선물' : '미니선물';
     if (monthMatch) {
-      return `${label}(20${monthMatch[1]}년 ${monthMatch[2]}월)`;   // ← 20 추가
+      return `${label}(20${monthMatch[1]}년 ${monthMatch[2]}월)`;
     }
     return label;
   })();
 
-
-
-
-
   return (
     <div className="app">
-
       <header className="top-bar">
         <h1>KOSPI200 선물 시세</h1>
         <div className="status">
@@ -181,8 +235,6 @@ export default function App() {
           </span>
         </div>
       </header>
-
-
 
       <main className="layout">
         <aside className="sidebar">
@@ -201,13 +253,8 @@ export default function App() {
         </aside>
 
         <section className="chart-area">
-
           <div className="chart-header">
-
-            <h2 className="chart-title">
-              <h2 className="chart-title">{chartTitle}</h2>
-            </h2>
-
+            <h2 className="chart-title">{chartTitle}</h2>
             <div className="interval-buttons">
               {INTERVALS.map((iv) => (
                 <button

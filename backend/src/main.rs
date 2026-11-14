@@ -3,6 +3,7 @@
 // 설명: 백엔드 진입점
 //       - 로깅, Redis, KIS 토큰, 마스터, KIS WebSocket
 //       - 전일 1분봉 로드 → CandleStore 파생 계산
+//       - CandleStore를 Arc<Mutex<>>로 감싸 WS on_tick과 공유
 //       - AppState 구성 후 Axum 서버 시작
 // 작성일: 2026-11-14
 // ============================================================
@@ -25,11 +26,12 @@ async fn main() {
 
     tracing::info!("============================================================");
     tracing::info!("============================================================");
-    tracing::info!("🚀 백엔드 시작  ({} 실행)", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    tracing::info!(
+        "🚀 백엔드 시작  ({} 실행)",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    );
     tracing::info!("============================================================");
     tracing::info!("============================================================");
-
-
 
     // Redis
     let client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
@@ -47,41 +49,77 @@ async fn main() {
     let app_key = std::env::var("KIS_APP_KEY").expect("KIS_APP_KEY missing");
     let app_secret = std::env::var("KIS_APP_SECRET").expect("KIS_APP_SECRET missing");
     let cache_path = std::env::var("TOKEN_CACHE_FILE").unwrap_or("./.token".to_string());
-    let token = match kis::get_or_issue_token(&http_client, &app_key, &app_secret, &cache_path).await {
-        Ok(t) => { tracing::info!("KIS token: {}...", &t.access_token[..20.min(t.access_token.len())]); t }
-        Err(e) => { tracing::error!("KIS token failed: {}", e); return; }
-    };
+    let token =
+        match kis::get_or_issue_token(&http_client, &app_key, &app_secret, &cache_path).await {
+            Ok(t) => {
+                tracing::info!(
+                    "KIS token: {}...",
+                    &t.access_token[..20.min(t.access_token.len())]
+                );
+                t
+            }
+            Err(e) => {
+                tracing::error!("KIS token failed: {}", e);
+                return;
+            }
+        };
 
     // 마스터
     tracing::info!("마스터 파일 다운로드 중");
     let symbols = match master::download_master_text(&http_client).await {
         Ok(text) => master::parse_master(&text),
-        Err(e) => { tracing::error!("마스터 다운로드 실패: {}", e); return; }
+        Err(e) => {
+            tracing::error!("마스터 다운로드 실패: {}", e);
+            return;
+        }
     };
     let regular = match master::pick_nearest(&symbols, "1") {
-        Some(f) => { tracing::info!("정규선물 최근월물: {} ({})", f.name, f.code); f }
-        None => { tracing::error!("정규선물 최근월물 없음"); return; }
+        Some(f) => {
+            tracing::info!("정규선물 최근월물: {} ({})", f.name, f.code);
+            f
+        }
+        None => {
+            tracing::error!("정규선물 최근월물 없음");
+            return;
+        }
     };
     let mini = match master::pick_nearest(&symbols, "B") {
-        Some(f) => { tracing::info!("미니선물 최근월물: {} ({})", f.name, f.code); f }
-        None => { tracing::error!("미니선물 최근월물 없음"); return; }
+        Some(f) => {
+            tracing::info!("미니선물 최근월물: {} ({})", f.name, f.code);
+            f
+        }
+        None => {
+            tracing::error!("미니선물 최근월물 없음");
+            return;
+        }
     };
 
-
-
-
-
-        // ── 전일 + 당일 1분봉 로드 ──
+    // ── 전일 + 당일 1분봉 로드 ──
     let mut candle_store = core::candles::CandleStore::new();
     let today_dt = chrono::Local::now();
-    let yesterday = (today_dt - chrono::Duration::days(1)).format("%Y%m%d").to_string();
+    let yesterday = (today_dt - chrono::Duration::days(1))
+        .format("%Y%m%d")
+        .to_string();
     let today = today_dt.format("%Y%m%d").to_string();
 
-    let now_hhmm = today_dt.format("%H%M").to_string().parse::<u32>().unwrap_or(0);
-    let is_weekday = today_dt.format("%u").to_string().parse::<u32>().unwrap_or(7) <= 5;
+    let now_hhmm = today_dt
+        .format("%H%M")
+        .to_string()
+        .parse::<u32>()
+        .unwrap_or(0);
+    let is_weekday = today_dt
+        .format("%u")
+        .to_string()
+        .parse::<u32>()
+        .unwrap_or(7)
+        <= 5;
     let is_market_hours = is_weekday && now_hhmm >= 845 && now_hhmm <= 1545;
 
-    tracing::info!("전일({}) 1분봉 로드 시작 (장중: {})", yesterday, is_market_hours);
+    tracing::info!(
+        "전일({}) 1분봉 로드 시작 (장중: {})",
+        yesterday,
+        is_market_hours
+    );
 
     for symbol in [&regular, &mini] {
         // 전일
@@ -89,15 +127,33 @@ async fn main() {
         let mut hour = "154500".to_string();
         for _ in 0..5 {
             match kis::get_minute_chart(
-                &http_client, &app_key, &app_secret, &token.access_token,
-                &symbol.code, &yesterday, &hour,
-            ).await {
+                &http_client,
+                &app_key,
+                &app_secret,
+                &token.access_token,
+                &symbol.code,
+                &yesterday,
+                &hour,
+            )
+            .await
+            {
                 Ok(chunk) => {
-                    if chunk.is_empty() { break; }
-                    let earliest = chunk.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
-                    if earliest.is_empty() { break; }
+                    if chunk.is_empty() {
+                        break;
+                    }
+                    let earliest = chunk
+                        .first()
+                        .map(|c| c.stck_cntg_hour.clone())
+                        .unwrap_or_default();
+                    if earliest.is_empty() {
+                        break;
+                    }
                     for c in &chunk {
-                        let hhmm = if c.stck_cntg_hour.len() >= 4 { c.stck_cntg_hour[0..4].to_string() } else { continue; };
+                        let hhmm = if c.stck_cntg_hour.len() >= 4 {
+                            c.stck_cntg_hour[0..4].to_string()
+                        } else {
+                            continue;
+                        };
                         y_1m.push(core::candles::Candle {
                             time: hhmm,
                             open: c.futs_oprc.parse().unwrap_or(0.0),
@@ -109,7 +165,10 @@ async fn main() {
                     }
                     hour = subtract_one_minute(&earliest);
                 }
-                Err(e) => { tracing::warn!("1분봉 조회 실패({}): {}", symbol.code, e); break; }
+                Err(e) => {
+                    tracing::warn!("1분봉 조회 실패({}): {}", symbol.code, e);
+                    break;
+                }
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
@@ -124,15 +183,33 @@ async fn main() {
             let mut hour = format!("{:02}{:02}00", now_hhmm / 100, now_hhmm % 100);
             for _ in 0..5 {
                 match kis::get_minute_chart(
-                    &http_client, &app_key, &app_secret, &token.access_token,
-                    &symbol.code, &today, &hour,
-                ).await {
+                    &http_client,
+                    &app_key,
+                    &app_secret,
+                    &token.access_token,
+                    &symbol.code,
+                    &today,
+                    &hour,
+                )
+                .await
+                {
                     Ok(chunk) => {
-                        if chunk.is_empty() { break; }
-                        let earliest = chunk.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
-                        if earliest.is_empty() { break; }
+                        if chunk.is_empty() {
+                            break;
+                        }
+                        let earliest = chunk
+                            .first()
+                            .map(|c| c.stck_cntg_hour.clone())
+                            .unwrap_or_default();
+                        if earliest.is_empty() {
+                            break;
+                        }
                         for c in &chunk {
-                            let hhmm = if c.stck_cntg_hour.len() >= 4 { c.stck_cntg_hour[0..4].to_string() } else { continue; };
+                            let hhmm = if c.stck_cntg_hour.len() >= 4 {
+                                c.stck_cntg_hour[0..4].to_string()
+                            } else {
+                                continue;
+                            };
                             t_1m.push(core::candles::Candle {
                                 time: hhmm,
                                 open: c.futs_oprc.parse().unwrap_or(0.0),
@@ -143,9 +220,14 @@ async fn main() {
                             });
                         }
                         hour = subtract_one_minute(&earliest);
-                        if hour < "084500".to_string() { break; }
+                        if hour < "084500".to_string() {
+                            break;
+                        }
                     }
-                    Err(e) => { tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e); break; }
+                    Err(e) => {
+                        tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e);
+                        break;
+                    }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             }
@@ -155,21 +237,29 @@ async fn main() {
         }
     }
 
+    // ★ CandleStore를 Arc<Mutex<>>로 감싸기 (WS와 공유)
+    let candle_store = Arc::new(Mutex::new(candle_store));
 
-
-
-
-    // KIS WebSocket
+    // KIS WebSocket (candle_store 전달)
     let approval_key = match kis::get_approval_key(&http_client, &app_key, &app_secret).await {
-        Ok(k) => { tracing::info!("approval_key: {}...", &k[..20.min(k.len())]); k }
-        Err(e) => { tracing::error!("approval_key 발급 실패: {}", e); return; }
+        Ok(k) => {
+            tracing::info!("approval_key: {}...", &k[..20.min(k.len())]);
+            k
+        }
+        Err(e) => {
+            tracing::error!("approval_key 발급 실패: {}", e);
+            return;
+        }
     };
     let (ws_tx, _) = tokio::sync::broadcast::channel::<kis_ws::RealtimeTick>(256);
     let ws_symbols = vec![regular.code.clone(), mini.code.clone()];
     {
         let tx = ws_tx.clone();
         let key = approval_key.clone();
-        tokio::spawn(async move { kis_ws::run(key, ws_symbols, tx).await; });
+        let store = candle_store.clone(); // ★ 공유
+        tokio::spawn(async move {
+            kis_ws::run(key, ws_symbols, tx, store).await; // ★ store 전달
+        });
     }
     tracing::info!("KIS WebSocket 백그라운드 시작");
 
@@ -183,25 +273,32 @@ async fn main() {
         mini,
         ws_tx,
         http_client,
-        candles: Arc::new(Mutex::new(candle_store)),
+        candles: candle_store, // ★ Arc<Mutex<>> 그대로
     };
 
     // 서버
     let app = server::router::build(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
+        .await
+        .unwrap();
     tracing::info!("backend listening on http://127.0.0.1:8080");
     axum::serve(listener, app).await.unwrap();
 }
 
 /// "HHMMSS"에서 1분 전 계산
 fn subtract_one_minute(hhmmss: &str) -> String {
-    if hhmmss.len() < 6 { return "154500".to_string(); }
+    if hhmmss.len() < 6 {
+        return "154500".to_string();
+    }
     let h: u32 = hhmmss[0..2].parse().unwrap_or(15);
     let m: u32 = hhmmss[2..4].parse().unwrap_or(45);
     let s: u32 = hhmmss[4..6].parse().unwrap_or(0);
     let total = h * 3600 + m * 60 + s;
     let new_total = if total >= 60 { total - 60 } else { 0 };
-    format!("{:02}{:02}{:02}", new_total / 3600, (new_total % 3600) / 60, new_total % 60)
+    format!(
+        "{:02}{:02}{:02}",
+        new_total / 3600,
+        (new_total % 3600) / 60,
+        new_total % 60
+    )
 }
-
-

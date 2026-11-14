@@ -73,7 +73,10 @@ pub async fn get_or_issue_token(
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    let cached = CachedToken { token: token.clone(), issued_at: now };
+    let cached = CachedToken {
+        token: token.clone(),
+        issued_at: now,
+    };
     std::fs::write(cache_path, serde_json::to_string(&cached)?)?;
     tracing::info!("KIS token issued and cached");
 

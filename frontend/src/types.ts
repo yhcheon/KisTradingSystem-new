@@ -29,10 +29,10 @@ export interface PricesResponse {
   mini: PriceResult;
 }
 
-/** WebSocket 실시간 체결 메시지 */
 export interface RealtimeTick {
   type: 'tick';
   code: string;
+  date: string;
   price: string;
   change: string;
   change_rate: string;

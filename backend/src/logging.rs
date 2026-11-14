@@ -1,4 +1,3 @@
-
 // ============================================================
 // 파일명: logging.rs
 // 설명: 일별 로그 파일 시스템 (파일 전용, 콘솔 출력 없음)
@@ -9,7 +8,7 @@
 
 use std::path::PathBuf;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// 로깅 초기화. 반환된 guard는 프로그램 종료 시까지 유지해야 함.
 pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
@@ -29,14 +28,13 @@ pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
     // 파일 레이어만 사용 (콘솔 출력 없음)
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
-        .with_ansi(false)      // 파일에 색상 코드 없음
+        .with_ansi(false) // 파일에 색상 코드 없음
         .with_target(true)
         .with_line_number(true)
         .with_file(true);
 
     // 필터: RUST_LOG 없으면 debug
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("debug"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
 
     tracing_subscriber::registry()
         .with(filter)
@@ -45,4 +43,3 @@ pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
 
     guard
 }
-

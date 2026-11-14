@@ -12,14 +12,14 @@ use crate::core::state::AppState;
 use crate::kis;
 use crate::master::FuturesSymbol;
 use axum::{
+    Json,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
-    Json,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 pub async fn health(State(state): State<AppState>) -> Json<Value> {
@@ -37,8 +37,13 @@ async fn fetch_one(state: &AppState, symbol: &FuturesSymbol) -> Result<CachedPri
         &state.app_secret,
         &state.access_token,
         &symbol.code,
-    ).await.map_err(|e| format!("KIS 호출 실패({}): {}", symbol.code, e))?;
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    )
+    .await
+    .map_err(|e| format!("KIS 호출 실패({}): {}", symbol.code, e))?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     let cached = CachedPrice {
         code: symbol.code.clone(),
         name: price.output1.hts_kor_isnm.clone(),
@@ -65,12 +70,6 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-
-
-
-
-
-
 pub async fn candles(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
@@ -84,21 +83,25 @@ pub async fn candles(
 
     let store = state.candles.lock().await;
     let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-        .format("%Y%m%d").to_string();   // ← 수정
-    let today = chrono::Local::now().format("%Y%m%d").to_string();   // ← 수정
+        .format("%Y%m%d")
+        .to_string(); // ← 수정
+    let today = chrono::Local::now().format("%Y%m%d").to_string(); // ← 수정
 
     let to_json = |candles: &[crate::core::candles::Candle], date_str: &str| -> Vec<Value> {
-        candles.iter().map(|c| {
-            json!({
-                "date": date_str,
-                "time": format!("{}00", c.time),
-                "open": c.open,
-                "high": c.high,
-                "low": c.low,
-                "close": c.close,
-                "volume": c.volume as f64,
+        candles
+            .iter()
+            .map(|c| {
+                json!({
+                    "date": date_str,
+                    "time": format!("{}00", c.time),
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume as f64,
+                })
             })
-        }).collect()
+            .collect()
     };
 
     let result = match date {
@@ -114,23 +117,21 @@ pub async fn candles(
     Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
 
-
-
-
-
-
-
-
-
-
 fn subtract_one_minute(hhmmss: &str) -> String {
-    if hhmmss.len() < 6 { return "154500".to_string(); }
+    if hhmmss.len() < 6 {
+        return "154500".to_string();
+    }
     let h: u32 = hhmmss[0..2].parse().unwrap_or(15);
     let m: u32 = hhmmss[2..4].parse().unwrap_or(45);
     let s: u32 = hhmmss[4..6].parse().unwrap_or(0);
     let total = h * 3600 + m * 60 + s;
     let new_total = if total >= 60 { total - 60 } else { 0 };
-    format!("{:02}{:02}{:02}", new_total / 3600, (new_total % 3600) / 60, new_total % 60)
+    format!(
+        "{:02}{:02}{:02}",
+        new_total / 3600,
+        (new_total % 3600) / 60,
+        new_total % 60
+    )
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -171,4 +172,3 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     tracing::info!("브라우저 WebSocket 연결 종료");
 }
-
