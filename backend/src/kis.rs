@@ -8,9 +8,7 @@ pub mod auth;
 pub mod candles;
 pub mod quotes;
 
-// 기존 호출부 호환성을 위해 공개 함수와 타입을 재노출합니다.
-pub use auth::{get_approval_key, get_or_issue_token, ApprovalResponse, TokenResponse};
-pub use candles::{get_minute_chart, MinuteCandle, MinuteChartOutput2, MinuteChartResponse};
-pub use quotes::{
-    get_futures_price, FuturesPriceOutput1, FuturesPriceOutput2, FuturesPriceResponse,
-};
+// 기존 호출부에서 사용하는 API 함수만 재노출합니다.
+pub use auth::{get_approval_key, get_or_issue_token};
+pub use candles::get_minute_chart;
+pub use quotes::get_futures_price;
