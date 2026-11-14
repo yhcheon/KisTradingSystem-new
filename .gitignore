@@ -1,7 +1,33 @@
-﻿backend/target/
+﻿# ============================================================
+# .gitignore
+# 설명: Git 추적 제외 파일/폴더
+# 작성일: 2026-11-14
+# ============================================================
+
+# ── vi/vim 백업 파일 ──
+*~
+*.un~
+*.swp
+*.swo
+
+# ── 환경 변수 ──
+.env
 backend/.env
 backend/.token
+
+# ── 로그 ──
 backend/logs/
+
+# ── 빌드 산출물 ──
+backend/target/
 frontend/node_modules/
 frontend/dist/
-.env
+
+# ── OS/IDE ──
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+
