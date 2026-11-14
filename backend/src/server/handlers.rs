@@ -207,7 +207,7 @@ async fn require_auth(
         }
     };
 
-    jwt::verify_jwt(token, &state.jwt_secret).map_err(|error| {
+    jwt::verify_jwt(token, &state.jwt_secret, &state.supabase_url, &state.http_client).await.map_err(|error| {
         tracing::warn!(target: "auth", status = 401, error = %error, "요청 인증 거부");
         (axum::http::StatusCode::UNAUTHORIZED, error)
     })
