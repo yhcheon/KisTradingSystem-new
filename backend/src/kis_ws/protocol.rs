@@ -19,7 +19,7 @@ pub(super) fn handle_text(
     tx: &broadcast::Sender<RealtimeTick>,
     pong_tx: &mpsc::Sender<String>,
 ) {
-    if text.contains("\\"tr_id\\":\\"PINGPONG\\"") {
+    if text.contains("\"tr_id\":\"PINGPONG\"") {
         tracing::debug!("PINGPONG 수신, 응답 전송 예약");
         let _ = pong_tx.try_send(text.to_string());
         return;
