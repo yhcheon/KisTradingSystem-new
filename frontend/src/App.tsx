@@ -6,9 +6,10 @@
 //       - admin: 관리자 탭 추가
 // ============================================================
 
-import { useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import { useState } from 'react';
 import { supabase } from './lib/supabase';
+import { useAuthSession } from './features/auth/hooks/useAuthSession';
+import { useAdminRole } from './features/auth/hooks/useAdminRole';
 import Login from './pages/Login';
 import Analysis from './pages/Analysis';
 import Admin from './pages/Admin';
@@ -18,35 +19,9 @@ import './App.css';
 type Tab = 'prices' | 'analysis' | 'admin';
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { session, authLoading } = useAuthSession();
   const [tab, setTab] = useState<Tab>('prices');
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  // 로그인 시 admin 여부 확인
-  useEffect(() => {
-    if (!session) { setIsAdmin(false); return; }
-    const checkAdmin = async () => {
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('tier')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-      setIsAdmin(data?.tier === 'admin');
-    };
-    checkAdmin();
-  }, [session]);
+  const isAdmin = useAdminRole(session);
 
   if (authLoading) {
     return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
