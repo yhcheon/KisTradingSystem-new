@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { authenticatedFetch } from '../lib/apiClient';
 import { supabase } from '../lib/supabase';
 import type { NoteListItem, Note } from '../types';
 
@@ -18,13 +19,12 @@ export default function Analysis() {
   // 글 목록 로드
   useEffect(() => {
     const fetchList = async () => {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      if (!token) { setError('로그인 필요'); setLoading(false); return; }
-
-      const res = await fetch('/api/notes', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authenticatedFetch('/api/notes');
+      if (!res) {
+        setError('로그인 필요');
+        setLoading(false);
+        return;
+      }
       if (res.status === 403) {
         setError('무료 회원은 오후 2시부터 열람 가능합니다');
         setLoading(false);
@@ -102,4 +102,3 @@ export default function Analysis() {
     </div>
   );
 }
-
