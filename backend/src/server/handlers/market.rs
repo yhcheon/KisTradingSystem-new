@@ -1,6 +1,6 @@
 // ============================================================
-// 파일명: server/handlers/market
-// 설명: HTTP/WebSocket 및 콘텐츠 핸들러 모듈 진입점
+// 파일명: server/handlers/market.rs
+// 설명: 시세, 캔들 및 WebSocket API
 // ============================================================
 
 use crate::cache::redis_cache::{self, CachedPrice};
