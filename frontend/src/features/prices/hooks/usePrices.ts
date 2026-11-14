@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type { PricesResponse } from '../../../types';
 import type { CandleData, SymbolKind } from '../types';
 import { mapCandlesForChart } from '../utils/candleUtils';
 
 interface UsePricesResult {
   data: PricesResponse | null;
+  setData: Dispatch<SetStateAction<PricesResponse | null>>;
   candles: CandleData[];
   setCandles: React.Dispatch<React.SetStateAction<CandleData[]>>;
   selectedCode: string | null;
@@ -56,5 +58,5 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
     fetchCandles();
   }, [selectedCode, interval]);
 
-  return { data, candles, setCandles, selectedCode };
+  return { data, setData, candles, setCandles, selectedCode };
 }
