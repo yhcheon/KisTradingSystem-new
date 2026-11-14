@@ -268,7 +268,7 @@ async fn main() {
                     .unwrap_or(std::time::Duration::from_secs(60));
 
                 tracing::info!(
-                    "다음 데이터 삭제 예정: {} ({}초 후)",
+                    "다음 뉴스 링크 정리 예정: {} ({}초 후)",
                     next_7am,
                     wait.as_secs()
                 );
