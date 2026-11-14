@@ -400,16 +400,42 @@ async fn main() {
     };
 
 
-        // ── CORS 설정 ──
-    use tower_http::cors::{Any, CorsLayer};
+    // ── CORS 설정 ──
+    // 운영 환경에서는 CORS_ALLOWED_ORIGINS에 프론트엔드 Origin을
+    // 쉼표로 구분해 지정합니다. 미설정 시 로컬 개발 주소만 허용합니다.
+    use axum::http::{header, HeaderValue, Method};
+    use tower_http::cors::CorsLayer;
+
+    let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_else(|_| {
+        "http://localhost:5173,http://127.0.0.1:5173".to_string()
+    });
+    let allowed_origins = cors_origins
+        .split(',')
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+        .map(|origin| {
+            origin
+                .parse::<HeaderValue>()
+                .expect("CORS_ALLOWED_ORIGINS contains an invalid origin")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !allowed_origins.is_empty(),
+        "CORS_ALLOWED_ORIGINS must contain at least one origin"
+    );
+
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(allowed_origins)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
-
-
-    // 서버    // 서버 (CORS 적용)
+    // 서버 (CORS 적용)
     let app = server::router::build(state).layer(cors);
 
 
