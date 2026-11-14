@@ -16,7 +16,7 @@ pub async fn load_initial_candles(
     symbols: &[FuturesSymbol],
 ) -> CandleStore {
 // ── 전일 + 당일 1분봉 로드 ──
-let mut candle_store = core::candles::CandleStore::new();
+let mut candle_store = CandleStore::new();
 // 서버 OS 시간대와 무관하게 한국 거래소 기준(KST) 날짜/시간 사용
 let today_dt = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
 let today = today_dt.format("%Y%m%d").to_string();
