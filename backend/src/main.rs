@@ -65,6 +65,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             e
         })?;
 
+    // KIS 인증 환경변수
+    let app_key = std::env::var("KIS_APP_KEY").map_err(|e| {
+        tracing::error!("필수 환경변수 KIS_APP_KEY를 읽을 수 없습니다: {}", e);
+        e
+    })?;
+    let app_secret = std::env::var("KIS_APP_SECRET").map_err(|e| {
+        tracing::error!("필수 환경변수 KIS_APP_SECRET를 읽을 수 없습니다: {}", e);
+        e
+    })?;
+    let cache_path = std::env::var("TOKEN_CACHE_FILE").unwrap_or("./.token".to_string());
+
     // KIS 시장 데이터 초기화 (토큰, 선물 마스터, 초기 캔들)
     let market_data =
         core::market_data::initialize(&http_client, &app_key, &app_secret, &cache_path).await?;
