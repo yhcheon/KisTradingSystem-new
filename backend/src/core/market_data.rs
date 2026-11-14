@@ -6,10 +6,10 @@
 //       - 초기 1분봉 데이터 로드
 // ============================================================
 
+use crate::core::candles::CandleStore;
 use crate::kis;
 use crate::market;
 use crate::master::{self, FuturesSymbol};
-use crate::core::candles::CandleStore;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
