@@ -268,7 +268,7 @@ async fn main() {
                     .unwrap_or(std::time::Duration::from_secs(60));
 
                 tracing::info!(
-                    "다음 뉴스 링크 정리 예정: {} ({}초 후)",
+                    "다음 데이터 삭제 예정: {} ({}초 후)",
                     next_7am,
                     wait.as_secs()
                 );
@@ -277,7 +277,7 @@ async fn main() {
                 if let Err(e) = supabase_cleanup.cleanup_old_data().await {
                     tracing::warn!("오래된 데이터 삭제 실패: {}", e);
                 } else {
-                    tracing::info!("30일 지난 뉴스 링크 정리 완료");
+                    tracing::info!("30일 지난 데이터 삭제 완료");
                 }
             }
         });
