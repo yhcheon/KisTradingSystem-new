@@ -65,85 +65,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             e
         })?;
 
-    // KIS 토큰
-    let app_key = std::env::var("KIS_APP_KEY").map_err(|e| {
-        tracing::error!("필수 환경변수 KIS_APP_KEY를 읽을 수 없습니다: {}", e);
-        e
-    })?;
-    let app_secret = std::env::var("KIS_APP_SECRET").map_err(|e| {
-        tracing::error!("필수 환경변수 KIS_APP_SECRET를 읽을 수 없습니다: {}", e);
-        e
-    })?;
-    let cache_path = std::env::var("TOKEN_CACHE_FILE").unwrap_or("./.token".to_string());
-    let token =
-        match kis::get_or_issue_token(&http_client, &app_key, &app_secret, &cache_path).await {
-            Ok(t) => {
-                // 인증 토큰은 로그에 남기지 않습니다.
-                tracing::info!("KIS access token 발급/로드 성공");
-                t
-            }
-            Err(e) => {
-                tracing::error!("KIS 토큰 초기화 실패: {}", e);
-                return Err(
-                    std::io::Error::new(std::io::ErrorKind::Other, "KIS 토큰 초기화 실패").into(),
-                );
-            }
-        };
-
-    // 마스터
-    tracing::info!("마스터 파일 다운로드 중");
-    let symbols = match master::download_master_text(&http_client).await {
-        Ok(text) => master::parse_master(&text),
-        Err(e) => {
-            tracing::error!("마스터 다운로드 실패: {}", e);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "마스터 파일 다운로드 실패",
-            )
-            .into());
-        }
-    };
-    let regular = match master::pick_nearest(&symbols, "1") {
-        Some(f) => {
-            tracing::info!("정규선물 최근월물: {} ({})", f.name, f.code);
-            f
-        }
-        None => {
-            tracing::error!("정규선물 최근월물 없음");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "정규선물 최근월물 없음",
-            )
-            .into());
-        }
-    };
-    let mini = match master::pick_nearest(&symbols, "B") {
-        Some(f) => {
-            tracing::info!("미니선물 최근월물: {} ({})", f.name, f.code);
-            f
-        }
-        None => {
-            tracing::error!("미니선물 최근월물 없음");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "미니선물 최근월물 없음",
-            )
-            .into());
-        }
-    };
-
-    // 과거 및 당일 1분봉 초기 데이터 로드
-    let candle_store = market::history::load_initial_candles(
-        &http_client,
-        &app_key,
-        &app_secret,
-        &token.access_token,
-        &[regular.clone(), mini.clone()],
-    )
-    .await;
-
-    // ★ CandleStore를 Arc<Mutex<>>로 감싸기 (WS와 공유)
-    let candle_store = Arc::new(Mutex::new(candle_store));
+    // KIS 시장 데이터 초기화 (토큰, 선물 마스터, 초기 캔들)
+    let market_data =
+        core::market_data::initialize(&http_client, &app_key, &app_secret, &cache_path).await?;
+    let access_token = market_data.access_token;
+    let regular = market_data.regular;
+    let mini = market_data.mini;
+    let candle_store = market_data.candles;
 
     // ── Supabase 초기화 ──
     let supabase_url = std::env::var("SUPABASE_URL").map_err(|e| {
@@ -205,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = core::state::AppState {
         app_key,
         app_secret,
-        access_token: token.access_token,
+        access_token,
         redis: Arc::new(Mutex::new(conn)),
         regular,
         mini,
