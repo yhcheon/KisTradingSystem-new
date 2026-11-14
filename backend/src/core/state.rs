@@ -4,9 +4,11 @@
 //       - KIS 토큰, Redis 연결, 최근월물 종목
 //       - WebSocket 브로드캐스트 채널
 //       - HTTP 클라이언트 (reqwest 연결 풀 재사용)
+//       - 캔들 저장소 (1m + 2m/5m/10m/30m/60m 파생)
 // 작성일: 2026-11-14
 // ============================================================
 
+use crate::core::candles::CandleStore;
 use crate::kis_ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::Arc;
@@ -21,6 +23,8 @@ pub struct AppState {
     pub regular: FuturesSymbol,
     pub mini: FuturesSymbol,
     pub ws_tx: broadcast::Sender<RealtimeTick>,
-    pub http_client: reqwest::Client,   // ← 추가: HTTP 연결 풀 공유
+    pub http_client: reqwest::Client,
+    pub candles: Arc<Mutex<CandleStore>>,   // ← 추가
 }
+
 

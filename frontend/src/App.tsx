@@ -1,6 +1,6 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 메인 대시보드 (좌: 시세 카드 세로, 우: 차트)
+// 설명: 메인 대시보드 (좌: 시세 카드, 우: 차트 + interval 선택)
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -20,15 +20,19 @@ interface CandleData {
   volume: number;
 }
 
+const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
+
 export default function App() {
   const [data, setData] = useState<PricesResponse | null>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
+  const [interval, setInterval] = useState<string>('1m');   // ← 추가
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
+  const regularCodeRef = useRef<string | null>(null);
 
-  // 최초 REST 조회 + 분봉 조회
+  // 최초 REST 조회 (시세만)
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -38,14 +42,8 @@ export default function App() {
         setData(json);
         setLastFetch(new Date());
         setError(null);
-
         if (json.regular.ok && json.regular.data) {
-          const code = json.regular.data.code;
-          const cres = await fetch(`/api/candles?code=${code}`);
-          if (cres.ok) {
-            const cjson = await cres.json();
-            if (cjson.ok) setCandles(cjson.data);
-          }
+          regularCodeRef.current = json.regular.data.code;
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -53,6 +51,20 @@ export default function App() {
     };
     fetchPrices();
   }, []);
+
+  // interval 또는 regularCode 변경 시 분봉 재조회
+  useEffect(() => {
+    if (!regularCodeRef.current) return;
+    const fetchCandles = async () => {
+      const code = regularCodeRef.current!;
+      const cres = await fetch(`/api/candles?code=${code}&interval=${interval}`);
+      if (cres.ok) {
+        const cjson = await cres.json();
+        if (cjson.ok) setCandles(cjson.data);
+      }
+    };
+    fetchCandles();
+  }, [interval, data]);   // data가 처음 로드된 후 interval 변경에도 반응
 
   // WebSocket
   useEffect(() => {
@@ -112,11 +124,24 @@ export default function App() {
         </aside>
 
         <section className="chart-area">
-          <h2 className="chart-title">
-            전일 1분봉 (정규선물) {candles.length > 0 && `— ${candles.length}건`}
-          </h2>
+          <div className="chart-header">
+            <h2 className="chart-title">
+              전일 분봉 (정규선물) {candles.length > 0 && `— ${candles.length}건`}
+            </h2>
+            <div className="interval-buttons">
+              {INTERVALS.map((iv) => (
+                <button
+                  key={iv}
+                  className={interval === iv ? 'active' : ''}
+                  onClick={() => setInterval(iv)}
+                >
+                  {iv.replace('m', '분')}
+                </button>
+              ))}
+            </div>
+          </div>
           {candles.length > 0 ? (
-            <CandleChart data={candles} />
+            <CandleChart data={candles} interval={interval} />
           ) : (
             <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
           )}

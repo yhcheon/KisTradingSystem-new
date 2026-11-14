@@ -238,3 +238,118 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
 
 
 
+
+#### [백엔드] 11. KIS WebSocket PINGPONG 응답 처리
+
+- **파일**: `backend/src/kis_ws.rs`
+- **내용**:
+  - KIS가 보내는 `PINGPONG` JSON을 받은 그대로 되돌려보내도록 수정
+  - `tokio::sync::mpsc` 채널로 수신 루프와 응답 전송을 분리
+  - `handle_text`에서 `PINGPONG` 감지 시 `pong_tx`로 원본 전달
+- **결과**:
+  - PINGPONG 10초 간격 수신 + 응답 전송 ✅
+  - **연결이 8분 이상 유지** (이전에는 1~2분마다 끊김) ✅
+
+#### [백엔드] 12. `reqwest::Client` 연결 풀 공유
+
+- **파일**:
+  - `backend/src/core/state.rs` (`http_client` 필드 추가)
+  - `backend/src/main.rs` (앱 시작 시 1회 생성)
+  - `backend/src/kis.rs` (모든 함수가 `&reqwest::Client` 매개변수 받도록 변경)
+  - `backend/src/master.rs` (`download_master_text(&client)` 매개변수 추가)
+  - `backend/src/server/handlers.rs` (`state.http_client` 전달)
+- **내용**:
+  - `reqwest::Client::new()`를 매 호출마다 생성하던 것을 앱 시작 시 1회로 변경
+  - `pool_idle_timeout(90초)` 설정
+- **결과**:
+  - `starting new connection` 최초 1회만 발생 ✅
+  - 이후 `reuse idle connection`으로 TCP/TLS 연결 재사용 ✅
+  - KIS API 호출 성능 개선 + 포트 고갈 방지 ✅
+
+#### [프론트엔드] 5. 레이아웃 좌우 2단 + 차트 영역 확장
+
+- **파일**:
+  - `frontend/src/App.css` (좌 280px + 우 minmax(0, 1fr))
+  - `frontend/src/index.css` (Vite 기본 `#root width: 1126px` 제거)
+  - `frontend/src/App.tsx` (좌: 시세 카드 세로, 우: 차트)
+  - `frontend/src/CandleChart.tsx` (`ResizeObserver` + `Date.UTC` 시간 변환)
+- **내용**:
+  - `#root`의 고정 너비를 제거하고 화면 전체 사용
+  - `.layout`의 `align-items: start` 제거 → 차트가 우측 꽉 채움
+  - `ResizeObserver`로 창 크기 변화에 차트 자동 반응
+  - 시간대 문제 해결 (`Date.UTC`로 KST → UTC 변환)
+- **결과**:
+  - 차트가 우측 넓은 영역을 사용 ✅
+  - X축 시간이 08:45~15:45로 정상 표시 ✅
+
+### 백엔드
+- [x] Axum API 엔드포인트
+- [x] KIS WebSocket 실시간 체결 수신
+- [x] Axum WebSocket 엔드포인트 (/ws)
+- [x] KIS WebSocket PINGPONG 응답 처리
+- [x] reqwest::Client 연결 풀 공유
+- [ ] 2분/5분봉 조합
+- [ ] 장중 실시간 1분봉 누적
+
+### 프론트엔드
+- [x] React 프로젝트 초기 설정
+- [x] 시세 대시보드 (5개 필드)
+- [x] WebSocket 실시간 푸시
+- [x] 전일 1분봉 차트
+- [x] 좌우 2단 레이아웃
+- [ ] 2분/5분봉 전환
+
+
+#### [백엔드] 13. CandleStore 도입 + N분봉 파생
+
+- **파일**:
+  - `backend/src/core/candles.rs` (신규, CandleStore + aggregate)
+  - `backend/src/core/state.rs` (candles 필드 추가)
+  - `backend/src/main.rs` (전일 1분봉 로드 → CandleStore 파생)
+  - `backend/src/server/handlers.rs` (`/api/candles`에 interval 파라미터)
+- **내용**:
+  - 1분봉 원본 + `2m/5m/10m/30m/60m` 파생 계산
+  - 그룹 키 = `(날짜, 분 / N)` 방식으로 시간 경계 정확히 맞춤
+  - 백엔드 시작 시 1회 계산 → 메모리 저장
+  - 요청 시 메모리에서 복사만 (계산 없음)
+- **결과**:
+  - `cargo test` 3개 통과 ✅ (`aggregate` 정확성 검증)
+  - 200명 동시 요청 시 응답 지연 1ms 이하 예상 ✅
+
+#### [프론트엔드] 6. 분봉 선택 버튼 + 차트 색상 변경
+
+- **파일**:
+  - `frontend/src/App.tsx` (interval 상태 + 버튼)
+  - `frontend/src/CandleChart.tsx` (interval prop + 색상)
+  - `frontend/src/App.css` (버튼 스타일)
+- **내용**:
+  - 차트 상단에 `1분/2분/5분/10분/30분/60분` 버튼
+  - 클릭 시 `/api/candles?interval=5m` 재조회
+  - **차트 색상 변경**: 배경 검정(`#000000`), 양봉 초록(`#66bb6a`), 음봉 빨강(`#b71c1c`)
+- **결과**:
+  - 버튼 클릭 시 차트 봉 개수 즉시 변화 ✅
+  - 1분(411건) → 5분(83건) → 60분(7건) ✅
+
+  ### 백엔드
+- [x] Axum API 엔드포인트
+- [x] KIS WebSocket 실시간 체결 수신
+- [x] Axum WebSocket 엔드포인트 (/ws)
+- [x] KIS WebSocket PINGPONG 응답 처리
+- [x] reqwest::Client 연결 풀 공유
+- [x] CandleStore + N분봉 파생
+- [ ] 장중 실시간 1분봉 누적
+
+### 프론트엔드
+- [x] React 프로젝트 초기 설정
+- [x] 시세 대시보드 (5개 필드)
+- [x] WebSocket 실시간 푸시
+- [x] 전일 1분봉 차트
+- [x] 좌우 2단 레이아웃
+- [x] 분봉 선택 버튼 (1~60분)
+- [x] 차트 색상 커스텀 (검정 배경, 초록/빨강)
+
+
+
+
+
+

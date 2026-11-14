@@ -65,6 +65,11 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+
+
+
+
+
 pub async fn candles(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
@@ -73,52 +78,38 @@ pub async fn candles(
         Some(c) => c.clone(),
         None => return Json(json!({ "ok": false, "error": "code 파라미터 필요" })),
     };
+    let interval = params.get("interval").map(|s| s.as_str()).unwrap_or("1m");
 
-    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-        .format("%Y%m%d").to_string();
+    // CandleStore에서 조회 (계산 없음, 복사만)
+    let store = state.candles.lock().await;
+    let raw = store.get(&code, interval);
 
-    let mut all_candles = Vec::new();
-    let mut hour = "154500".to_string();
-
-    for _ in 0..5 {
-        match kis::get_minute_chart(
-            &state.http_client,
-            &state.app_key,
-            &state.app_secret,
-            &state.access_token,
-            &code,
-            &yesterday,
-            &hour,
-        ).await {
-            Ok(candles) => {
-                if candles.is_empty() { break; }
-                let earliest = candles.first().map(|c| c.stck_cntg_hour.clone()).unwrap_or_default();
-                if earliest.is_empty() { break; }
-                hour = subtract_one_minute(&earliest);
-                all_candles.extend(candles);
-            }
-            Err(e) => { tracing::warn!("분봉 조회 실패: {}", e); break; }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    }
-
-    all_candles.sort_by(|a, b| a.stck_cntg_hour.cmp(&b.stck_cntg_hour));
-    all_candles.dedup_by(|a, b| a.stck_cntg_hour == b.stck_cntg_hour);
-
-    let result: Vec<Value> = all_candles.iter().map(|c| {
+    // 프론트엔드 형식으로 변환
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let result: Vec<Value> = raw.iter().map(|c| {
         json!({
-            "time": format!("{}-{}-{}", &yesterday[0..4], &yesterday[4..6], &yesterday[6..8]),
-            "hour": c.stck_cntg_hour,
-            "open": c.futs_oprc.parse::<f64>().unwrap_or(0.0),
-            "high": c.futs_hgpr.parse::<f64>().unwrap_or(0.0),
-            "low": c.futs_lwpr.parse::<f64>().unwrap_or(0.0),
-            "close": c.futs_prpr.parse::<f64>().unwrap_or(0.0),
-            "volume": c.cntg_vol.parse::<f64>().unwrap_or(0.0),
+            "time": today,
+            "hour": format!("{}00", c.time),   // "0930" → "093000"
+            "open": c.open,
+            "high": c.high,
+            "low": c.low,
+            "close": c.close,
+            "volume": c.volume as f64,
         })
     }).collect();
 
-    Json(json!({ "ok": true, "data": result }))
+    Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
+
+
+
+
+
+
+
+
+
+
 
 fn subtract_one_minute(hhmmss: &str) -> String {
     if hhmmss.len() < 6 { return "154500".to_string(); }

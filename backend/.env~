@@ -1,0 +1,26 @@
+
+# ---------- 한국투자증권 API ----------
+KIS_APP_KEY=PSJr5fZwOi5MQ4tXKSoxuA9LP6zplG3hkOZG
+KIS_APP_SECRET=ffM0E/cBoC6k9c4AzUFX/OV9mxv8rP1Ud+jyoLETjA28X/pa+uKTx5hEsCX4sNp7S5Vczsgt3dBIMk2WyhCE3yq1Dnq2KVSArWPJp1WDm1xqgcR7Mx6q8HWozSCPS1KKYIWDW22J38brEe1L8w3VZgaqa7SOSZukN95irZJntBlA7JkRYjc=
+KIS_ACCOUNT_NO=
+KIS_ACCOUNT_PROD_CD=
+
+
+
+
+
+# ---------- API 도메인 ----------
+KIS_REST_DOMAIN=https://openapi.koreainvestment.com:9443
+KIS_WS_DOMAIN=ws://ops.koreainvestment.com:21000
+
+# ---------- 토큰 캐시 ----------
+TOKEN_CACHE_FILE=./.token
+
+# ---------- Redis ----------
+REDIS_URL=redis://127.0.0.1:6379
+
+# ---------- 로그 ----------
+LOG_LEVEL=info
+
+
+
