@@ -267,64 +267,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         supabase_url: supabase_url.clone(),
     };
 
-    // ── CORS 설정 ──
-    // 운영 환경에서는 CORS_ALLOWED_ORIGINS에 프론트엔드 Origin을
-    // 쉼표로 구분해 지정합니다. 미설정 시 로컬 개발 주소만 허용합니다.
-    use axum::http::{HeaderValue, Method, header};
-    use tower_http::cors::CorsLayer;
-
-    let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
-    let allowed_origins = cors_origins
-        .split(',')
-        .map(str::trim)
-        .filter(|origin| !origin.is_empty())
-        .map(|origin| {
-            origin.parse::<HeaderValue>().map_err(|e| {
-                tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!(
-                        "CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}",
-                        origin
-                    ),
-                )
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if allowed_origins.is_empty() {
-        let message = "CORS_ALLOWED_ORIGINS에 허용 Origin을 하나 이상 설정해야 합니다.";
-        tracing::error!("{}", message);
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, message).into());
-    }
-
-    let cors = CorsLayer::new()
-        .allow_origin(allowed_origins)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
-
-    // 서버 (CORS 적용)
-    let app = server::router::build(state).layer(cors);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
-        .await
-        .map_err(|e| {
-            tracing::error!("백엔드 서버 주소(127.0.0.1:8080) 바인딩 실패: {}", e);
-            e
-        })?;
-    tracing::info!("backend listening on http://127.0.0.1:8080");
-
-    axum::serve(listener, app).await.map_err(|e| {
-        tracing::error!("Axum 서버 실행 중 오류: {}", e);
-        e
-    })?;
+        // HTTP 서버 실행 (라우터, CORS, listener)
+    server::runtime::serve(state).await?;
 
     Ok(())
 }
