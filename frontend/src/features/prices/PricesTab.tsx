@@ -30,10 +30,6 @@ export default function PricesTab() {
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [interval, setInterval] = useState<string>('1m');
   const [selected, setSelected] = useState<SymbolKind>('regular');
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
-  const wsRef = useRef<WebSocket | null>(null);
   const selectedCodeRef = useRef<string | null>(null);
 
   // 1) 최초 REST 조회
@@ -44,10 +40,8 @@ export default function PricesTab() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: PricesResponse = await res.json();
         setData(json);
-        setLastFetch(new Date());
-        setError(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        console.error('prices fetch 실패:', e);
       }
     };
     fetchPrices();
@@ -112,9 +106,6 @@ export default function PricesTab() {
   useEffect(() => {
     const url = `ws://${window.location.hostname}:8080/ws`;
     const ws = new WebSocket(url);
-    wsRef.current = ws;
-    ws.onopen = () => setWsStatus('open');
-    ws.onclose = () => setWsStatus('closed');
 
     ws.onmessage = (e) => {
       try {
