@@ -4,6 +4,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { supabase } from '../lib/supabase';
 
 type Category = 'us_market' | 'kospi_plan';
@@ -15,7 +16,7 @@ type Note = {
   created_at?: string;
 };
 
-const panelStyle: React.CSSProperties = {
+const panelStyle: CSSProperties = {
   background: '#111827', border: '1px solid #334155', borderRadius: 8,
   padding: 16, marginBottom: 12, color: '#e2e8f0',
 };
