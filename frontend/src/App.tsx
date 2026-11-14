@@ -1,7 +1,8 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 메인 대시보드 (좌: 시세 카드, 우: 차트 + interval 선택)
-//       - 어제 + 오늘 봉을 가상 시간으로 이어붙임
+// 설명: 메인 대시보드 (좌: 시세 카드, 우: 차트)
+//       - 카드 클릭 시 해당 종목 차트 표시
+//       - 기본 선택: 정규선물
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -23,15 +24,17 @@ interface CandleData {
 
 const INTERVALS = ['1m', '2m', '5m', '10m', '30m', '60m'];
 
+type SymbolKind = 'regular' | 'mini';
+
 export default function App() {
   const [data, setData] = useState<PricesResponse | null>(null);
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [interval, setInterval] = useState<string>('1m');
+  const [selected, setSelected] = useState<SymbolKind>('regular');
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
-  const regularCodeRef = useRef<string | null>(null);
 
   // 최초 REST 조회
   useEffect(() => {
@@ -43,9 +46,6 @@ export default function App() {
         setData(json);
         setLastFetch(new Date());
         setError(null);
-        if (json.regular.ok && json.regular.data) {
-          regularCodeRef.current = json.regular.data.code;
-        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -53,11 +53,13 @@ export default function App() {
     fetchPrices();
   }, []);
 
-  // interval 변경 시 분봉 재조회
+  // 선택 종목 또는 interval 변경 시 분봉 재조회
   useEffect(() => {
-    const code = regularCodeRef.current;
-    if (!code) return;
+    if (!data) return;
+    const result = selected === 'regular' ? data.regular : data.mini;
+    if (!result.ok || !result.data) return;
 
+    const code = result.data.code;
     const fetchCandles = async () => {
       try {
         const cres = await fetch(`/api/candles?code=${code}&interval=${interval}&date=both`);
@@ -78,15 +80,12 @@ export default function App() {
         const mapped: CandleData[] = [];
         let lastMin = 0;
 
-        // 어제 봉: 실제 시각 그대로
         for (const c of yesterday) {
           const hh = Number(c.time.slice(0, 2));
           const mm = Number(c.time.slice(2, 4));
           lastMin = hh * 60 + mm;
           mapped.push(c);
         }
-
-        // 오늘 봉: 어제 마지막 + 1분부터 이어붙임
         if (today.length > 0) {
           const firstTodayMin =
             Number(today[0].time.slice(0, 2)) * 60 + Number(today[0].time.slice(2, 4));
@@ -100,14 +99,13 @@ export default function App() {
             mapped.push({ ...c, time: `${vhh}${vmm}00` });
           }
         }
-
         setCandles(mapped);
       } catch (e) {
         console.error('candles fetch 실패:', e);
       }
     };
     fetchCandles();
-  }, [interval, data]);
+  }, [selected, interval, data]);
 
   // WebSocket
   useEffect(() => {
@@ -144,9 +142,33 @@ export default function App() {
     return () => ws.close();
   }, []);
 
+
+
+
+    // 차트 제목용 (예: "정규선물(2026년 12월)")
+  
+    const chartTitle = (() => {
+      const target = selected === 'regular' ? data?.regular : data?.mini;
+    if (!target?.ok || !target.data) {
+      return selected === 'regular' ? '정규선물' : '미니선물';
+    }
+    const name = target.data.name;   // 예: "F 202612" 또는 "미니F 202612"
+    const monthMatch = name.match(/20(\d{2})(\d{2})/);
+    const label = selected === 'regular' ? '정규선물' : '미니선물';
+    if (monthMatch) {
+      return `${label}(20${monthMatch[1]}년 ${monthMatch[2]}월)`;   // ← 20 추가
+    }
+    return label;
+  })();
+
+
+
+
+
   return (
     <div className="app">
-      <header>
+
+      <header className="top-bar">
         <h1>KOSPI200 선물 시세</h1>
         <div className="status">
           {error && <span className="error">연결 오류: {error}</span>}
@@ -160,17 +182,32 @@ export default function App() {
         </div>
       </header>
 
+
+
       <main className="layout">
         <aside className="sidebar">
-          <PriceCard title="정규선물" result={data?.regular ?? null} />
-          <PriceCard title="미니선물" result={data?.mini ?? null} />
+          <PriceCard
+            title="정규선물"
+            result={data?.regular ?? null}
+            selected={selected === 'regular'}
+            onClick={() => setSelected('regular')}
+          />
+          <PriceCard
+            title="미니선물"
+            result={data?.mini ?? null}
+            selected={selected === 'mini'}
+            onClick={() => setSelected('mini')}
+          />
         </aside>
 
         <section className="chart-area">
+
           <div className="chart-header">
+
             <h2 className="chart-title">
-              분봉 차트 (정규선물) {candles.length > 0 && `— ${candles.length}건`}
+              <h2 className="chart-title">{chartTitle}</h2>
             </h2>
+
             <div className="interval-buttons">
               {INTERVALS.map((iv) => (
                 <button
