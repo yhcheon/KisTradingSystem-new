@@ -6,6 +6,6 @@
 
 pub mod candles;
 pub mod cleanup;
-pub mod market_data;
 pub mod db;
+pub mod market_data;
 pub mod state;
