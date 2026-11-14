@@ -7,7 +7,7 @@
 use crate::core::state::AppState;
 use crate::server::handlers;
 use axum::{
-    routing::{get, post},
+    routing::get,
     Router,
 };
 
@@ -20,7 +20,7 @@ pub fn build(state: AppState) -> Router {
         .route("/ws", get(handlers::ws_handler))
         // ── 콘텐츠 API ──
         .route("/api/notes", get(handlers::notes))
-        .route("/api/admin/notes", post(handlers::create_note))
+        .route("/api/admin/notes", get(handlers::admin_notes).post(handlers::create_note).put(handlers::update_note).delete(handlers::delete_note))
         .with_state(state)
 }
 

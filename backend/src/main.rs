@@ -248,7 +248,7 @@ async fn main() {
     let supabase_jwt_secret =
         std::env::var("SUPABASE_JWT_SECRET").expect("SUPABASE_JWT_SECRET missing");
     let supabase =
-        core::db::SupabaseClient::new(supabase_url, supabase_service_key, http_client.clone());
+        core::db::SupabaseClient::new(supabase_url.clone(), supabase_service_key, http_client.clone());
 
     // 매일 KST 07:00에 30일 지난 데이터 삭제 (백그라운드)
     {
@@ -321,6 +321,7 @@ async fn main() {
         candles: candle_store, // ★ Arc<Mutex<>> 그대로
         supabase,
         jwt_secret: supabase_jwt_secret,
+        supabase_url: supabase_url.clone(),
     };
 
 
