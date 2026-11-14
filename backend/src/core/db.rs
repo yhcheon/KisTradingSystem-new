@@ -36,7 +36,17 @@ impl SupabaseClient {
             .map_err(|e| format!("Supabase select 실패: {}", e))?;
 
         if !resp.status().is_success() {
-            return Err(format!("Supabase select HTTP {}", resp.status()));
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
+            let body = body.chars().take(2000).collect::<String>();
+            tracing::error!(
+                target: "supabase",
+                operation = "select",
+                http_status = %status,
+                response_body = %body,
+                "Supabase SELECT 실패"
+            );
+            return Err(format!("Supabase select HTTP {}: {}", status, body));
         }
         resp.json::<serde_json::Value>()
             .await
@@ -59,7 +69,18 @@ impl SupabaseClient {
             .map_err(|e| format!("Supabase insert 실패: {}", e))?;
 
         if !resp.status().is_success() {
-            return Err(format!("Supabase insert HTTP {}", resp.status()));
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
+            let body = body.chars().take(2000).collect::<String>();
+            tracing::error!(
+                target: "supabase",
+                operation = "insert",
+                table = %table,
+                http_status = %status,
+                response_body = %body,
+                "Supabase INSERT 실패"
+            );
+            return Err(format!("Supabase insert HTTP {}: {}", status, body));
         }
         Ok(())
     }
