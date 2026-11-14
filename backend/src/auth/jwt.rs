@@ -6,7 +6,7 @@
 // 작성일: 2026-11-14
 // ============================================================
 
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,17 +20,48 @@ pub struct Claims {
 
 /// Supabase JWT 검증
 pub fn verify_jwt(token: &str, jwt_secret: &str) -> Result<Claims, String> {
+    // 토큰 원문은 절대 기록하지 않고, 디버깅에 필요한 헤더 메타데이터만 기록한다.
+    let (token_alg, token_kid) = match decode_header(token) {
+        Ok(header) => (format!("{:?}", header.alg), header.kid.unwrap_or_else(|| "없음".to_string())),
+        Err(error) => {
+            tracing::warn!(target: "auth", error = %error, "JWT 헤더 파싱 실패");
+            return Err(format!("JWT 헤더 파싱 실패: {}", error));
+        }
+    };
+
+    tracing::debug!(
+        target: "auth",
+        token_alg = %token_alg,
+        token_kid = %token_kid,
+        expected_alg = "HS256",
+        "JWT 검증 시작"
+    );
+
     let mut validation = Validation::new(Algorithm::HS256);
-
-    // Supabase JWT의 aud는 보통 "authenticated" 이므로, 검증을 비활성화하거나 허용
-    validation.validate_aud = false; // 또는 validation.set_audience(&["authenticated"]);
-
+    validation.validate_aud = false;
 
     let decoding_key = DecodingKey::from_secret(jwt_secret.as_bytes());
 
-    decode::<Claims>(token, &decoding_key, &validation)
-        .map(|data| data.claims)
-        .map_err(|e| format!("JWT 검증 실패: {}", e))
+    match decode::<Claims>(token, &decoding_key, &validation) {
+        Ok(data) => {
+            tracing::debug!(target: "auth", "JWT 검증 성공");
+            Ok(data.claims)
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "auth",
+                token_alg = %token_alg,
+                token_kid = %token_kid,
+                expected_alg = "HS256",
+                error = %error,
+                "JWT 검증 실패"
+            );
+            Err(format!(
+                "JWT 검증 실패 (token_alg={}, expected_alg=HS256): {}",
+                token_alg, error
+            ))
+        }
+    }
 
 
 }
