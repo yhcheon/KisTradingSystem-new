@@ -8,7 +8,7 @@ interface UsePricesResult {
   data: PricesResponse | null;
   setData: Dispatch<SetStateAction<PricesResponse | null>>;
   candles: CandleData[];
-  setCandles: React.Dispatch<React.SetStateAction<CandleData[]>>;
+  setCandles: Dispatch<SetStateAction<CandleData[]>>;
   selectedCode: string | null;
 }
 
