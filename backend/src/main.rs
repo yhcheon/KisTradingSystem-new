@@ -321,6 +321,7 @@ async fn main() {
         candles: candle_store, // ★ Arc<Mutex<>> 그대로
         supabase,
         jwt_secret: supabase_jwt_secret,
+        supabase_url: supabase_url.clone(),
     };
 
 
