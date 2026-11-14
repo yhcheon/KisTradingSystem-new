@@ -185,20 +185,32 @@ async fn require_auth(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<jwt::Claims, (axum::http::StatusCode, String)> {
-    let auth = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .ok_or((
-            axum::http::StatusCode::UNAUTHORIZED,
-            "Authorization 헤더 필요".to_string(),
-        ))?;
+    let auth = match headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        Some(value) => value,
+        None => {
+            tracing::warn!(target: "auth", "인증 실패: Authorization 헤더 누락 또는 유효하지 않은 헤더 값");
+            return Err((
+                axum::http::StatusCode::UNAUTHORIZED,
+                "Authorization 헤더 필요".to_string(),
+            ));
+        }
+    };
 
-    let token = auth.strip_prefix("Bearer ").ok_or((
-        axum::http::StatusCode::UNAUTHORIZED,
-        "Bearer 토큰 필요".to_string(),
-    ))?;
+    let token = match auth.strip_prefix("Bearer ") {
+        Some(value) if !value.is_empty() => value,
+        _ => {
+            tracing::warn!(target: "auth", "인증 실패: Bearer 토큰 형식 오류 또는 토큰 누락");
+            return Err((
+                axum::http::StatusCode::UNAUTHORIZED,
+                "Bearer 토큰 필요".to_string(),
+            ));
+        }
+    };
 
-    jwt::verify_jwt(token, &state.jwt_secret).map_err(|e| (axum::http::StatusCode::UNAUTHORIZED, e))
+    jwt::verify_jwt(token, &state.jwt_secret).map_err(|error| {
+        tracing::warn!(target: "auth", status = 401, error = %error, "요청 인증 거부");
+        (axum::http::StatusCode::UNAUTHORIZED, error)
+    })
 }
 
 /// 관리자 여부 확인 (user_profiles.tier = 'admin')
@@ -207,11 +219,10 @@ async fn require_admin(
     state: &AppState,
 ) -> Result<(), (axum::http::StatusCode, String)> {
     let query = format!("user_profiles?user_id=eq.{}&select=tier", claims.sub);
-    let resp = state
-        .supabase
-        .select(&query)
-        .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let resp = state.supabase.select(&query).await.map_err(|error| {
+        tracing::error!(target: "admin", error = %error, "관리자 권한 조회 중 Supabase 오류");
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, error)
+    })?;
 
     let tier = resp
         .get(0)
@@ -220,6 +231,7 @@ async fn require_admin(
         .unwrap_or("free");
 
     if tier != "admin" {
+        tracing::warn!(target: "admin", tier = %tier, "관리자 API 접근 거부: user_profiles tier가 admin이 아님");
         return Err((
             axum::http::StatusCode::FORBIDDEN,
             "관리자 권한 필요".to_string(),
@@ -289,6 +301,7 @@ pub async fn create_note(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
+    tracing::info!(target: "admin", "관리자 글 저장 요청 수신");
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
@@ -313,11 +326,16 @@ pub async fn create_note(
         "author_email": claims.email.unwrap_or_default(),
     });
 
-    state
-        .supabase
-        .insert("notes", &note)
-        .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    state.supabase.insert("notes", &note).await.map_err(|error| {
+        tracing::error!(
+            target: "admin",
+            category = %category,
+            error = %error,
+            "관리자 글 저장 실패: Supabase INSERT 오류"
+        );
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, error)
+    })?;
 
+    tracing::info!(target: "admin", category = %category, "관리자 글 저장 성공");
     Ok(Json(json!({ "ok": true })))
 }
