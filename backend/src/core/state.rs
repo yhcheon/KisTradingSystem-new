@@ -29,5 +29,6 @@ pub struct AppState {
 
     // ... 기존 필드 ...
     pub supabase: SupabaseClient, // 추가
-    pub jwt_secret: String,       // 추가
+    pub jwt_secret: String,       // Legacy HS256 토큰 검증용
+    pub supabase_url: String,     // ES256 JWKS 공개키 조회용
 }
