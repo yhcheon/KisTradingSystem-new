@@ -95,10 +95,8 @@ async fn main() {
 
     // ── 전일 + 당일 1분봉 로드 ──
     let mut candle_store = core::candles::CandleStore::new();
-    let today_dt = chrono::Local::now();
-    let yesterday = (today_dt - chrono::Duration::days(1))
-        .format("%Y%m%d")
-        .to_string();
+    // 서버 OS 시간대와 무관하게 한국 거래소 기준(KST) 날짜/시간 사용
+    let today_dt = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
     let today = today_dt.format("%Y%m%d").to_string();
 
     let now_hhmm = today_dt
@@ -114,66 +112,144 @@ async fn main() {
         <= 5;
     let is_market_hours = is_weekday && now_hhmm >= 845 && now_hhmm <= 1545;
 
-    tracing::info!(
-        "전일({}) 1분봉 로드 시작 (장중: {})",
-        yesterday,
-        is_market_hours
-    );
-
     for symbol in [&regular, &mini] {
-        // 전일
-        let mut y_1m = Vec::new();
-        let mut hour = "154500".to_string();
-        for _ in 0..5 {
+        // 달력상 어제부터 과거로 최대 14일 조회해 실제 분봉이 존재하는
+        // 가장 최근 영업일을 찾습니다. 주말/공휴일 목록을 직접 관리하지 않습니다.
+        let mut previous_trade_date: Option<String> = None;
+        let mut first_chunk = Vec::new();
+
+        for days_back in 1..=14 {
+            let candidate_date = (today_dt.date_naive()
+                - chrono::Duration::days(days_back))
+                .format("%Y%m%d")
+                .to_string();
+
             match kis::get_minute_chart(
                 &http_client,
                 &app_key,
                 &app_secret,
                 &token.access_token,
                 &symbol.code,
-                &yesterday,
-                &hour,
+                &candidate_date,
+                "154500",
             )
             .await
             {
                 Ok(chunk) => {
-                    if chunk.is_empty() {
+                    // 조회 기준일이 휴장일이어도 응답의 실제 영업일자를 확인합니다.
+                    let latest_date = chunk
+                        .iter()
+                        .map(|c| c.stck_bsop_date.as_str())
+                        .filter(|date| *date < today.as_str())
+                        .max()
+                        .map(str::to_string);
+
+                    if let Some(date) = latest_date {
+                        previous_trade_date = Some(date);
+                        first_chunk = chunk;
                         break;
                     }
-                    let earliest = chunk
-                        .first()
-                        .map(|c| c.stck_cntg_hour.clone())
-                        .unwrap_or_default();
-                    if earliest.is_empty() {
-                        break;
-                    }
-                    for c in &chunk {
-                        let hhmm = if c.stck_cntg_hour.len() >= 4 {
-                            c.stck_cntg_hour[0..4].to_string()
-                        } else {
-                            continue;
-                        };
-                        y_1m.push(core::candles::Candle {
-                            time: hhmm,
-                            open: c.futs_oprc.parse().unwrap_or(0.0),
-                            high: c.futs_hgpr.parse().unwrap_or(0.0),
-                            low: c.futs_lwpr.parse().unwrap_or(0.0),
-                            close: c.futs_prpr.parse().unwrap_or(0.0),
-                            volume: c.cntg_vol.parse().unwrap_or(0),
-                        });
-                    }
-                    hour = subtract_one_minute(&earliest);
                 }
                 Err(e) => {
-                    tracing::warn!("1분봉 조회 실패({}): {}", symbol.code, e);
+                    tracing::warn!(
+                        "직전 거래일 탐색 중 1분봉 조회 실패({} / {}): {}",
+                        symbol.code,
+                        candidate_date,
+                        e
+                    );
+                    // 통신/API 오류를 휴장일로 오인해 과거 날짜를 계속 조회하지 않습니다.
                     break;
                 }
             }
+
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
+
+        let Some(previous_trade_date) = previous_trade_date else {
+            tracing::warn!(
+                "직전 14일 내 거래일 1분봉을 찾지 못했습니다: {}",
+                symbol.code
+            );
+            continue;
+        };
+
+        tracing::info!(
+            "직전 거래일({}) 1분봉 로드 시작: {}",
+            previous_trade_date,
+            symbol.code
+        );
+
+        let mut y_1m = Vec::new();
+        let mut hour = "154500".to_string();
+
+        // 첫 조회 결과를 사용하고, 이후에는 실제 영업일자/가장 이른 시각을
+        // 다음 조회 커서로 사용해 동일 거래일의 과거 분봉을 이어서 가져옵니다.
+        for page in 0..5 {
+            let chunk = if page == 0 {
+                first_chunk.clone()
+            } else {
+                match kis::get_minute_chart(
+                    &http_client,
+                    &app_key,
+                    &app_secret,
+                    &token.access_token,
+                    &symbol.code,
+                    &previous_trade_date,
+                    &hour,
+                )
+                .await
+                {
+                    Ok(chunk) => chunk,
+                    Err(e) => {
+                        tracing::warn!(
+                            "직전 거래일 추가 1분봉 조회 실패({} / {}): {}",
+                            symbol.code,
+                            hour,
+                            e
+                        );
+                        break;
+                    }
+                }
+            };
+
+            let mut earliest = String::new();
+            for c in chunk
+                .iter()
+                .filter(|c| c.stck_bsop_date == previous_trade_date)
+            {
+                if c.stck_cntg_hour.len() < 6 {
+                    continue;
+                }
+                if earliest.is_empty() || c.stck_cntg_hour < earliest {
+                    earliest = c.stck_cntg_hour.clone();
+                }
+
+                let hhmm = c.stck_cntg_hour[0..4].to_string();
+                y_1m.push(core::candles::Candle {
+                    time: hhmm,
+                    open: c.futs_oprc.parse().unwrap_or(0.0),
+                    high: c.futs_hgpr.parse().unwrap_or(0.0),
+                    low: c.futs_lwpr.parse().unwrap_or(0.0),
+                    close: c.futs_prpr.parse().unwrap_or(0.0),
+                    volume: c.cntg_vol.parse().unwrap_or(0),
+                });
+            }
+
+            if earliest.is_empty() || earliest <= "084500" {
+                break;
+            }
+            hour = subtract_one_minute(&earliest);
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+
         y_1m.sort_by(|a, b| a.time.cmp(&b.time));
         y_1m.dedup_by(|a, b| a.time == b.time);
-        candle_store.load_1m(&symbol.code, &yesterday, y_1m);
+        tracing::info!(
+            "직전 거래일 1분봉 로드 완료: {} {}건",
+            previous_trade_date,
+            y_1m.len()
+        );
+        candle_store.load_1m(&symbol.code, &previous_trade_date, y_1m);
 
         // 당일 (장중일 때만)
         if is_market_hours {
@@ -197,13 +273,13 @@ async fn main() {
                             break;
                         }
                         let earliest = chunk
-                            .first()
-                            .map(|c| c.stck_cntg_hour.clone())
-                            .unwrap_or_default();
-                        if earliest.is_empty() {
-                            break;
-                        }
-                        for c in &chunk {
+                            .iter()
+                            .filter(|c| c.stck_bsop_date == today)
+                            .map(|c| c.stck_cntg_hour.as_str())
+                            .min()
+                            .unwrap_or("")
+                            .to_string();
+                        for c in chunk.iter().filter(|c| c.stck_bsop_date == today) {
                             let hhmm = if c.stck_cntg_hour.len() >= 4 {
                                 c.stck_cntg_hour[0..4].to_string()
                             } else {
@@ -218,10 +294,10 @@ async fn main() {
                                 volume: c.cntg_vol.parse().unwrap_or(0),
                             });
                         }
-                        hour = subtract_one_minute(&earliest);
-                        if hour < "084500".to_string() {
+                        if earliest.is_empty() || earliest <= "084500" {
                             break;
                         }
+                        hour = subtract_one_minute(&earliest);
                     }
                     Err(e) => {
                         tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e);
