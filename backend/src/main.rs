@@ -53,10 +53,8 @@ async fn main() {
     let token =
         match kis::get_or_issue_token(&http_client, &app_key, &app_secret, &cache_path).await {
             Ok(t) => {
-                tracing::info!(
-                    "KIS token: {}...",
-                    &t.access_token[..20.min(t.access_token.len())]
-                );
+                // 인증 토큰은 로그에 남기지 않습니다.
+                tracing::info!("KIS access token 발급/로드 성공");
                 t
             }
             Err(e) => {
@@ -288,7 +286,8 @@ async fn main() {
     // KIS WebSocket (candle_store 전달)
     let approval_key = match kis::get_approval_key(&http_client, &app_key, &app_secret).await {
         Ok(k) => {
-            tracing::info!("approval_key: {}...", &k[..20.min(k.len())]);
+            // WebSocket approval key는 인증정보이므로 로그에 남기지 않습니다.
+            tracing::info!("KIS WebSocket approval key 발급 성공");
             k
         }
         Err(e) => {
