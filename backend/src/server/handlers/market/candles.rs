@@ -3,7 +3,7 @@
 // 설명: 분봉 캔들 조회 API
 // ============================================================
 
-use super::candle_response::to_json;
+use super::candle_query::query_candles;
 use crate::core::{
     state::AppState,
     time::{previous_calendar_day_yyyymmdd, today_yyyymmdd},
@@ -30,19 +30,7 @@ pub async fn candles(
     let now = chrono::Utc::now();
     let yesterday = previous_calendar_day_yyyymmdd(now);
     let today = today_yyyymmdd(now);
-
-    let result = match date {
-        "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
-        "today" => to_json(&store.get(&code, &today, interval), &today),
-        _ => {
-            // Return the latest dates actually present in CandleStore, independent of weekdays.
-            let mut all = Vec::new();
-            for stored_date in store.dates(&code) {
-                all.extend(to_json(&store.get(&code, &stored_date, interval), &stored_date));
-            }
-            all
-        }
-    };
+    let result = query_candles(&store, &code, interval, date, &yesterday, &today);
 
     Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
