@@ -3,11 +3,16 @@
 // 설명: KIS 과거 1분봉을 조회해 CandleStore 초기 데이터 구성
 // ============================================================
 
-use crate::core::candles::{Candle, CandleStore};
+use crate::core::candles::CandleStore;
 use crate::kis;
 use crate::master::FuturesSymbol;
 
+mod convert;
+mod pagination;
 mod time;
+
+use convert::to_candle;
+use pagination::load_trade_date;
 use time::subtract_one_minute;
 
 /// 최근 실제 거래일 최대 2일과 장중 당일의 1분봉을 로드합니다.
@@ -58,7 +63,6 @@ pub async fn load_initial_candles(
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
-        // 최신 거래일부터 순서대로 처리합니다. CandleStore가 최대 2개 날짜를 유지합니다.
         found.sort_by(|a, b| a.0.cmp(&b.0));
         if found.is_empty() {
             tracing::warn!("직전 14일 내 거래일 1분봉을 찾지 못했습니다: {}", symbol.code);
@@ -100,50 +104,4 @@ pub async fn load_initial_candles(
         }
     }
     candle_store
-}
-
-async fn load_trade_date(
-    http_client: &reqwest::Client,
-    app_key: &str,
-    app_secret: &str,
-    access_token: &str,
-    symbol: &str,
-    trade_date: &str,
-    first_chunk: Vec<kis::MinuteCandle>,
-) -> Vec<Candle> {
-    let mut result = Vec::new();
-    let mut first_chunk = Some(first_chunk);
-    let mut hour = "154500".to_string();
-    for page in 0..5 {
-        let chunk = if page == 0 { first_chunk.take().unwrap_or_default() } else {
-            match kis::get_minute_chart(http_client, app_key, app_secret, access_token,
-                symbol, trade_date, &hour).await {
-                Ok(chunk) => chunk,
-                Err(e) => { tracing::warn!("과거 1분봉 추가 조회 실패({} / {}): {}", symbol, hour, e); break; }
-            }
-        };
-        let mut earliest = String::new();
-        for candle in chunk.iter().filter(|c| c.stck_bsop_date == trade_date) {
-            if candle.stck_cntg_hour.len() < 6 { continue; }
-            if earliest.is_empty() || candle.stck_cntg_hour < earliest { earliest = candle.stck_cntg_hour.clone(); }
-            result.push(to_candle(candle));
-        }
-        if earliest.is_empty() || earliest.as_str() <= "084500" { break; }
-        hour = subtract_one_minute(&earliest);
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    }
-    result.sort_by(|a, b| a.time.cmp(&b.time));
-    result.dedup_by(|a, b| a.time == b.time);
-    result
-}
-
-fn to_candle(c: &kis::MinuteCandle) -> Candle {
-    Candle {
-        time: c.stck_cntg_hour[0..4].to_string(),
-        open: c.futs_oprc.parse().unwrap_or(0.0),
-        high: c.futs_hgpr.parse().unwrap_or(0.0),
-        low: c.futs_lwpr.parse().unwrap_or(0.0),
-        close: c.futs_prpr.parse().unwrap_or(0.0),
-        volume: c.cntg_vol.parse().unwrap_or(0),
-    }
 }
