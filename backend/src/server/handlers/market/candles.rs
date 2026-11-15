@@ -3,7 +3,7 @@
 // 설명: 분봉 캔들 조회 API
 // ============================================================
 
-use crate::core::state::AppState;
+use crate::core::{state::AppState, time::{previous_calendar_day_yyyymmdd, today_yyyymmdd}};
 use axum::{Json, extract::{Query, State}};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -20,10 +20,9 @@ pub async fn candles(
     let date = params.get("date").map(|s| s.as_str()).unwrap_or("both");
 
     let store = state.candles.lock().await;
-    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-        .format("%Y%m%d")
-        .to_string(); // ← 수정
-    let today = chrono::Local::now().format("%Y%m%d").to_string(); // ← 수정
+    let now = chrono::Utc::now();
+    let yesterday = previous_calendar_day_yyyymmdd(now);
+    let today = today_yyyymmdd(now);
 
     let to_json = |candles: &[crate::core::candles::Candle], date_str: &str| -> Vec<Value> {
         candles
@@ -46,8 +45,12 @@ pub async fn candles(
         "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
         "today" => to_json(&store.get(&code, &today, interval), &today),
         _ => {
-            let mut all = to_json(&store.get(&code, &yesterday, interval), &yesterday);
-            all.extend(to_json(&store.get(&code, &today, interval), &today));
+            // "both" returns the two latest dates actually present in CandleStore.
+            // This naturally handles weekends and exchange holidays without weekday arithmetic.
+            let mut all = Vec::new();
+            for stored_date in store.dates(&code) {
+                all.extend(to_json(&store.get(&code, &stored_date, interval), &stored_date));
+            }
             all
         }
     };
