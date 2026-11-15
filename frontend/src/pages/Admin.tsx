@@ -5,16 +5,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { supabase } from '../lib/supabase';
-
-type Category = 'us_market' | 'kospi_plan';
-type Note = {
-  id: string | number;
-  title: string;
-  content: string;
-  category: Category | string;
-  created_at?: string;
-};
+import { adminNotesRequest } from '../features/admin/api';
+import type { Category, Note } from '../features/admin/types';
 
 const panelStyle: CSSProperties = {
   background: '#111827', border: '1px solid #334155', borderRadius: 8,
@@ -40,40 +32,17 @@ export default function Admin() {
   const [message, setMessage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | number | null>(null);
 
-  const authorizedFetch = useCallback(async (method: string, body?: object) => {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    const token = sessionData.session?.access_token;
-    if (!token) throw new Error('로그인이 필요합니다.');
-
-    const response = await fetch('/api/admin/notes', {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || `HTTP ${response.status}`);
-    }
-    if (response.status === 204) return null;
-    return response.json();
-  }, []);
-
   const loadNotes = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await authorizedFetch('GET');
+      const result = await adminNotesRequest<{ data?: Note[] }>('GET');
       setNotes(Array.isArray(result?.data) ? result.data : []);
     } catch (error) {
       setMessage(`목록 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }
-  }, [authorizedFetch]);
+  }, []);
 
   useEffect(() => {
     void loadNotes();
@@ -95,10 +64,10 @@ export default function Admin() {
     setMessage(null);
     try {
       if (editingId !== null) {
-        await authorizedFetch('PUT', { id: String(editingId), title, content, category });
+        await adminNotesRequest('PUT', { id: String(editingId), title, content, category });
         setMessage('수정 완료');
       } else {
-        await authorizedFetch('POST', { title, content, category });
+        await adminNotesRequest('POST', { title, content, category });
         setMessage('저장 완료');
       }
       resetForm();
@@ -123,7 +92,7 @@ export default function Admin() {
     if (!window.confirm(`'${note.title}' 글을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`)) return;
     setMessage(null);
     try {
-      await authorizedFetch('DELETE', { id: String(note.id) });
+      await adminNotesRequest('DELETE', { id: String(note.id) });
       if (editingId === note.id) resetForm();
       setMessage('삭제 완료');
       await loadNotes();
