@@ -7,3 +7,12 @@ export type Note = {
   category: Category | string;
   created_at?: string;
 };
+
+export type NewsLink = {
+  id: string;
+  title: string;
+  url: string;
+  source?: string | null;
+  published_at?: string | null;
+  created_at?: string;
+};

@@ -37,7 +37,11 @@ pub(super) async fn get_es256_decoding_key(
         .get(&project_url)
         .map(|cached| {
             cached.fetched_at.elapsed() >= JWKS_CACHE_TTL
-                || !cached.jwks.keys.iter().any(|key| key.common.key_id.as_deref() == Some(kid))
+                || !cached
+                    .jwks
+                    .keys
+                    .iter()
+                    .any(|key| key.common.key_id.as_deref() == Some(kid))
         })
         .unwrap_or(true);
 

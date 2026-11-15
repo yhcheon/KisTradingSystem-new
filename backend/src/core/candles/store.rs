@@ -151,7 +151,6 @@ impl CandleStore {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

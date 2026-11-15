@@ -33,7 +33,6 @@ pub(super) fn query_candles(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

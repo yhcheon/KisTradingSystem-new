@@ -12,6 +12,10 @@ pub struct SupabaseClient {
 
 impl SupabaseClient {
     pub fn new(url: String, service_role_key: String, http: reqwest::Client) -> Self {
-        Self { url, service_role_key, http }
+        Self {
+            url,
+            service_role_key,
+            http,
+        }
     }
 }

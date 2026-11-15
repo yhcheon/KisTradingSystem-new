@@ -8,6 +8,7 @@ import type { CSSProperties } from 'react';
 import { adminNotesRequest } from '../features/admin/api';
 import type { Category, Note } from '../features/admin/types';
 import { useAdminNotes } from '../features/admin/hooks/useAdminNotes';
+import NewsManager from '../features/admin/NewsManager';
 
 const panelStyle: CSSProperties = {
   background: '#111827', border: '1px solid #334155', borderRadius: 8,
@@ -90,6 +91,8 @@ export default function Admin() {
   return (
     <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto', color: '#f8fafc' }}>
       <h2 style={{ marginBottom: 20 }}>관리자 글 관리</h2>
+
+      <NewsManager />
 
       <section style={panelStyle}>
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>
