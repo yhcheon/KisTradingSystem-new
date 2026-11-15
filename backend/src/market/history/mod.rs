@@ -40,7 +40,7 @@ pub async fn load_initial_candles(
                         .max().map(str::to_string);
                     if let Some(date) = latest_date {
                         if !found.iter().any(|(existing, _)| existing == &date) {
-                            let day_chunk = chunk.into_iter()
+                            let day_chunk: Vec<kis::MinuteCandle> = chunk.into_iter()
                                 .filter(|c| c.stck_bsop_date == date).collect();
                             if !day_chunk.is_empty() {
                                 tracing::info!("거래일 탐색 확인: {} {}", symbol.code, date);
