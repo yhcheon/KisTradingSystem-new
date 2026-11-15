@@ -10,7 +10,8 @@ impl SupabaseClient {
     pub async fn cleanup_old_data(&self) -> Result<(), String> {
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
         for table in ["notes", "news_links"] {
-            let resp = self.http
+            let resp = self
+                .http
                 .delete(&format!("{}/rest/v1/{}", self.url, table))
                 .query(&[("created_at", format!("lt.{}", cutoff))])
                 .header("apikey", &self.service_role_key)
@@ -21,7 +22,9 @@ impl SupabaseClient {
 
             if !resp.status().is_success() {
                 let status = resp.status();
-                let body = resp.text().await
+                let body = resp
+                    .text()
+                    .await
                     .unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
                 let body = body.chars().take(2000).collect::<String>();
                 tracing::error!(

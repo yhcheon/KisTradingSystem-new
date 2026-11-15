@@ -9,7 +9,8 @@ impl SupabaseClient {
     /// 테이블 조회 (예: "notes?category=eq.us_market&order=created_at.desc")
     pub async fn select(&self, table_query: &str) -> Result<serde_json::Value, String> {
         let full_url = format!("{}/rest/v1/{}", self.url, table_query);
-        let resp = self.http
+        let resp = self
+            .http
             .get(&full_url)
             .header("apikey", &self.service_role_key)
             .header("Authorization", format!("Bearer {}", self.service_role_key))
@@ -19,7 +20,9 @@ impl SupabaseClient {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let body = resp.text().await
+            let body = resp
+                .text()
+                .await
                 .unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
             let body = body.chars().take(2000).collect::<String>();
             tracing::error!(

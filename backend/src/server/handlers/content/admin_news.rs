@@ -8,7 +8,11 @@ use super::{
     auth::{require_admin, require_auth},
 };
 use crate::core::state::AppState;
-use axum::{Json, extract::State, http::{HeaderMap, StatusCode}};
+use axum::{
+    Json,
+    extract::State,
+    http::{HeaderMap, StatusCode},
+};
 use serde_json::{Value, json};
 
 /// GET /api/admin/news
@@ -40,16 +44,36 @@ pub async fn create_news_link(
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let title = body.get("title").and_then(Value::as_str).unwrap_or("").trim();
+    let title = body
+        .get("title")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
     let url = body.get("url").and_then(Value::as_str).unwrap_or("").trim();
-    let source = body.get("source").and_then(Value::as_str).unwrap_or("").trim();
-    let published_at = body.get("published_at").and_then(Value::as_str).filter(|value| !value.trim().is_empty());
+    let source = body
+        .get("source")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let published_at = body
+        .get("published_at")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty());
 
     let parsed_url = reqwest::Url::parse(url).map_err(|_| {
-        (StatusCode::BAD_REQUEST, "올바른 뉴스 URL이 필요합니다".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "올바른 뉴스 URL이 필요합니다".to_string(),
+        )
     })?;
-    if title.is_empty() || !matches!(parsed_url.scheme(), "http" | "https") || parsed_url.host_str().is_none() {
-        return Err((StatusCode::BAD_REQUEST, "제목과 http(s) 뉴스 URL이 필요합니다".to_string()));
+    if title.is_empty()
+        || !matches!(parsed_url.scheme(), "http" | "https")
+        || parsed_url.host_str().is_none()
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "제목과 http(s) 뉴스 URL이 필요합니다".to_string(),
+        ));
     }
 
     let link = json!({
@@ -59,10 +83,14 @@ pub async fn create_news_link(
         "published_at": published_at,
     });
 
-    state.supabase.insert("news_links", &link).await.map_err(|error| {
-        tracing::error!(target: "admin", error = %error, "뉴스 링크 등록 실패");
-        (StatusCode::INTERNAL_SERVER_ERROR, error)
-    })?;
+    state
+        .supabase
+        .insert("news_links", &link)
+        .await
+        .map_err(|error| {
+            tracing::error!(target: "admin", error = %error, "뉴스 링크 등록 실패");
+            (StatusCode::INTERNAL_SERVER_ERROR, error)
+        })?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -78,13 +106,20 @@ pub async fn delete_news_link(
 
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     if !is_uuid(id) {
-        return Err((StatusCode::BAD_REQUEST, "올바른 뉴스 ID가 필요합니다".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "올바른 뉴스 ID가 필요합니다".to_string(),
+        ));
     }
 
-    state.supabase.delete_by_id("news_links", id).await.map_err(|error| {
-        tracing::error!(target: "admin", news_id = %id, error = %error, "뉴스 링크 삭제 실패");
-        (StatusCode::INTERNAL_SERVER_ERROR, error)
-    })?;
+    state
+        .supabase
+        .delete_by_id("news_links", id)
+        .await
+        .map_err(|error| {
+            tracing::error!(target: "admin", news_id = %id, error = %error, "뉴스 링크 삭제 실패");
+            (StatusCode::INTERNAL_SERVER_ERROR, error)
+        })?;
 
     Ok(Json(json!({ "ok": true })))
 }

@@ -26,8 +26,17 @@ pub async fn load_initial_candles(
     let mut candle_store = CandleStore::new();
     let today_dt = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
     let today = today_dt.format("%Y%m%d").to_string();
-    let now_hhmm = today_dt.format("%H%M").to_string().parse::<u32>().unwrap_or(0);
-    let is_weekday = today_dt.format("%u").to_string().parse::<u32>().unwrap_or(7) <= 5;
+    let now_hhmm = today_dt
+        .format("%H%M")
+        .to_string()
+        .parse::<u32>()
+        .unwrap_or(0);
+    let is_weekday = today_dt
+        .format("%u")
+        .to_string()
+        .parse::<u32>()
+        .unwrap_or(7)
+        <= 5;
     let is_market_hours = is_weekday && (845..=1545).contains(&now_hhmm);
 
     for symbol in symbols {
@@ -35,18 +44,32 @@ pub async fn load_initial_candles(
         let mut found: Vec<(String, Vec<kis::MinuteCandle>)> = Vec::new();
         for days_back in 1..=14 {
             let candidate_date = (today_dt.date_naive() - chrono::Duration::days(days_back))
-                .format("%Y%m%d").to_string();
-            match kis::get_minute_chart(http_client, app_key, app_secret, access_token,
-                &symbol.code, &candidate_date, "154500").await {
+                .format("%Y%m%d")
+                .to_string();
+            match kis::get_minute_chart(
+                http_client,
+                app_key,
+                app_secret,
+                access_token,
+                &symbol.code,
+                &candidate_date,
+                "154500",
+            )
+            .await
+            {
                 Ok(chunk) => {
-                    let latest_date = chunk.iter()
+                    let latest_date = chunk
+                        .iter()
                         .map(|c| c.stck_bsop_date.as_str())
                         .filter(|date| *date < today.as_str())
-                        .max().map(str::to_string);
+                        .max()
+                        .map(str::to_string);
                     if let Some(date) = latest_date {
                         if !found.iter().any(|(existing, _)| existing == &date) {
-                            let day_chunk: Vec<kis::MinuteCandle> = chunk.into_iter()
-                                .filter(|c| c.stck_bsop_date == date).collect();
+                            let day_chunk: Vec<kis::MinuteCandle> = chunk
+                                .into_iter()
+                                .filter(|c| c.stck_bsop_date == date)
+                                .collect();
                             if !day_chunk.is_empty() {
                                 tracing::info!("거래일 탐색 확인: {} {}", symbol.code, date);
                                 found.push((date, day_chunk));
@@ -55,22 +78,40 @@ pub async fn load_initial_candles(
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("거래일 탐색 중 1분봉 조회 실패({} / {}): {}", symbol.code, candidate_date, e);
+                    tracing::warn!(
+                        "거래일 탐색 중 1분봉 조회 실패({} / {}): {}",
+                        symbol.code,
+                        candidate_date,
+                        e
+                    );
                     break;
                 }
             }
-            if found.len() >= 2 { break; }
+            if found.len() >= 2 {
+                break;
+            }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
         found.sort_by(|a, b| a.0.cmp(&b.0));
         if found.is_empty() {
-            tracing::warn!("직전 14일 내 거래일 1분봉을 찾지 못했습니다: {}", symbol.code);
+            tracing::warn!(
+                "직전 14일 내 거래일 1분봉을 찾지 못했습니다: {}",
+                symbol.code
+            );
         }
         for (trade_date, first_chunk) in found {
             tracing::info!("거래일({}) 1분봉 로드 시작: {}", trade_date, symbol.code);
-            let candles = load_trade_date(http_client, app_key, app_secret, access_token,
-                &symbol.code, &trade_date, first_chunk).await;
+            let candles = load_trade_date(
+                http_client,
+                app_key,
+                app_secret,
+                access_token,
+                &symbol.code,
+                &trade_date,
+                first_chunk,
+            )
+            .await;
             tracing::info!("거래일 1분봉 로드 완료: {} {}건", trade_date, candles.len());
             candle_store.load_1m(&symbol.code, &trade_date, candles);
         }
@@ -81,20 +122,43 @@ pub async fn load_initial_candles(
             let mut t_1m = Vec::new();
             let mut hour = format!("{:02}{:02}00", now_hhmm / 100, now_hhmm % 100);
             for _ in 0..5 {
-                match kis::get_minute_chart(http_client, app_key, app_secret, access_token,
-                    &symbol.code, &today, &hour).await {
+                match kis::get_minute_chart(
+                    http_client,
+                    app_key,
+                    app_secret,
+                    access_token,
+                    &symbol.code,
+                    &today,
+                    &hour,
+                )
+                .await
+                {
                     Ok(chunk) => {
-                        if chunk.is_empty() { break; }
-                        let earliest = chunk.iter().filter(|c| c.stck_bsop_date == today)
-                            .map(|c| c.stck_cntg_hour.as_str()).min().unwrap_or("").to_string();
+                        if chunk.is_empty() {
+                            break;
+                        }
+                        let earliest = chunk
+                            .iter()
+                            .filter(|c| c.stck_bsop_date == today)
+                            .map(|c| c.stck_cntg_hour.as_str())
+                            .min()
+                            .unwrap_or("")
+                            .to_string();
                         for c in chunk.iter().filter(|c| c.stck_bsop_date == today) {
-                            if c.stck_cntg_hour.len() < 4 { continue; }
+                            if c.stck_cntg_hour.len() < 4 {
+                                continue;
+                            }
                             t_1m.push(to_candle(c));
                         }
-                        if earliest.is_empty() || earliest.as_str() <= "084500" { break; }
+                        if earliest.is_empty() || earliest.as_str() <= "084500" {
+                            break;
+                        }
                         hour = subtract_one_minute(&earliest);
                     }
-                    Err(e) => { tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e); break; }
+                    Err(e) => {
+                        tracing::warn!("당일 1분봉 조회 실패({}): {}", symbol.code, e);
+                        break;
+                    }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             }
