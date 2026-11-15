@@ -5,11 +5,7 @@
 
 use super::auth::{require_admin, require_auth};
 use crate::core::state::AppState;
-use axum::{
-    Json,
-    extract::State,
-    http::HeaderMap,
-};
+use axum::{Json, extract::State, http::HeaderMap};
 use serde_json::{Value, json};
 
 /// POST /api/admin/notes (관리자만)
