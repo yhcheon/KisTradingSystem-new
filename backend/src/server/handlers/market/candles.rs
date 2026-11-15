@@ -45,7 +45,8 @@ pub async fn candles(
         "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
         "today" => to_json(&store.get(&code, &today, interval), &today),
         _ => {
-            // Return the latest dates actually present in CandleStore, independent of weekdays.
+            // "both" returns the two latest dates actually present in CandleStore.
+            // This naturally handles weekends and exchange holidays without weekday arithmetic.
             let mut all = Vec::new();
             for stored_date in store.dates(&code) {
                 all.extend(to_json(&store.get(&code, &stored_date, interval), &stored_date));
