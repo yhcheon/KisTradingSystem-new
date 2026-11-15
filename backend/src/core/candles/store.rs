@@ -212,4 +212,52 @@ mod tests {
         assert_eq!(store.dates("201S"), vec!["20261114".to_string()]);
         assert!(store.dates("missing").is_empty());
     }
+
+    #[test]
+    fn on_tick_updates_ohlcv_within_the_same_interval_bucket() {
+        let mut store = CandleStore::new();
+
+        store.on_tick("101S", "20261116", "090001", 100.0, 2);
+        store.on_tick("101S", "20261116", "090259", 103.0, 3);
+        store.on_tick("101S", "20261116", "090401", 98.0, 4);
+
+        let five_minute = store.get("101S", "20261116", "5m");
+        assert_eq!(five_minute.len(), 1);
+        assert_eq!(five_minute[0].time, "0900");
+        assert_eq!(five_minute[0].open, 100.0);
+        assert_eq!(five_minute[0].high, 103.0);
+        assert_eq!(five_minute[0].low, 98.0);
+        assert_eq!(five_minute[0].close, 98.0);
+        assert_eq!(five_minute[0].volume, 9);
+
+        let one_minute = store.get("101S", "20261116", "1m");
+        assert_eq!(one_minute.len(), 3);
+    }
+
+    #[test]
+    fn on_tick_starts_a_new_candle_at_the_next_interval_boundary() {
+        let mut store = CandleStore::new();
+
+        store.on_tick("101S", "20261116", "090459", 100.0, 1);
+        store.on_tick("101S", "20261116", "090500", 105.0, 2);
+
+        let five_minute = store.get("101S", "20261116", "5m");
+        assert_eq!(five_minute.len(), 2);
+        assert_eq!(five_minute[0].time, "0904");
+        assert_eq!(five_minute[0].close, 100.0);
+        assert_eq!(five_minute[1].time, "0905");
+        assert_eq!(five_minute[1].open, 105.0);
+        assert_eq!(five_minute[1].volume, 2);
+    }
+
+    #[test]
+    fn on_tick_ignores_invalid_price_or_short_time() {
+        let mut store = CandleStore::new();
+
+        store.on_tick("101S", "20261116", "090", 100.0, 1);
+        store.on_tick("101S", "20261116", "090001", 0.0, 1);
+        store.on_tick("101S", "20261116", "090001", -1.0, 1);
+
+        assert!(store.dates("101S").is_empty());
+    }
 }
