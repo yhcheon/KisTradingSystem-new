@@ -3,6 +3,7 @@
 // 설명: 시세, 캔들 및 WebSocket API 핸들러 공개 인터페이스
 // ============================================================
 
+mod candle_query;
 mod candle_response;
 mod candles;
 mod prices;
