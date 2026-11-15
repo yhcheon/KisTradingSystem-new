@@ -70,7 +70,13 @@ export default function App() {
       ) : tab === 'analysis' ? (
         session ? <Analysis /> : <Login />
       ) : tab === 'admin' ? (
-        isAdmin ? <Admin /> : <p style={{ padding: 20 }}>관리자 권한이 없습니다</p>
+        !session ? (
+          <Login />
+        ) : isAdmin ? (
+          <Admin />
+        ) : (
+          <p style={{ padding: 20 }}>관리자 권한이 없습니다</p>
+        )
       ) : null}
     </div>
   );
