@@ -1,3 +1,4 @@
+use crate::core::time::today_yyyymmdd;
 use tokio::sync::{broadcast, mpsc};
 
 pub(super) const TR_ID: &str = "H0IFCNT0";
@@ -29,7 +30,7 @@ pub(super) fn handle_text(
     if parts.len() >= 4 && parts[1] == TR_ID {
         let fields: Vec<&str> = parts[3].split('^').collect();
         if fields.len() > 10 {
-            let today = chrono::Local::now().format("%Y%m%d").to_string();
+            let today = today_yyyymmdd(chrono::Utc::now());
             let tick = RealtimeTick {
                 code: fields[0].to_string(),
                 date: today,
