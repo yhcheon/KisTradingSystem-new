@@ -6,6 +6,7 @@
 mod candle_query;
 mod candle_response;
 mod candles;
+mod price_fetch;
 mod prices;
 mod websocket;
 
