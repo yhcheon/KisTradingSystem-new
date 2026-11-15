@@ -3,8 +3,15 @@
 // 설명: 분봉 캔들 조회 API
 // ============================================================
 
-use crate::core::{state::AppState, time::{previous_calendar_day_yyyymmdd, today_yyyymmdd}};
-use axum::{Json, extract::{Query, State}};
+use super::candle_response::to_json;
+use crate::core::{
+    state::AppState,
+    time::{previous_calendar_day_yyyymmdd, today_yyyymmdd},
+};
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -23,23 +30,6 @@ pub async fn candles(
     let now = chrono::Utc::now();
     let yesterday = previous_calendar_day_yyyymmdd(now);
     let today = today_yyyymmdd(now);
-
-    let to_json = |candles: &[crate::core::candles::Candle], date_str: &str| -> Vec<Value> {
-        candles
-            .iter()
-            .map(|c| {
-                json!({
-                    "date": date_str,
-                    "time": format!("{}00", c.time),
-                    "open": c.open,
-                    "high": c.high,
-                    "low": c.low,
-                    "close": c.close,
-                    "volume": c.volume as f64,
-                })
-            })
-            .collect()
-    };
 
     let result = match date {
         "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
