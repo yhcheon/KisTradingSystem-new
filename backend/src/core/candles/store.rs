@@ -150,3 +150,66 @@ impl CandleStore {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candle(time: &str, price: f64, volume: u64) -> Candle {
+        Candle {
+            time: time.to_string(),
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume,
+        }
+    }
+
+    #[test]
+    fn dates_returns_only_the_latest_two_dates_in_order() {
+        let mut store = CandleStore::new();
+        store.load_1m("101S", "20261112", vec![candle("0900", 100.0, 1)]);
+        store.load_1m("101S", "20261113", vec![candle("0900", 101.0, 1)]);
+        store.load_1m("101S", "20261114", vec![candle("0900", 102.0, 1)]);
+
+        assert_eq!(
+            store.dates("101S"),
+            vec!["20261113".to_string(), "20261114".to_string()]
+        );
+        assert!(store.get("101S", "20261112", "1m").is_empty());
+        assert_eq!(store.count("101S", "20261113", "1m"), 1);
+        assert_eq!(store.count("101S", "20261114", "1m"), 1);
+    }
+
+    #[test]
+    fn load_1m_builds_supported_intervals() {
+        let mut store = CandleStore::new();
+        store.load_1m(
+            "101S",
+            "20261114",
+            vec![
+                candle("0900", 100.0, 2),
+                candle("0901", 101.0, 3),
+                candle("0902", 102.0, 4),
+            ],
+        );
+
+        assert_eq!(store.count("101S", "20261114", "1m"), 3);
+        assert_eq!(store.count("101S", "20261114", "2m"), 2);
+        assert_eq!(store.count("101S", "20261114", "5m"), 1);
+        assert!(store.get("101S", "20261114", "15m").is_empty());
+    }
+
+    #[test]
+    fn dates_are_independent_per_symbol() {
+        let mut store = CandleStore::new();
+        store.load_1m("101S", "20261113", vec![candle("0900", 100.0, 1)]);
+        store.load_1m("201S", "20261114", vec![candle("0900", 200.0, 1)]);
+
+        assert_eq!(store.dates("101S"), vec!["20261113".to_string()]);
+        assert_eq!(store.dates("201S"), vec!["20261114".to_string()]);
+        assert!(store.dates("missing").is_empty());
+    }
+}
