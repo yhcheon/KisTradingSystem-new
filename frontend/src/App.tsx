@@ -54,7 +54,14 @@ export default function App() {
           )}
           {session ? (
             <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
-          ) : null}
+          ) : (
+            <button
+              onClick={() => setTab('analysis')}
+              className={tab === 'analysis' ? 'active' : ''}
+            >
+              로그인
+            </button>
+          )}
         </div>
       </header>
 
