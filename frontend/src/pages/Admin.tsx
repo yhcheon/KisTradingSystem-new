@@ -3,10 +3,11 @@
 // 설명: 관리자 글 작성 / 목록 / 수정 / 삭제 페이지
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { adminNotesRequest } from '../features/admin/api';
 import type { Category, Note } from '../features/admin/types';
+import { useAdminNotes } from '../features/admin/hooks/useAdminNotes';
 
 const panelStyle: CSSProperties = {
   background: '#111827', border: '1px solid #334155', borderRadius: 8,
@@ -26,27 +27,9 @@ export default function Admin() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<Category>('us_market');
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const { notes, loading, message, setMessage, loadNotes } = useAdminNotes();
   const [editingId, setEditingId] = useState<string | number | null>(null);
-
-  const loadNotes = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await adminNotesRequest<{ data?: Note[] }>('GET');
-      setNotes(Array.isArray(result?.data) ? result.data : []);
-    } catch (error) {
-      setMessage(`목록 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadNotes();
-  }, [loadNotes]);
 
   const resetForm = () => {
     setTitle('');
