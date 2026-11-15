@@ -11,6 +11,14 @@ interface UseMarketWebSocketOptions {
   setCandles: Dispatch<SetStateAction<CandleData[]>>;
 }
 
+const RECONNECT_INITIAL_DELAY_MS = 1_000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
+
+function getWebSocketUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.hostname}:8080/ws`;
+}
+
 export function useMarketWebSocket({
   interval,
   selectedCode,
@@ -24,48 +32,80 @@ export function useMarketWebSocket({
   }, [selectedCode]);
 
   useEffect(() => {
-    const url = `ws://${window.location.hostname}:8080/ws`;
-    const socket = new WebSocket(url);
+    let socket: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
+    let disposed = false;
+    const url = getWebSocketUrl();
 
-    socket.onmessage = (event) => {
-      try {
-        const tick: RealtimeTick = JSON.parse(event.data);
-        if (tick.type !== 'tick') return;
+    const connect = () => {
+      if (disposed) return;
 
-        setData((previous) => {
-          if (!previous) return previous;
+      socket = new WebSocket(url);
 
-          const updateOne = (result: PricesResponse['regular']) => {
-            if (!result.ok || !result.data || result.data.code !== tick.code) {
-              return result;
-            }
+      socket.onopen = () => {
+        reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const tick: RealtimeTick = JSON.parse(event.data);
+          if (tick.type !== 'tick') return;
+
+          setData((previous) => {
+            if (!previous) return previous;
+
+            const updateOne = (result: PricesResponse['regular']) => {
+              if (!result.ok || !result.data || result.data.code !== tick.code) {
+                return result;
+              }
+
+              return {
+                ok: true,
+                data: {
+                  ...result.data,
+                  price: tick.price,
+                  change: tick.change,
+                  change_rate: tick.change_rate,
+                  volume: tick.volume,
+                  cached_at: Math.floor(Date.now() / 1000),
+                },
+              };
+            };
 
             return {
-              ok: true,
-              data: {
-                ...result.data,
-                price: tick.price,
-                change: tick.change,
-                change_rate: tick.change_rate,
-                volume: tick.volume,
-                cached_at: Math.floor(Date.now() / 1000),
-              },
+              regular: updateOne(previous.regular),
+              mini: updateOne(previous.mini),
             };
-          };
+          });
 
-          return {
-            regular: updateOne(previous.regular),
-            mini: updateOne(previous.mini),
-          };
-        });
+          if (tick.code !== selectedCodeRef.current) return;
+          setCandles((previous) => applyTickToCandles(previous, tick, interval));
+        } catch {
+          // Ignore malformed or unexpected WebSocket messages.
+        }
+      };
 
-        if (tick.code !== selectedCodeRef.current) return;
-        setCandles((previous) => applyTickToCandles(previous, tick, interval));
-      } catch {
-        // Ignore malformed or unexpected WebSocket messages.
-      }
+      socket.onclose = () => {
+        if (disposed) return;
+
+        reconnectTimer = window.setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS);
+      };
+
+      socket.onerror = () => {
+        socket?.close();
+      };
     };
 
-    return () => socket.close();
+    connect();
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+      }
+      socket?.close();
+    };
   }, [interval, setData, setCandles]);
 }
