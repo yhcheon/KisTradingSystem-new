@@ -5,7 +5,7 @@ use tokio::sync::{Mutex, broadcast, mpsc};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::core::candles::CandleStore;
+use crate::core::{candles::CandleStore, time::today_yyyymmdd};
 
 use super::protocol::{RealtimeTick, TR_ID, handle_text};
 
@@ -66,7 +66,7 @@ async fn connect_and_listen(
                                 let code = fields[0].to_string();
                                 let price = fields[5].parse::<f64>().unwrap_or(0.0);
                                 let qty = fields[9].parse::<u64>().unwrap_or(0);
-                                let today = chrono::Local::now().format("%Y%m%d").to_string();
+                                let today = today_yyyymmdd(chrono::Utc::now());
                                 {
                                     let mut store = candle_store.lock().await;
                                     store.on_tick(&code, &today, fields[1], price, qty);
