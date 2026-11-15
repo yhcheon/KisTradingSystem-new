@@ -30,7 +30,20 @@ pub async fn candles(
     let now = chrono::Utc::now();
     let yesterday = previous_calendar_day_yyyymmdd(now);
     let today = today_yyyymmdd(now);
-    let result = query_candles(&store, &code, interval, date, &yesterday, &today);
+
+    let result = match date {
+        "yesterday" => to_json(&store.get(&code, &yesterday, interval), &yesterday),
+        "today" => to_json(&store.get(&code, &today, interval), &today),
+        _ => {
+            // "both" returns the two latest dates actually present in CandleStore.
+            // This naturally handles weekends and exchange holidays without weekday arithmetic.
+            let mut all = Vec::new();
+            for stored_date in store.dates(&code) {
+                all.extend(to_json(&store.get(&code, &stored_date, interval), &stored_date));
+            }
+            all
+        }
+    };
 
     Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
