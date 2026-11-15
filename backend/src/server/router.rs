@@ -16,7 +16,7 @@ pub fn build(state: AppState) -> Router {
         .route("/ws", get(market::ws_handler))
         // ── 콘텐츠 API ──
         .route("/api/notes", get(content::notes))
-        .route("/api/notes/:id", get(content::note_detail))
+        .route("/api/notes/{id}", get(content::note_detail))
         .route(
             "/api/admin/notes",
             get(content::admin_notes)

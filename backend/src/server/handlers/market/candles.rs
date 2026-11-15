@@ -3,7 +3,7 @@
 // 설명: 분봉 캔들 조회 API
 // ============================================================
 
-use super::candle_query::query_candles;
+use super::{candle_params::CandleParams, candle_query::query_candles};
 use crate::core::{
     state::AppState,
     time::{previous_calendar_day_yyyymmdd, today_yyyymmdd},
@@ -13,18 +13,17 @@ use axum::{
     extract::{Query, State},
 };
 use serde_json::{Value, json};
-use std::collections::HashMap;
 
 pub async fn candles(
     State(state): State<AppState>,
-    Query(params): Query<HashMap<String, String>>,
+    Query(params): Query<CandleParams>,
 ) -> Json<Value> {
-    let code = match params.get("code") {
-        Some(c) => c.clone(),
+    let code = match params.code {
+        Some(code) => code,
         None => return Json(json!({ "ok": false, "error": "code 파라미터 필요" })),
     };
-    let interval = params.get("interval").map(|s| s.as_str()).unwrap_or("1m");
-    let date = params.get("date").map(|s| s.as_str()).unwrap_or("both");
+    let interval = params.interval.as_deref().unwrap_or("1m");
+    let date = params.date.as_deref().unwrap_or("both");
 
     let store = state.candles.lock().await;
     let now = chrono::Utc::now();
