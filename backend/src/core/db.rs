@@ -6,7 +6,6 @@
 // 작성일: 2026-11-14
 // ============================================================
 
-
 #[derive(Debug, Clone)]
 pub struct SupabaseClient {
     pub url: String,
@@ -37,7 +36,10 @@ impl SupabaseClient {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
+            let body = resp
+                .text()
+                .await
+                .unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
             let body = body.chars().take(2000).collect::<String>();
             tracing::error!(
                 target: "supabase",
@@ -70,7 +72,10 @@ impl SupabaseClient {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
+            let body = resp
+                .text()
+                .await
+                .unwrap_or_else(|error| format!("<응답 본문 읽기 실패: {}>", error));
             let body = body.chars().take(2000).collect::<String>();
             tracing::error!(
                 target: "supabase",
@@ -84,7 +89,6 @@ impl SupabaseClient {
         }
         Ok(())
     }
-
 
     /// 글 수정 (id 기준)
     pub async fn update_by_id(
@@ -109,10 +113,16 @@ impl SupabaseClient {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let response_body = resp.text().await.unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
+            let response_body = resp
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
             let response_body = response_body.chars().take(2000).collect::<String>();
             tracing::error!(target: "supabase", operation = "update", table = %table, http_status = %status, response_body = %response_body, "Supabase UPDATE 실패");
-            return Err(format!("Supabase update HTTP {}: {}", status, response_body));
+            return Err(format!(
+                "Supabase update HTTP {}: {}",
+                status, response_body
+            ));
         }
         Ok(())
     }
@@ -132,10 +142,16 @@ impl SupabaseClient {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let response_body = resp.text().await.unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
+            let response_body = resp
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
             let response_body = response_body.chars().take(2000).collect::<String>();
             tracing::error!(target: "supabase", operation = "delete", table = %table, http_status = %status, response_body = %response_body, "Supabase DELETE 실패");
-            return Err(format!("Supabase delete HTTP {}: {}", status, response_body));
+            return Err(format!(
+                "Supabase delete HTTP {}: {}",
+                status, response_body
+            ));
         }
         Ok(())
     }
@@ -156,7 +172,10 @@ impl SupabaseClient {
 
             if !resp.status().is_success() {
                 let status = resp.status();
-                let body = resp.text().await.unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
+                let body = resp
+                    .text()
+                    .await
+                    .unwrap_or_else(|e| format!("<응답 본문 읽기 실패: {}>", e));
                 let body = body.chars().take(2000).collect::<String>();
                 tracing::error!(
                     target: "supabase",

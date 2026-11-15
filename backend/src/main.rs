@@ -14,8 +14,8 @@ mod core;
 mod kis;
 mod kis_ws;
 mod logging;
-mod master;
 mod market;
+mod master;
 mod server;
 
 use std::sync::Arc;
@@ -84,11 +84,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 tracing::error!("KIS 토큰 초기화 실패: {}", e);
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "KIS 토큰 초기화 실패",
-                )
-                .into());
+                return Err(
+                    std::io::Error::new(std::io::ErrorKind::Other, "KIS 토큰 초기화 실패").into(),
+                );
             }
         };
 
@@ -160,11 +158,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         e
     })?;
     let supabase_jwt_secret = std::env::var("SUPABASE_JWT_SECRET").map_err(|e| {
-        tracing::error!("필수 환경변수 SUPABASE_JWT_SECRET를 읽을 수 없습니다: {}", e);
+        tracing::error!(
+            "필수 환경변수 SUPABASE_JWT_SECRET를 읽을 수 없습니다: {}",
+            e
+        );
         e
     })?;
-    let supabase =
-        core::db::SupabaseClient::new(supabase_url.clone(), supabase_service_key, http_client.clone());
+    let supabase = core::db::SupabaseClient::new(
+        supabase_url.clone(),
+        supabase_service_key,
+        http_client.clone(),
+    );
 
     // 매일 KST 07:00에 30일 지난 데이터 삭제 (백그라운드)
     {
@@ -263,16 +267,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         supabase_url: supabase_url.clone(),
     };
 
-
     // ── CORS 설정 ──
     // 운영 환경에서는 CORS_ALLOWED_ORIGINS에 프론트엔드 Origin을
     // 쉼표로 구분해 지정합니다. 미설정 시 로컬 개발 주소만 허용합니다.
-    use axum::http::{header, HeaderValue, Method};
+    use axum::http::{HeaderValue, Method, header};
     use tower_http::cors::CorsLayer;
 
-    let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_else(|_| {
-        "http://localhost:5173,http://127.0.0.1:5173".to_string()
-    });
+    let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
     let allowed_origins = cors_origins
         .split(',')
         .map(str::trim)
@@ -282,7 +284,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}", origin),
+                    format!(
+                        "CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}",
+                        origin
+                    ),
                 )
             })
         })
@@ -308,8 +313,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 서버 (CORS 적용)
     let app = server::router::build(state).layer(cors);
 
-
-
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await
         .map_err(|e| {
@@ -325,4 +328,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
