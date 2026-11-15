@@ -107,23 +107,40 @@ rust/
 
 ### 2. Redis 실행
 
-**최초 1회** (컨테이너 생성 + 자동 재시작 옵션):
+Redis는 백엔드 실행 전에 반드시 실행되어 있어야 합니다. 현재 백엔드는 `127.0.0.1:6379`에 Redis가 열려 있다고 가정합니다.
+
+**Docker Desktop UI로 실행하는 방법**
+
+1. Windows 시작 메뉴에서 **Docker Desktop**을 실행합니다.
+2. Docker Desktop이 완전히 시작될 때까지 기다립니다.
+3. 왼쪽 메뉴에서 **Containers**를 엽니다.
+4. Redis 컨테이너(기본 이름: `stock-redis`)를 찾습니다.
+5. 해당 컨테이너의 **Start(▶)** 버튼을 눌러 실행합니다. 상태가 Running인지 확인합니다.
+6. 백엔드를 실행합니다.
+
+> Docker Desktop을 켜는 것만으로 Redis 컨테이너가 항상 실행되는 것은 아닙니다. 컨테이너가 중지 상태라면 UI에서 Start를 눌러야 합니다. `--restart unless-stopped` 옵션으로 생성한 컨테이너는 Docker가 시작될 때 자동 재시작되지만, 수동 중지한 컨테이너는 다시 시작해야 합니다.
+
+**최초 1회 컨테이너 생성(아직 Redis 컨테이너가 없는 경우)**
 
 ```powershell
 docker run -d --name stock-redis --restart unless-stopped -p 6379:6379 redis:7-alpine
+```
 
-# 1) Docker Desktop 실행 (트레이 아이콘 초록색 확인)
-# 2) Redis 컨테이너 시작
-docker start stock-redis
+**실행 확인(선택 사항)**
 
-# 3) 확인
+```powershell
 docker exec -it stock-redis redis-cli ping
-# → PONG
+# 정상 응답: PONG
 
---restart unless-stopped 옵션 덕분에 Docker Desktop이 켜지면 Redis도 자동으로 시작됩니다. 단, docker stop stock-redis로 수동 중지한 경우에는 docker start stock-redis로 다시 켜야 합니다.
+# 또는 Windows PowerShell에서 포트 확인
+Test-NetConnection 127.0.0.1 -Port 6379
+# TcpTestSucceeded : True
+```
 
+Redis가 실행되지 않은 상태에서 `cargo run`을 실행하면 연결 거부 오류(Windows의 경우 OS error 10061)가 발생할 수 있습니다.
 
 ### 3. 환경 변수 설정
+
 
 ```powershell
 cd backend
