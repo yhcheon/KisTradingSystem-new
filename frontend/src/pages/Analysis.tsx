@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { authenticatedFetch } from '../lib/apiClient';
 import type { NoteListItem, Note } from '../types';
+import NewsLinks from '../features/news/NewsLinks';
 
 export default function Analysis() {
   const [list, setList] = useState<NoteListItem[]>([]);
@@ -65,7 +66,9 @@ export default function Analysis() {
   if (error) return <p style={{ color: '#ef4444', padding: 20 }}>{error}</p>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 20, padding: 20 }}>
+    <div>
+      <NewsLinks />
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 20, padding: 20 }}>
       <aside style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.length === 0 && <p style={{ color: '#94a3b8' }}>글이 없습니다</p>}
         {list.map((n) => (
@@ -106,6 +109,7 @@ export default function Analysis() {
           <p style={{ color: '#94a3b8' }}>왼쪽에서 글을 선택하세요</p>
         )}
       </section>
+      </div>
     </div>
   );
 }
