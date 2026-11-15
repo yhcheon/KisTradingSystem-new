@@ -5,7 +5,7 @@
 
 use super::{
     aggregation::{aggregate, parse_hhmm_to_minutes},
-    types::{interval_to_minutes, Candle, INTERVALS},
+    types::{Candle, INTERVALS, interval_to_minutes},
 };
 use std::collections::{BTreeMap, HashMap};
 
