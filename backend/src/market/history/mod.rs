@@ -112,9 +112,10 @@ async fn load_trade_date(
     first_chunk: Vec<kis::MinuteCandle>,
 ) -> Vec<Candle> {
     let mut result = Vec::new();
+    let mut first_chunk = Some(first_chunk);
     let mut hour = "154500".to_string();
     for page in 0..5 {
-        let chunk = if page == 0 { first_chunk.clone() } else {
+        let chunk = if page == 0 { first_chunk.take().unwrap_or_default() } else {
             match kis::get_minute_chart(http_client, app_key, app_secret, access_token,
                 symbol, trade_date, &hour).await {
                 Ok(chunk) => chunk,
