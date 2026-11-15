@@ -59,6 +59,14 @@ impl CandleStore {
         );
     }
 
+    /// 해당 종목에 저장된 거래일을 오래된 순서로 반환합니다.
+    pub fn dates(&self, code: &str) -> Vec<String> {
+        self.data
+            .get(code)
+            .map(|dates| dates.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
     pub fn get(&self, code: &str, date: &str, interval: &str) -> Vec<Candle> {
         self.data
             .get(code)
