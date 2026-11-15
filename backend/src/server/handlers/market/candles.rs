@@ -55,7 +55,6 @@ pub async fn candles(
     Json(json!({ "ok": true, "interval": interval, "data": result }))
 }
 
-#[allow(dead_code)]
 fn subtract_one_minute(hhmmss: &str) -> String {
     if hhmmss.len() < 6 {
         return "154500".to_string();
