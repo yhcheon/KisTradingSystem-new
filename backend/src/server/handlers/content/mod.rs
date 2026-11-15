@@ -3,9 +3,12 @@
 // 설명: 콘텐츠 핸들러 모듈 공개 인터페이스
 // ============================================================
 
+mod access;
 mod admin;
 mod auth;
+mod detail;
 mod notes;
 
 pub use admin::{admin_notes, create_note, delete_note, update_note};
-pub use notes::{note_detail, notes};
+pub use detail::note_detail;
+pub use notes::notes;
