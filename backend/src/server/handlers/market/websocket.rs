@@ -3,6 +3,7 @@
 // 설명: 브라우저 실시간 시세 WebSocket 핸들러
 // ============================================================
 
+use super::ws_message::tick_message;
 use crate::core::state::AppState;
 use axum::{
     extract::{
@@ -11,7 +12,6 @@ use axum::{
     },
     response::IntoResponse,
 };
-use serde_json::json;
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
@@ -26,17 +26,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             result = rx.recv() => {
                 match result {
                     Ok(tick) => {
-                        let json = serde_json::to_string(&json!({
-                            "type": "tick",
-                            "code": tick.code,
-                            "price": tick.price,
-                            "change": tick.change,
-                            "change_rate": tick.change_rate,
-                            "volume": tick.volume,
-                            "last_qty": tick.last_qty,
-                            "time": tick.time,
-                        })).unwrap_or_default();
-                        if socket.send(Message::Text(json.into())).await.is_err() { break; }
+                        let message = tick_message(&tick);
+                        if socket.send(Message::Text(message.into())).await.is_err() { break; }
                     }
                     Err(_) => break,
                 }

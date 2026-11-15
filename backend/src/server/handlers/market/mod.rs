@@ -9,6 +9,7 @@ mod candles;
 mod price_fetch;
 mod prices;
 mod websocket;
+mod ws_message;
 
 pub use candles::candles;
 pub use prices::{health, prices};
