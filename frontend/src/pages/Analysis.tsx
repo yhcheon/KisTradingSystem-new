@@ -7,7 +7,6 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { authenticatedFetch } from '../lib/apiClient';
-import { supabase } from '../lib/supabase';
 import type { NoteListItem, Note } from '../types';
 
 export default function Analysis() {
@@ -41,17 +40,25 @@ export default function Analysis() {
 
   // 글 상세 로드
   const handleSelect = async (id: string) => {
-    const { data: session } = await supabase.auth.getSession();
-    const token = session.session?.access_token;
-    if (!token) return;
-
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (error) { alert(error.message); return; }
-    setSelected(data as Note);
+    const res = await authenticatedFetch(`/api/notes/${encodeURIComponent(id)}`);
+    if (!res) {
+      alert('로그인이 필요합니다');
+      return;
+    }
+    if (res.status === 403) {
+      alert('무료 회원은 오후 2시부터 열람 가능합니다');
+      return;
+    }
+    if (res.status === 404) {
+      alert('글을 찾을 수 없습니다');
+      return;
+    }
+    if (!res.ok) {
+      alert('글 상세를 불러올 수 없습니다');
+      return;
+    }
+    const result = await res.json();
+    setSelected(result.data as Note);
   };
 
   if (loading) return <p style={{ color: '#94a3b8', padding: 20 }}>불러오는 중...</p>;

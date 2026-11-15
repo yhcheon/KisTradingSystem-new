@@ -8,4 +8,4 @@ mod auth;
 mod notes;
 
 pub use admin::{admin_notes, create_note, delete_note, update_note};
-pub use notes::notes;
+pub use notes::{note_detail, notes};
