@@ -10,7 +10,10 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: { prompt: 'select_account' },
+      },
     });
     if (error) alert(`로그인 실패: ${error.message}`);
   };
