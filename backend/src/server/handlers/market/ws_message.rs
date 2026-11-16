@@ -40,7 +40,10 @@ mod tests {
 
     #[test]
     fn serializes_tick_with_expected_browser_message_fields() {
-        let result = tick_message(&tick());
+        let tick = tick();
+        assert_eq!(tick.date, "20261116");
+
+        let result = tick_message(&tick);
         let value: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert_eq!(
