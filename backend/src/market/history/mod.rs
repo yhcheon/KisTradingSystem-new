@@ -166,6 +166,14 @@ async fn load_night_session(
         symbol, trade_date, cursor
     );
 
+    // KIS 분봉 조회의 초당 호출 제한을 피하기 위한 요청 간격입니다.
+    // 기본값 300ms이며 KIS_CANDLE_REQUEST_DELAY_MS 환경변수로 조정할 수 있습니다.
+    let request_delay_ms = std::env::var("KIS_CANDLE_REQUEST_DELAY_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(300);
+    const MAX_RATE_LIMIT_RETRIES: usize = 3;
+
     for page in 0..8 {
         let page_started = std::time::Instant::now();
         tracing::info!(
@@ -174,17 +182,42 @@ async fn load_night_session(
             symbol, trade_date, page + 1, cursor
         );
 
-        let chunk = kis::get_minute_chart_for_market(
-            http_client,
-            app_key,
-            app_secret,
-            access_token,
-            "CM",
-            symbol,
-            trade_date,
-            &cursor,
-        )
-        .await?;
+        // 호출 제한(EGW00201)이면 동일 cursor를 유지한 채 대기 후 재시도합니다.
+        let mut retry = 0usize;
+        let chunk = loop {
+            match kis::get_minute_chart_for_market(
+                http_client,
+                app_key,
+                app_secret,
+                access_token,
+                "CM",
+                symbol,
+                trade_date,
+                &cursor,
+            )
+            .await
+            {
+                Ok(chunk) => {
+                    // 성공 응답 후에도 다음 요청(다음 종목 포함) 전 간격을 확보합니다.
+                    tokio::time::sleep(std::time::Duration::from_millis(request_delay_ms)).await;
+                    break chunk;
+                }
+                Err(error) if error.to_string().contains("EGW00201")
+                    && retry < MAX_RATE_LIMIT_RETRIES =>
+                {
+                    retry += 1;
+                    let backoff_ms = request_delay_ms.max(1000u64.saturating_mul(2u64.pow(retry as u32 - 1)));
+                    tracing::warn!(
+                        target: "kis::night_candles",
+                        "[NIGHT-RATE-LIMIT-RETRY] symbol={} date={} page={} cursor={} retry={}/{} wait_ms={} error={}",
+                        symbol, trade_date, page + 1, cursor, retry,
+                        MAX_RATE_LIMIT_RETRIES, backoff_ms, error
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        };
 
         let chunk_count = chunk.len();
         let response_first = chunk.first()
@@ -260,11 +293,10 @@ async fn load_night_session(
         let next_cursor = subtract_one_minute(&earliest);
         tracing::info!(
             target: "kis::night_candles",
-            "[NIGHT-PAGE-NEXT] symbol={} date={} completed_page={} earliest={} next_cursor={} delay_ms=200",
-            symbol, trade_date, page + 1, earliest, next_cursor
+            "[NIGHT-PAGE-NEXT] symbol={} date={} completed_page={} earliest={} next_cursor={} request_delay_ms={}",
+            symbol, trade_date, page + 1, earliest, next_cursor, request_delay_ms
         );
         cursor = next_cursor;
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 
     result.sort_by(|a, b| a.time.cmp(&b.time));
