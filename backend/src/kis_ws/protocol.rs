@@ -72,10 +72,7 @@ pub(super) fn parse_tick(text: &str) -> Option<RealtimeTick> {
     })
 }
 
-pub(super) fn handle_text(
-    text: &str,
-    pong_tx: &mpsc::Sender<String>,
-) {
+pub(super) fn handle_text(text: &str, pong_tx: &mpsc::Sender<String>) {
     if text.contains(r#""tr_id":"PINGPONG""#) {
         tracing::debug!("PINGPONG 수신, 응답 전송 예약");
         let _ = pong_tx.try_send(text.to_string());
