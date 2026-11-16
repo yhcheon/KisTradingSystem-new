@@ -125,6 +125,16 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_after_midnight_night_tick_to_extended_business_time() {
+        let tick = parse_tick(&frame(NIGHT_TR_ID, "350.25", "010203", "3")).unwrap();
+        assert_eq!(tick.time, "250203");
+        assert_eq!(
+            tick.date,
+            previous_calendar_day_yyyymmdd(chrono::Utc::now())
+        );
+    }
+
+    #[test]
     fn rejects_invalid_price_and_time() {
         assert!(parse_tick(&frame(DAY_TR_ID, "not-a-price", "091530", "3")).is_none());
         assert!(parse_tick(&frame(NIGHT_TR_ID, "0", "201530", "3")).is_none());
