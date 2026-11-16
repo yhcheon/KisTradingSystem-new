@@ -45,6 +45,11 @@ export default function App() {
     return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
   }
 
+  // OAuth 팝업은 인증 세션을 확인한 뒤 부모 창으로 결과를 전달하고 닫힙니다.
+  if (window.opener && session) {
+    return <p style={{ padding: 20, color: '#e2e8f0' }}>로그인 완료. 창을 닫는 중...</p>;
+  }
+
   return (
     <div className="app">
       <header className="top-bar">
