@@ -36,7 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("============================================================");
 
     // Redis
-    let client = redis::Client::open("redis://127.0.0.1:6379").map_err(|e| {
+    let redis_url = std::env::var("REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let client = redis::Client::open(redis_url).map_err(|e| {
         tracing::error!("Redis 클라이언트 생성 실패: {}", e);
         e
     })?;
