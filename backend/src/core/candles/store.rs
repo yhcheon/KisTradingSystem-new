@@ -289,6 +289,42 @@ mod tests {
     }
 
     #[test]
+    fn load_1m_merges_day_and_night_candles_for_the_same_business_date() {
+        let mut store = CandleStore::new();
+        store.load_1m(
+            "101S",
+            "20261116",
+            vec![candle("1545", 100.0, 1)],
+        );
+        store.load_1m(
+            "101S",
+            "20261116",
+            vec![candle("1800", 101.0, 2), candle("2500", 102.0, 3)],
+        );
+
+        let all = store.get("101S", "20261116", "1m");
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].time, "1545");
+        assert_eq!(all[1].time, "1800");
+        assert_eq!(all[2].time, "2500");
+    }
+
+    #[test]
+    fn on_tick_accepts_cm_extended_hour_after_midnight() {
+        let mut store = CandleStore::new();
+
+        store.on_tick("101S", "20261116", "250001", 100.0, 2);
+        store.on_tick("101S", "20261116", "250059", 101.0, 3);
+
+        let one_minute = store.get("101S", "20261116", "1m");
+        assert_eq!(one_minute.len(), 1);
+        assert_eq!(one_minute[0].time, "2500");
+        assert_eq!(one_minute[0].open, 100.0);
+        assert_eq!(one_minute[0].close, 101.0);
+        assert_eq!(one_minute[0].volume, 5);
+    }
+
+    #[test]
     fn on_tick_ignores_invalid_price_time_date_or_code() {
         let mut store = CandleStore::new();
 
