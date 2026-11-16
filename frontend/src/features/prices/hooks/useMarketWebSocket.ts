@@ -19,6 +19,10 @@ function getWebSocketUrl(): string {
   return `${protocol}//${window.location.host}/ws`;
 }
 
+function numeric(value: string): number {
+  return Number.parseFloat(value.replace(/,/g, '').trim());
+}
+
 export function useMarketWebSocket({
   interval,
   selectedCode,
@@ -64,8 +68,31 @@ export function useMarketWebSocket({
                 return result;
               }
 
+              if (tick.market_session === 'night') {
+                const night = result.night;
+                if (!night?.ok || !night.data || night.data.code !== tick.code) {
+                  return result;
+                }
+                const current = numeric(tick.price);
+                const high = numeric(night.data.high);
+                const low = numeric(night.data.low);
+                return {
+                  ...result,
+                  night: {
+                    ...night,
+                    data: {
+                      ...night.data,
+                      price: tick.price,
+                      high: Number.isFinite(high) ? String(Math.max(high, current)) : tick.price,
+                      low: Number.isFinite(low) ? String(Math.min(low, current)) : tick.price,
+                      volume: tick.volume,
+                    },
+                  },
+                };
+              }
+
               return {
-                ok: true,
+                ...result,
                 data: {
                   ...result.data,
                   price: tick.price,
@@ -83,7 +110,8 @@ export function useMarketWebSocket({
             };
           });
 
-          if (tick.code !== selectedCodeRef.current) return;
+          // 야간 체결은 좌측 야간 시세만 갱신하고 주간 차트 캔들에는 반영하지 않습니다.
+          if (tick.market_session === 'night' || tick.code !== selectedCodeRef.current) return;
           setCandles((previous) =>
             applyTickToCandles(previous, tick, intervalRef.current),
           );
