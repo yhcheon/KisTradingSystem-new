@@ -205,6 +205,8 @@ async fn load_night_session(
                 Err(error) => {
                     // Box<dyn Error>는 Send를 보장하지 않으므로 await 전에 문자열로 변환합니다.
                     let error_message = error.to_string();
+                    // 명시적으로 원본 Box<dyn Error>를 await 이전에 해제해야 Send 조건을 만족합니다.
+                    drop(error);
                     if error_message.contains("EGW00201")
                         && retry < MAX_RATE_LIMIT_RETRIES
                     {
