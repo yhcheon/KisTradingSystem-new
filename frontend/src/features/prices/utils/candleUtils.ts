@@ -6,42 +6,13 @@ export function intervalToMinutes(interval: string): number {
 }
 
 export function mapCandlesForChart(raw: CandleData[]): CandleData[] {
-  if (raw.length === 0) return [];
-
-  const todayStr = new Date(Date.now() + 9 * 3600 * 1000)
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, '');
-
-  const yesterday = raw.filter((c) => c.date !== todayStr);
-  const today = raw.filter((c) => c.date === todayStr);
-
-  const mapped: CandleData[] = [];
-  let lastMin = 0;
-
-  for (const candle of yesterday) {
-    const hh = Number(candle.time.slice(0, 2));
-    const mm = Number(candle.time.slice(2, 4));
-    lastMin = hh * 60 + mm;
-    mapped.push(candle);
-  }
-
-  if (today.length > 0) {
-    const firstTodayMin =
-      Number(today[0].time.slice(0, 2)) * 60 + Number(today[0].time.slice(2, 4));
-    const offset = (yesterday.length > 0 ? lastMin + 1 : 0) - firstTodayMin;
-
-    for (const candle of today) {
-      const hh = Number(candle.time.slice(0, 2));
-      const mm = Number(candle.time.slice(2, 4));
-      const virtualMinute = hh * 60 + mm + offset;
-      const virtualHour = String(Math.floor(virtualMinute / 60)).padStart(2, '0');
-      const virtualMinutePart = String(virtualMinute % 60).padStart(2, '0');
-      mapped.push({ ...candle, time: `${virtualHour}${virtualMinutePart}00` });
-    }
-  }
-
-  return mapped;
+  // CM 야간 분봉은 자정 이후 시간을 24시 이상으로 표현합니다.
+  // 영업일 날짜 + 확장 시각을 그대로 사용해야 주간장 뒤에 연속해서 정렬됩니다.
+  return [...raw].sort((a, b) =>
+    a.date === b.date
+      ? a.time.localeCompare(b.time)
+      : a.date.localeCompare(b.date),
+  );
 }
 
 export function applyTickToCandles(
@@ -52,7 +23,12 @@ export function applyTickToCandles(
   const price = parseFloat(tick.price);
   const quantity = parseInt(tick.last_qty, 10);
 
-  if (Number.isNaN(price) || price <= 0 || tick.time.length < 4 || candles.length === 0) {
+  if (
+    Number.isNaN(price) ||
+    price <= 0 ||
+    tick.time.length < 4 ||
+    !/^\\d{8}$/.test(tick.date)
+  ) {
     return candles;
   }
 
@@ -61,9 +37,36 @@ export function applyTickToCandles(
   const hour = Number(hhmm.slice(0, 2));
   const minute = Number(hhmm.slice(2, 4));
   const groupKey = Math.floor((hour * 60 + minute) / minutes);
+  // CandleStore도 각 interval 그룹의 첫 체결 분을 봉 시각으로 사용합니다.
+  const candleTime = `${hhmm}00`;
 
   const updated = [...candles];
+  if (updated.length === 0) {
+    return [{
+      date: tick.date,
+      time: candleTime,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: quantity,
+    }];
+  }
+
   const last = updated[updated.length - 1];
+  if (last.date !== tick.date) {
+    updated.push({
+      date: tick.date,
+      time: candleTime,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: quantity,
+    });
+    return updated;
+  }
+
   const lastHour = Number(last.time.slice(0, 2));
   const lastMinute = Number(last.time.slice(2, 4));
   const lastGroupKey = Math.floor((lastHour * 60 + lastMinute) / minutes);
@@ -77,12 +80,9 @@ export function applyTickToCandles(
       volume: last.volume + quantity,
     };
   } else if (groupKey > lastGroupKey) {
-    const newMinute = groupKey * minutes;
-    const newHour = String(Math.floor(newMinute / 60)).padStart(2, '0');
-    const newMinutePart = String(newMinute % 60).padStart(2, '0');
     updated.push({
-      date: last.date,
-      time: `${newHour}${newMinutePart}00`,
+      date: tick.date,
+      time: candleTime,
       open: price,
       high: price,
       low: price,

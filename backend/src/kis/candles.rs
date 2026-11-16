@@ -57,7 +57,24 @@ pub async fn get_minute_chart(
     symbol: &str,
     date: &str,
     hour: &str,
-) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
+) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error + Send + Sync>> {
+    get_minute_chart_for_market(
+        client, app_key, app_secret, access_token, "F", symbol, date, hour,
+    )
+    .await
+}
+
+/// 시장 구분(F: 주간, CM: 야간)을 지정해 선물 1분봉을 조회합니다.
+pub async fn get_minute_chart_for_market(
+    client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    market_div_code: &str,
+    symbol: &str,
+    date: &str,
+    hour: &str,
+) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error + Send + Sync>> {
     let rest_domain = std::env::var("KIS_REST_DOMAIN")
         .unwrap_or_else(|_| "https://openapi.koreainvestment.com:9443".to_string());
     let url = format!(
@@ -65,7 +82,23 @@ pub async fn get_minute_chart(
         rest_domain.trim_end_matches('/')
     );
 
-    let resp = client
+    let query = [
+        ("FID_COND_MRKT_DIV_CODE", market_div_code),
+        ("FID_INPUT_ISCD", symbol),
+        ("FID_HOUR_CLS_CODE", "60"),
+        ("FID_PW_DATA_INCU_YN", "Y"),
+        ("FID_FAKE_TICK_INCU_YN", "N"),
+        ("FID_INPUT_DATE_1", date),
+        ("FID_INPUT_HOUR_1", hour),
+    ];
+    let request_started = std::time::Instant::now();
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-REQUEST] market={} symbol={} date={} cursor={} tr_id=FHKIF03020200 url={} query={:?}",
+        market_div_code, symbol, date, hour, url, query
+    );
+
+    let response = client
         .get(&url)
         .header("Content-Type", "application/json; charset=utf-8")
         .header("authorization", format!("Bearer {}", access_token))
@@ -73,21 +106,48 @@ pub async fn get_minute_chart(
         .header("appsecret", app_secret)
         .header("tr_id", "FHKIF03020200")
         .header("custtype", "P")
-        .query(&[
-            ("FID_COND_MRKT_DIV_CODE", "F"),
-            ("FID_INPUT_ISCD", symbol),
-            ("FID_HOUR_CLS_CODE", "60"),
-            ("FID_PW_DATA_INCU_YN", "Y"),
-            ("FID_FAKE_TICK_INCU_YN", "N"),
-            ("FID_INPUT_DATE_1", date),
-            ("FID_INPUT_HOUR_1", hour),
-        ])
+        .query(&query)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<MinuteChartResponse>()
         .await?;
+    let status = response.status();
+    let response_headers = format!("{:?}", response.headers());
+    let body = response.bytes().await?;
+    let elapsed_ms = request_started.elapsed().as_millis();
 
+    if !status.is_success() {
+        let body_text = String::from_utf8_lossy(&body);
+        tracing::error!(
+            target: "kis::night_candles",
+            "[MINUTE-HTTP-ERROR] market={} symbol={} date={} cursor={} status={} elapsed_ms={} headers={} body={}",
+            market_div_code, symbol, date, hour, status, elapsed_ms, response_headers, body_text
+        );
+        return Err(std::io::Error::other(format!(
+            "KIS minute chart HTTP {} (market={}, symbol={}, date={}, cursor={}): {}",
+            status, market_div_code, symbol, date, hour, body_text
+        )).into());
+    }
+
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-HTTP-OK] market={} symbol={} date={} cursor={} status={} bytes={} elapsed_ms={} headers={}",
+        market_div_code, symbol, date, hour, status, body.len(), elapsed_ms, response_headers
+    );
+
+    let resp: MinuteChartResponse = serde_json::from_slice(&body).map_err(|error| {
+        let body_text = String::from_utf8_lossy(&body);
+        tracing::error!(
+            target: "kis::night_candles",
+            "[MINUTE-JSON-ERROR] market={} symbol={} date={} cursor={} error={} body={}",
+            market_div_code, symbol, date, hour, error, body_text
+        );
+        error
+    })?;
+
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-RESPONSE] market={} symbol={} date={} cursor={} rt_cd={} msg_cd={} msg1={} output2_count={}",
+        market_div_code, symbol, date, hour, resp.rt_cd, resp.msg_cd, resp.msg1, resp.output2.len()
+    );
     ensure_success(&resp).map_err(std::io::Error::other)?;
 
     let mut candles: Vec<MinuteCandle> = resp
@@ -108,6 +168,13 @@ pub async fn get_minute_chart(
         (a.stck_bsop_date.clone(), a.stck_cntg_hour.clone())
             .cmp(&(b.stck_bsop_date.clone(), b.stck_cntg_hour.clone()))
     });
+    let first = candles.first().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
+    let last = candles.last().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-PARSED] market={} symbol={} date={} cursor={} candles={} first={} last={}",
+        market_div_code, symbol, date, hour, candles.len(), first, last
+    );
     Ok(candles)
 }
 

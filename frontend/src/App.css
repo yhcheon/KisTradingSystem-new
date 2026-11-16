@@ -453,3 +453,102 @@ footer {
   flex: 0 1 auto;
   overflow: visible;
 }
+
+
+/* ── 주간/야간 시세 세션 구분 ── */
+.session-section {
+  padding-top: 10px;
+}
+
+.session-section + .session-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.session-status {
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.night-session .session-heading > span:first-child {
+  color: var(--color-ok);
+}
+
+.session-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.session-price {
+  color: var(--text-main);
+  font-size: 21px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-change,
+.session-price-row .diff {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.session-stat-row .label {
+  color: var(--text-muted);
+}
+
+.session-stat-row .value {
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-stat-row .value.high {
+  color: var(--color-up);
+}
+
+.session-stat-row .value.low {
+  color: var(--color-down);
+}
+
+.session-message {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+  .sidebar > .card {
+    min-width: 260px;
+  }
+}

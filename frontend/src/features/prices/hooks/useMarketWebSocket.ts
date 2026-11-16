@@ -19,6 +19,10 @@ function getWebSocketUrl(): string {
   return `${protocol}//${window.location.host}/ws`;
 }
 
+function numeric(value: string): number {
+  return Number.parseFloat(value.replace(/,/g, '').trim());
+}
+
 export function useMarketWebSocket({
   interval,
   selectedCode,
@@ -60,12 +64,36 @@ export function useMarketWebSocket({
             if (!previous) return previous;
 
             const updateOne = (result: PricesResponse['regular']) => {
+              if (tick.market_session === 'night') {
+                const night = result.night;
+                if (!night?.ok || !night.data || night.data.code !== tick.code) {
+                  return result;
+                }
+                const current = numeric(tick.price);
+                const high = numeric(night.data.high);
+                const low = numeric(night.data.low);
+                return {
+                  ...result,
+                  night: {
+                    ...night,
+                    data: {
+                      ...night.data,
+                      price: tick.price,
+                      change: tick.change,
+                      change_rate: tick.change_rate,
+                      high: Number.isFinite(high) ? String(Math.max(high, current)) : tick.price,
+                      low: Number.isFinite(low) ? String(Math.min(low, current)) : tick.price,
+                      volume: tick.volume,
+                    },
+                  },
+                };
+              }
+
               if (!result.ok || !result.data || result.data.code !== tick.code) {
                 return result;
               }
-
               return {
-                ok: true,
+                ...result,
                 data: {
                   ...result.data,
                   price: tick.price,
@@ -83,6 +111,7 @@ export function useMarketWebSocket({
             };
           });
 
+          // 선택 종목의 주간/야간 체결을 모두 현재 차트에 반영합니다.
           if (tick.code !== selectedCodeRef.current) return;
           setCandles((previous) =>
             applyTickToCandles(previous, tick, intervalRef.current),

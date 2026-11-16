@@ -29,7 +29,6 @@ pub struct FuturesPriceResponse {
     pub msg_cd: String,
     pub msg1: String,
     pub output1: FuturesPriceOutput1,
-    // 확장 응답 필드를 보존하기 위한 데이터이며 현재 서비스 로직에서는 소비하지 않습니다.
     #[allow(dead_code)]
     pub output2: FuturesPriceOutput2,
 }
@@ -45,11 +44,13 @@ fn ensure_success(response: &FuturesPriceResponse) -> Result<(), String> {
     }
 }
 
-pub async fn get_futures_price(
+/// 시장 분류 코드(F: 주간 지수선물, CM: 야간선물)를 지정해 현재가를 조회합니다.
+pub async fn get_futures_price_for_market(
     client: &reqwest::Client,
     app_key: &str,
     app_secret: &str,
     access_token: &str,
+    market_div: &str,
     symbol: &str,
 ) -> Result<FuturesPriceResponse, Box<dyn std::error::Error>> {
     let rest_domain = std::env::var("KIS_REST_DOMAIN")
@@ -66,24 +67,37 @@ pub async fn get_futures_price(
         .header("appkey", app_key)
         .header("appsecret", app_secret)
         .header("tr_id", "FHMIF10000000")
-        .query(&[("FID_COND_MRKT_DIV_CODE", "F"), ("FID_INPUT_ISCD", symbol)])
+        .query(&[
+            ("FID_COND_MRKT_DIV_CODE", market_div),
+            ("FID_INPUT_ISCD", symbol),
+        ])
         .send()
         .await?
         .error_for_status()?
         .json::<FuturesPriceResponse>()
         .await?;
 
-    ensure_success(&resp).map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+    ensure_success(&resp).map_err(std::io::Error::other)?;
     Ok(resp)
+}
+
+/// 기존 주간 지수선물 조회 호출부와의 호환성을 유지합니다.
+pub async fn get_futures_price(
+    client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    symbol: &str,
+) -> Result<FuturesPriceResponse, Box<dyn std::error::Error>> {
+    get_futures_price_for_market(client, app_key, app_secret, access_token, "F", symbol).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn deserializes_quote_metadata_and_preserves_extra_output_fields() {
-        let response: FuturesPriceResponse = serde_json::from_value(serde_json::json!({
+    fn sample_response() -> FuturesPriceResponse {
+        serde_json::from_value(serde_json::json!({
             "rt_cd": "0",
             "msg_cd": "OK",
             "msg1": "정상 처리",
@@ -99,9 +113,12 @@ mod tests {
                 "acml_vol": "1200"
             },
             "output2": { "some_extra_field": "retained" }
-        }))
-        .unwrap();
+        })).unwrap()
+    }
 
+    #[test]
+    fn deserializes_quote_metadata_and_preserves_extra_output_fields() {
+        let response = sample_response();
         assert_eq!(response.rt_cd, "0");
         assert_eq!(response.msg_cd, "OK");
         assert_eq!(response.msg1, "정상 처리");
@@ -117,20 +134,12 @@ mod tests {
             "msg_cd": "EGW00123",
             "msg1": "시세 조회 오류",
             "output1": {
-                "hts_kor_isnm": "",
-                "futs_prpr": "",
-                "futs_prdy_vrss": "",
-                "futs_prdy_ctrt": "",
-                "futs_oprc": "",
-                "futs_hgpr": "",
-                "futs_lwpr": "",
-                "futs_prdy_clpr": "",
-                "acml_vol": ""
+                "hts_kor_isnm": "", "futs_prpr": "", "futs_prdy_vrss": "",
+                "futs_prdy_ctrt": "", "futs_oprc": "", "futs_hgpr": "",
+                "futs_lwpr": "", "futs_prdy_clpr": "", "acml_vol": ""
             },
             "output2": {}
-        }))
-        .unwrap();
-
+        })).unwrap();
         let error = ensure_success(&response).unwrap_err();
         assert!(error.contains("EGW00123"));
         assert!(error.contains("시세 조회 오류"));

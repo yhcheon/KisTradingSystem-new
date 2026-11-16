@@ -18,7 +18,7 @@ fn is_valid_tick_time(value: &str) -> bool {
     let minute = value[2..4].parse::<u8>().unwrap_or(u8::MAX);
     let second = value[4..6].parse::<u8>().unwrap_or(u8::MAX);
 
-    hour <= 23 && minute <= 59 && second <= 59
+    hour <= 29 && minute <= 59 && second <= 59
 }
 
 fn is_valid_tick_date(value: &str) -> bool {
@@ -38,8 +38,26 @@ impl CandleStore {
     }
 
     pub fn load_1m(&mut self, code: &str, date: &str, candles_1m: Vec<Candle>) {
+        // 주간(F)과 야간(CM) 조회 결과가 같은 영업일에 들어오므로
+        // 같은 날짜 데이터는 시각 기준으로 병합하고 중복 분은 최신 입력으로 교체합니다.
+        let existing = self
+            .data
+            .get(code)
+            .and_then(|dates| dates.get(date))
+            .and_then(|intervals| intervals.get("1m"))
+            .cloned()
+            .unwrap_or_default();
+        let mut merged: BTreeMap<String, Candle> = existing
+            .into_iter()
+            .map(|candle| (candle.time.clone(), candle))
+            .collect();
+        for candle in candles_1m {
+            merged.insert(candle.time.clone(), candle);
+        }
+        let merged_1m: Vec<Candle> = merged.into_values().collect();
+
         let mut per_interval: HashMap<String, Vec<Candle>> = HashMap::new();
-        per_interval.insert("1m".to_string(), candles_1m.clone());
+        per_interval.insert("1m".to_string(), merged_1m.clone());
 
         for &interval in INTERVALS {
             if interval == "1m" {
@@ -49,7 +67,7 @@ impl CandleStore {
                 Some(v) => v,
                 None => continue,
             };
-            per_interval.insert(interval.to_string(), aggregate(&candles_1m, n));
+            per_interval.insert(interval.to_string(), aggregate(&merged_1m, n));
         }
 
         self.data
@@ -66,7 +84,7 @@ impl CandleStore {
         }
 
         tracing::info!(
-            "[CandleStore] {} {} 로드: 1m={}건, 5m={}건, 60m={}건",
+            "[CandleStore] {} {} 병합 로드: 1m={}건, 5m={}건, 60m={}건",
             code,
             date,
             self.count(code, date, "1m"),
@@ -268,6 +286,42 @@ mod tests {
         assert_eq!(five_minute[1].time, "0905");
         assert_eq!(five_minute[1].open, 105.0);
         assert_eq!(five_minute[1].volume, 2);
+    }
+
+    #[test]
+    fn load_1m_merges_day_and_night_candles_for_the_same_business_date() {
+        let mut store = CandleStore::new();
+        store.load_1m(
+            "101S",
+            "20261116",
+            vec![candle("1545", 100.0, 1)],
+        );
+        store.load_1m(
+            "101S",
+            "20261116",
+            vec![candle("1800", 101.0, 2), candle("2500", 102.0, 3)],
+        );
+
+        let all = store.get("101S", "20261116", "1m");
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].time, "1545");
+        assert_eq!(all[1].time, "1800");
+        assert_eq!(all[2].time, "2500");
+    }
+
+    #[test]
+    fn on_tick_accepts_cm_extended_hour_after_midnight() {
+        let mut store = CandleStore::new();
+
+        store.on_tick("101S", "20261116", "250001", 100.0, 2);
+        store.on_tick("101S", "20261116", "250059", 101.0, 3);
+
+        let one_minute = store.get("101S", "20261116", "1m");
+        assert_eq!(one_minute.len(), 1);
+        assert_eq!(one_minute[0].time, "2500");
+        assert_eq!(one_minute[0].open, 100.0);
+        assert_eq!(one_minute[0].close, 101.0);
+        assert_eq!(one_minute[0].volume, 5);
     }
 
     #[test]
