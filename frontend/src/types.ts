@@ -25,6 +25,7 @@ export interface SessionQuote {
   open: string;
   high: string;
   low: string;
+  reference_price: string;
   change: string;
   change_rate: string;
   volume: string;
