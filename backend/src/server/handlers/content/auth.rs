@@ -36,8 +36,8 @@ pub(super) async fn require_auth(
 
     jwt::verify_jwt(
         token,
-        &state.jwt_secret,
-        &state.supabase_url,
+        &state.jwt.legacy_hs256_secret,
+        &state.supabase.url,
         &state.http_client,
     )
     .await
