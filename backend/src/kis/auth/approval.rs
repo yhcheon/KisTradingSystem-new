@@ -25,8 +25,12 @@ pub async fn get_approval_key(
         secretkey: app_secret.to_string(),
     };
 
+    let rest_domain = std::env::var("KIS_REST_DOMAIN")
+        .unwrap_or_else(|_| "https://openapi.koreainvestment.com:9443".to_string());
+    let url = format!("{}/oauth2/Approval", rest_domain.trim_end_matches('/'));
+
     let resp = client
-        .post("https://openapi.koreainvestment.com:9443/oauth2/Approval")
+        .post(&url)
         .header("Content-Type", "application/json; charset=UTF-8")
         .json(&body)
         .send()
