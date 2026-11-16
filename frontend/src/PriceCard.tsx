@@ -16,6 +16,21 @@ function toNumber(value: string): number {
   return Number.parseFloat(value.replace(/,/g, '').trim());
 }
 
+// 가격을 전일종가와 비교해 방향 및 차이 포인트를 계산합니다.
+function diffFrom(value: string, base: string) {
+  const v = toNumber(value);
+  const b = toNumber(base);
+  if (!Number.isFinite(v) || !Number.isFinite(b)) return null;
+
+  const diff = v - b;
+  const abs = Math.abs(diff);
+  const formatted = abs.toFixed(2).padStart(6, '0').replace(/^0+/, (m) => ' '.repeat(m.length));
+  return {
+    sign: diff > 0 ? '▲' : diff < 0 ? '▼' : '-',
+    abs: formatted,
+  };
+}
+
 function extractMonth(name: string): string {
   const m = name.match(/20(\d{2})(\d{2})/);
   if (m) return `20${m[1]}년 ${m[2]}월`;
@@ -24,6 +39,20 @@ function extractMonth(name: string): string {
 
 function formatPrice(value?: string): string {
   return value && value.trim() ? value : '-';
+}
+
+function DiffValue({ value, base }: { value: string; base: string }) {
+  const diff = diffFrom(value, base);
+  if (!diff) return null;
+
+  const directionClass =
+    diff.sign === '▲' ? 'up' : diff.sign === '▼' ? 'down' : 'flat';
+
+  return (
+    <span className={`diff ${directionClass}`}>
+      {diff.sign} {diff.abs}
+    </span>
+  );
 }
 
 function SessionStats({ quote, includePreviousClose }: {
@@ -35,6 +64,7 @@ function SessionStats({ quote, includePreviousClose }: {
   };
   includePreviousClose: boolean;
 }) {
+  const base = quote.prev_close;
   const rows = [
     ...(includePreviousClose ? [{ label: '전일종가', value: quote.prev_close ?? '-' }] : []),
     { label: '시가', value: quote.open },
@@ -44,14 +74,27 @@ function SessionStats({ quote, includePreviousClose }: {
 
   return (
     <div className="session-stats">
-      {rows.map((row) => (
-        <div className="session-stat-row" key={row.label}>
-          <span className="label">{row.label}</span>
-          <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : ''}`}>
-            {formatPrice(row.value)}
-          </span>
-        </div>
-      ))}
+      {rows.map((row) => {
+        const isComparedValue = row.label !== '전일종가' && includePreviousClose && !!base;
+        const openValue = row.label === '시가' ? toNumber(row.value) : Number.NaN;
+        const previousClose = base ? toNumber(base) : Number.NaN;
+        const openColor =
+          row.label === '시가' && Number.isFinite(openValue) && Number.isFinite(previousClose)
+            ? openValue > previousClose ? 'up' : openValue < previousClose ? 'down' : ''
+            : '';
+
+        return (
+          <div className="session-stat-row" key={row.label}>
+            <span className="label">{row.label}</span>
+            <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : openColor}`}>
+              {formatPrice(row.value)}
+            </span>
+            {isComparedValue && (
+              <DiffValue value={row.value} base={base!} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
