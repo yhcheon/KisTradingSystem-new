@@ -5,9 +5,9 @@ use tokio::sync::{Mutex, broadcast, mpsc};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::core::{candles::CandleStore, time::today_yyyymmdd};
+use crate::core::candles::CandleStore;
 
-use super::protocol::{RealtimeTick, TR_ID, handle_text};
+use super::protocol::{RealtimeTick, TR_ID, handle_text, parse_tick};
 
 pub async fn run(
     approval_key: String,
@@ -58,22 +58,18 @@ async fn connect_and_listen(
             msg = ws.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
-                        // 체결 데이터 → on_tick 호출
-                        let parts: Vec<&str> = text.split('|').collect();
-                        if parts.len() >= 4 && parts[1] == TR_ID {
-                            let fields: Vec<&str> = parts[3].split('^').collect();
-                            if fields.len() > 10 {
-                                let code = fields[0].to_string();
-                                let price = fields[5].parse::<f64>().unwrap_or(0.0);
-                                let qty = fields[9].parse::<u64>().unwrap_or(0);
-                                let today = today_yyyymmdd(chrono::Utc::now());
-                                {
-                                    let mut store = candle_store.lock().await;
-                                    store.on_tick(&code, &today, fields[1], price, qty);
-                                }
+                        // 체결 프레임을 한 번만 파싱해 캔들 저장과 브라우저 방송에 동일하게 사용합니다.
+                        if let Some(tick) = parse_tick(&text) {
+                            {
+                                let mut store = candle_store.lock().await;
+                                let price = tick.price.parse::<f64>().unwrap_or_default();
+                                let qty = tick.last_qty.parse::<u64>().unwrap_or_default();
+                                store.on_tick(&tick.code, &tick.date, &tick.time, price, qty);
                             }
+                            let _ = tx.send(tick);
+                        } else {
+                            handle_text(&text, &pong_tx);
                         }
-                        handle_text(&text, tx, &pong_tx);
                     }
                     Some(Ok(Message::Ping(p))) => { ws.send(Message::Pong(p)).await?; }
                     Some(Ok(Message::Close(_))) | None => {
