@@ -15,6 +15,153 @@ use convert::to_candle;
 use pagination::load_trade_date;
 use time::subtract_one_minute;
 
+
+/// 18시 이전에는 대기하고, 야간 세션 중 서버가 시작되면 현재 시각부터 18시까지 CM 분봉을 로드합니다.
+/// 야간 체결 WebSocket 구독은 별도로 서버 시작 시 신청되어 있으므로 이후 봉은 실시간으로 누적됩니다.
+pub fn spawn_night_candle_loader(
+    http_client: reqwest::Client,
+    app_key: String,
+    app_secret: String,
+    access_token: String,
+    symbols: Vec<String>,
+    candle_store: std::sync::Arc<tokio::sync::Mutex<CandleStore>>,
+) {
+    tokio::spawn(async move {
+        loop {
+            let now = chrono::Utc::now().with_timezone(&chrono_tz::Asia__Seoul);
+            let hour = chrono::Timelike::hour(&now);
+            let session_active = hour >= 18 || hour < 6;
+
+            if !session_active {
+                let next_start = now
+                    .date_naive()
+                    .and_hms_opt(18, 0, 0)
+                    .expect("valid night session start");
+                let wait = (next_start - now.naive_local())
+                    .to_std()
+                    .unwrap_or_default();
+                tracing::info!("야간 분봉 조회 대기: KST 18:00까지");
+                tokio::time::sleep(wait).await;
+            }
+
+            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia__Seoul);
+            let session_hour = chrono::Timelike::hour(&session_now);
+            let (trade_date, cursor_hour) = if session_hour < 6 {
+                (
+                    (session_now.date_naive() - chrono::Duration::days(1))
+                        .format("%Y%m%d")
+                        .to_string(),
+                    format!("{:02}{}",
+                        session_hour + 24,
+                        session_now.format("%M%S")
+                    ),
+                )
+            } else {
+                (
+                    session_now.format("%Y%m%d").to_string(),
+                    session_now.format("%H%M%S").to_string(),
+                )
+            };
+
+            for symbol in &symbols {
+                match load_night_session(
+                    &http_client,
+                    &app_key,
+                    &app_secret,
+                    &access_token,
+                    symbol,
+                    &trade_date,
+                    &cursor_hour,
+                )
+                .await
+                {
+                    Ok(candles) => {
+                        tracing::info!(
+                            "야간 CM 분봉 조회 완료: code={}, date={}, cursor={}, candles={}",
+                            symbol, trade_date, cursor_hour, candles.len()
+                        );
+                        if !candles.is_empty() {
+                            candle_store
+                                .lock()
+                                .await
+                                .load_1m(symbol, &trade_date, candles);
+                        }
+                    }
+                    Err(error) => tracing::warn!(
+                        "야간 CM 분봉 조회 실패: code={}, date={}, cursor={}, error={}",
+                        symbol, trade_date, cursor_hour, error
+                    ),
+                }
+            }
+
+            // 다음 야간 개장까지 대기합니다. 실시간 H0MFCNT0 체결은 계속 CandleStore에 누적됩니다.
+            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia__Seoul);
+            let next_day_start = (after_load.date_naive() + chrono::Duration::days(1))
+                .and_hms_opt(18, 0, 0)
+                .expect("valid next night session start");
+            let wait = (next_day_start - after_load.naive_local())
+                .to_std()
+                .unwrap_or_default();
+            tokio::time::sleep(wait).await;
+        }
+    });
+}
+
+async fn load_night_session(
+    http_client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    symbol: &str,
+    trade_date: &str,
+    initial_hour: &str,
+) -> Result<Vec<crate::core::candles::Candle>, Box<dyn std::error::Error>> {
+    let mut result = Vec::new();
+    let mut cursor = initial_hour.to_string();
+
+    // 실전 API는 호출당 최대 102건이므로, 18시까지 최대 5페이지를 역순 조회합니다.
+    for page in 0..5 {
+        let chunk = kis::get_minute_chart_for_market(
+            http_client,
+            app_key,
+            app_secret,
+            access_token,
+            "CM",
+            symbol,
+            trade_date,
+            &cursor,
+        )
+        .await?;
+
+        if chunk.is_empty() {
+            break;
+        }
+
+        let mut earliest = String::new();
+        for candle in chunk.iter().filter(|c| {
+            c.stck_bsop_date == trade_date && c.stck_cntg_hour >= "180000"
+        }) {
+            if earliest.is_empty() || candle.stck_cntg_hour < earliest {
+                earliest = candle.stck_cntg_hour.clone();
+            }
+            result.push(to_candle(candle));
+        }
+
+        if earliest.is_empty() || earliest.as_str() <= "180000" {
+            break;
+        }
+        if page == 4 {
+            break;
+        }
+        cursor = subtract_one_minute(&earliest);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    result.sort_by(|a, b| a.time.cmp(&b.time));
+    result.dedup_by(|a, b| a.time == b.time);
+    Ok(result)
+}
+
 /// 최근 실제 거래일 최대 2일과 장중 당일의 1분봉을 로드합니다.
 pub async fn load_initial_candles(
     http_client: &reqwest::Client,
