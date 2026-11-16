@@ -64,7 +64,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let mini = market_data.mini;
     let candle_store = market_data.candles;
 
-    // 야간선물은 별도 고정 코드를 쓰지 않고, 마스터에서 선택한 정규 KOSPI200 최근월물 코드를 사용합니다.
+    // 야간선물은 별도 고정 코드를 쓰지 않고, 선물 마스터에서 선택한 정규/미니 최근월물 코드를 사용합니다.
     // REST는 CM, WebSocket은 H0MFCNT0로 야간 시장을 구분합니다.
     let night_symbols = vec![regular.code.clone(), mini.code.clone()];
     for night_symbol in &night_symbols {
