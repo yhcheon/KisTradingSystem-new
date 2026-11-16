@@ -3,7 +3,7 @@
 // 설명: 일반 회원용 콘텐츠 목록 API
 // ============================================================
 
-use super::access::require_content_access;
+use super::access::{is_note_category, require_content_access};
 use crate::core::state::AppState;
 use axum::{
     Json,
@@ -22,6 +22,13 @@ pub async fn notes(
     require_content_access(&headers, &state).await?;
 
     let category = params.get("category").map(|s| s.as_str()).unwrap_or("");
+    if !category.is_empty() && !is_note_category(category) {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "올바른 카테고리가 필요합니다".to_string(),
+        ));
+    }
+
     let query = if category.is_empty() {
         "notes?select=id,title,category,created_at&order=created_at.desc&limit=20".to_string()
     } else {
