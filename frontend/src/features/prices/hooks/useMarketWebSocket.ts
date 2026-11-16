@@ -83,6 +83,8 @@ export function useMarketWebSocket({
                     data: {
                       ...night.data,
                       price: tick.price,
+                      change: tick.change,
+                      change_rate: tick.change_rate,
                       high: Number.isFinite(high) ? String(Math.max(high, current)) : tick.price,
                       low: Number.isFinite(low) ? String(Math.min(low, current)) : tick.price,
                       volume: tick.volume,
