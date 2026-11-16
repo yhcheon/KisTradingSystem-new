@@ -9,7 +9,7 @@ use crate::{core, kis, kis_ws};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::core::state::AppState;
+use crate::core::state::{AppState, JwtConfig, KisCredentials};
 
 /// 외부 의존성을 초기화하고 HTTP 서버에서 공유할 AppState를 구성합니다.
 pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
@@ -121,9 +121,14 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     tracing::info!("KIS WebSocket 백그라운드 시작");
 
     Ok(AppState {
-        app_key,
-        app_secret,
-        access_token,
+        kis: KisCredentials {
+            app_key,
+            app_secret,
+            access_token,
+        },
+        jwt: JwtConfig {
+            legacy_hs256_secret: supabase_jwt_secret,
+        },
         redis: Arc::new(Mutex::new(conn)),
         regular,
         mini,
@@ -131,7 +136,5 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         http_client,
         candles: candle_store,
         supabase,
-        jwt_secret: supabase_jwt_secret,
-        supabase_url,
     })
 }
