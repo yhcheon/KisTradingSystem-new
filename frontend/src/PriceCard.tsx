@@ -161,6 +161,9 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
     Number.isFinite(priceDiff) && Number.isFinite(previousClose) && previousClose !== 0
       ? ((priceDiff / previousClose) * 100).toFixed(2)
       : day.change_rate;
+  const changeRateText = Number.isFinite(Number(changeRate)) && Number(changeRate) > 0
+    ? `+${changeRate}`
+    : changeRate;
 
   return (
     <div className={baseClass} onClick={onClick}>
@@ -177,7 +180,7 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
         <div className="session-price-row">
           <span className={`session-price ${colorClass}`}>{day.price}</span>
           <span className={`session-change ${colorClass}`}>
-            {changeSign} {changeText} ({changeRate}%)
+            {changeSign} {changeText} ({changeRateText}%)
           </span>
         </div>
         <SessionStats
