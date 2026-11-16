@@ -13,7 +13,23 @@ use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
 };
+use serde::Deserialize;
 use serde_json::{Value, json};
+
+#[derive(Deserialize)]
+pub struct CreateNewsLinkRequest {
+    title: String,
+    url: String,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DeleteNewsLinkRequest {
+    id: String,
+}
 
 /// GET /api/admin/news
 pub async fn admin_news(
@@ -39,25 +55,17 @@ pub async fn admin_news(
 pub async fn create_news_link(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    Json(body): Json<CreateNewsLinkRequest>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let title = body
-        .get("title")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let url = body.get("url").and_then(Value::as_str).unwrap_or("").trim();
-    let source = body
-        .get("source")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
+    let title = body.title.trim();
+    let url = body.url.trim();
+    let source = body.source.as_deref().unwrap_or("").trim();
     let published_at = body
-        .get("published_at")
-        .and_then(Value::as_str)
+        .published_at
+        .as_deref()
         .filter(|value| !value.trim().is_empty());
 
     let parsed_url = reqwest::Url::parse(url).map_err(|_| {
@@ -99,12 +107,12 @@ pub async fn create_news_link(
 pub async fn delete_news_link(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    Json(body): Json<DeleteNewsLinkRequest>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let id = body.get("id").and_then(Value::as_str).unwrap_or("");
+    let id = body.id.trim();
     if !is_uuid(id) {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -122,4 +130,28 @@ pub async fn delete_news_link(
         })?;
 
     Ok(Json(json!({ "ok": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CreateNewsLinkRequest, DeleteNewsLinkRequest};
+
+    #[test]
+    fn create_news_link_accepts_optional_metadata() {
+        let request: CreateNewsLinkRequest =
+            serde_json::from_str(r#"{"title":"headline","url":"https://example.com"}"#)
+                .unwrap();
+        assert!(request.source.is_none());
+        assert!(request.published_at.is_none());
+    }
+
+    #[test]
+    fn news_requests_require_core_fields() {
+        assert!(serde_json::from_str::<CreateNewsLinkRequest>(
+            r#"{"title":"headline"}"#
+        )
+        .is_err());
+        assert!(serde_json::from_str::<DeleteNewsLinkRequest>(r#"{"id":"uuid"}"#).is_ok());
+        assert!(serde_json::from_str::<DeleteNewsLinkRequest>(r#"{}"#).is_err());
+    }
 }

@@ -7,6 +7,5 @@ mod aggregation;
 mod store;
 mod types;
 
-pub use aggregation::aggregate;
 pub use store::CandleStore;
-pub use types::{Candle, INTERVALS};
+pub use types::Candle;

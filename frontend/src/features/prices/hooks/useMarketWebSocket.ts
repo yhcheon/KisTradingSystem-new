@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { PricesResponse, RealtimeTick } from '../../../types';
 import type { CandleData } from '../types';
@@ -26,6 +26,10 @@ export function useMarketWebSocket({
   setCandles,
 }: UseMarketWebSocketOptions): void {
   const selectedCodeRef = useRef<string | null>(selectedCode);
+  const intervalRef = useRef(interval);
+  useLayoutEffect(() => {
+    intervalRef.current = interval;
+  }, [interval]);
 
   useEffect(() => {
     selectedCodeRef.current = selectedCode;
@@ -80,7 +84,9 @@ export function useMarketWebSocket({
           });
 
           if (tick.code !== selectedCodeRef.current) return;
-          setCandles((previous) => applyTickToCandles(previous, tick, interval));
+          setCandles((previous) =>
+            applyTickToCandles(previous, tick, intervalRef.current),
+          );
         } catch {
           // Ignore malformed or unexpected WebSocket messages.
         }
@@ -107,5 +113,5 @@ export function useMarketWebSocket({
       }
       socket?.close();
     };
-  }, [interval, setData, setCandles]);
+  }, [setData, setCandles]);
 }

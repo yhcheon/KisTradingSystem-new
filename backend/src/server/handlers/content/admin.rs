@@ -3,32 +3,56 @@
 // 설명: 관리자 콘텐츠 CRUD API
 // ============================================================
 
-use super::auth::{require_admin, require_auth};
+use super::{access::is_note_category, auth::{require_admin, require_auth}};
 use crate::core::state::AppState;
 use axum::{Json, extract::State, http::HeaderMap};
+use serde::Deserialize;
 use serde_json::{Value, json};
+
+#[derive(Deserialize)]
+pub struct CreateNoteRequest {
+    title: String,
+    content: String,
+    #[serde(default = "default_note_category")]
+    category: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateNoteRequest {
+    id: String,
+    title: String,
+    content: String,
+    #[serde(default = "default_note_category")]
+    category: String,
+}
+
+#[derive(Deserialize)]
+pub struct DeleteNoteRequest {
+    id: String,
+}
+
+fn default_note_category() -> String {
+    "us_market".to_string()
+}
 
 /// POST /api/admin/notes (관리자만)
 pub async fn create_note(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    Json(body): Json<CreateNoteRequest>,
 ) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
     tracing::info!(target: "admin", "관리자 글 저장 요청 수신");
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let title = body.get("title").and_then(|v| v.as_str()).unwrap_or("");
-    let content = body.get("content").and_then(|v| v.as_str()).unwrap_or("");
-    let category = body
-        .get("category")
-        .and_then(|v| v.as_str())
-        .unwrap_or("us_market");
+    let title = body.title.trim();
+    let content = body.content.trim();
+    let category = body.category.trim();
 
-    if title.is_empty() || content.is_empty() {
+    if title.is_empty() || content.is_empty() || !is_note_category(category) {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
-            "제목과 본문 필요".to_string(),
+            "제목, 본문과 올바른 카테고리가 필요합니다".to_string(),
         ));
     }
 
@@ -80,22 +104,19 @@ pub async fn admin_notes(
 pub async fn update_note(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    Json(body): Json<UpdateNoteRequest>,
 ) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
-    let title = body.get("title").and_then(|v| v.as_str()).unwrap_or("");
-    let content = body.get("content").and_then(|v| v.as_str()).unwrap_or("");
-    let category = body
-        .get("category")
-        .and_then(|v| v.as_str())
-        .unwrap_or("us_market");
-    if id.is_empty() || title.trim().is_empty() || content.trim().is_empty() {
+    let id = body.id.trim();
+    let title = body.title.trim();
+    let content = body.content.trim();
+    let category = body.category.trim();
+    if id.is_empty() || title.is_empty() || content.is_empty() || !is_note_category(category) {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
-            "글 ID, 제목과 본문이 필요합니다".to_string(),
+            "글 ID, 제목, 본문과 올바른 카테고리가 필요합니다".to_string(),
         ));
     }
 
@@ -116,12 +137,12 @@ pub async fn update_note(
 pub async fn delete_note(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(body): Json<Value>,
+    Json(body): Json<DeleteNoteRequest>,
 ) -> Result<Json<Value>, (axum::http::StatusCode, String)> {
     let claims = require_auth(&headers, &state).await?;
     require_admin(&claims, &state).await?;
 
-    let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let id = body.id.trim();
     if id.is_empty() {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
@@ -139,4 +160,31 @@ pub async fn delete_note(
         })?;
     tracing::info!(target: "admin", note_id = %id, "관리자 글 삭제 성공");
     Ok(Json(json!({ "ok": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CreateNoteRequest, DeleteNoteRequest, UpdateNoteRequest};
+
+    #[test]
+    fn create_note_defaults_category_and_requires_text_fields() {
+        let request: CreateNoteRequest =
+            serde_json::from_str(r#"{"title":"title","content":"body"}"#).unwrap();
+        assert_eq!(request.category, "us_market");
+        assert!(serde_json::from_str::<CreateNoteRequest>(r#"{"title":"title"}"#).is_err());
+    }
+
+    #[test]
+    fn update_and_delete_note_require_id() {
+        assert!(serde_json::from_str::<UpdateNoteRequest>(
+            r#"{"id":"1","title":"title","content":"body"}"#
+        )
+        .is_ok());
+        assert!(serde_json::from_str::<UpdateNoteRequest>(
+            r#"{"title":"title","content":"body"}"#
+        )
+        .is_err());
+        assert!(serde_json::from_str::<DeleteNoteRequest>(r#"{"id":"1"}"#).is_ok());
+        assert!(serde_json::from_str::<DeleteNoteRequest>(r#"{}"#).is_err());
+    }
 }

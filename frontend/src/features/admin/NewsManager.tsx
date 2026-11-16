@@ -21,8 +21,8 @@ export default function NewsManager() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadLinks = useCallback(async () => {
-    setLoading(true);
+  const loadLinks = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const result = await adminNewsRequest<{ data?: NewsLink[] }>('GET');
       setLinks(Array.isArray(result?.data) ? result.data : []);
@@ -33,7 +33,7 @@ export default function NewsManager() {
     }
   }, []);
 
-  useEffect(() => { void loadLinks(); }, [loadLinks]);
+  useEffect(() => { void loadLinks(false); }, [loadLinks]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !url.trim()) {

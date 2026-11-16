@@ -1,154 +1,147 @@
-# KOSPI200 선물/미니선물 시세 웹서비스
+# KOSPI200 선물 시세 웹서비스
 
-한국투자증권(KIS) Open API를 연동하여 KOSPI200 정규선물과 미니선물의 시세를 조회하고, 웹 브라우저에서 확인할 수 있는 웹서비스입니다.
+한국투자증권(KIS) Open API를 이용해 KOSPI200 정규선물·미니선물의 현재가, 실시간 체결, 분봉 차트를 제공하는 웹서비스입니다. 로그인 사용자는 분석 글과 뉴스 링크를 열람하며, 관리자는 콘텐츠를 관리할 수 있습니다.
 
----
+## 1. 시스템 구성
 
-## 📌 프로젝트 개요
+- Frontend: React 19, TypeScript, Vite
+- Backend: Rust, Axum, Tokio
+- Market data: 한국투자증권 KIS REST API 및 WebSocket
+- Cache: Redis
+- Authentication / content: Supabase Auth 및 PostgreSQL
 
-| 항목 | 내용 |
-|---|---|
-| **목표** | KOSPI200 선물 / 미니선물 2종목의 시세·체결·분봉 데이터를 웹에서 조회 |
-| **사용자** | 약 200명 (내부/제한 사용자) |
-| **데이터 소스** | 한국투자증권 KIS Open API (REST + WebSocket) |
-| **아키텍처** | Rust 백엔드 + React 프론트엔드 |
-| **캐시** | Redis (KIS API 호출 제한 보호) |
+브라우저는 Vite 개발 서버(5173)를 사용하고, 개발 서버의 API 및 WebSocket 프록시를 통해 Rust 백엔드(127.0.0.1:8080)와 통신합니다.
 
----
+## 2. 주요 기능
 
-## 🏗️ 시스템 구성
+- KOSPI200 정규선물·미니선물 현재가 및 실시간 체결
+- 분봉 차트 및 분봉 주기 전환
+- Supabase Google OAuth 로그인
+- 분석 글 목록 및 Markdown 상세 보기
+- 관리자 분석 글 작성·수정·삭제
+- 관리자 뉴스 링크 등록·삭제
 
+## 3. 프로젝트 구조
 
+    backend/
+      src/
+        auth/       # JWT 검증
+        cache/      # Redis 캐시
+        core/       # bootstrap, AppState, CandleStore, DB, cleanup
+        kis/        # KIS 인증, 시세, 분봉 API
+        kis_ws/     # KIS WebSocket 프로토콜 및 클라이언트
+        market/     # 과거 시세 로딩 및 변환
+        server/     # 라우터, 런타임, HTTP/WS 핸들러
+      .env.example
+      Cargo.toml
 
-[사용자 브라우저]
-│ (REST: 시세 조회, WebSocket: 실시간 푸시)
-▼
-[React 프론트엔드] (frontend/)
-│
-▼
-[Rust 백엔드] (backend/) ── Axum + Tokio
-│
-├── Redis 캐시 (TTL 3초, KIS 호출 제한 보호)
-│
-├── KIS REST API (시세, 분봉)
-│
-└── KIS WebSocket (실시간 체결)
+    frontend/
+      src/
+        components/   # AppHeader, AppModal
+        features/
+          admin/      # 관리자 글/뉴스 관리
+          analysis/   # 분석 글 목록/상세
+          auth/       # 인증 세션 및 관리자 권한
+          news/       # 뉴스 링크 표시
+          prices/     # 시세 화면, WebSocket, 차트 데이터 훅
+        pages/        # Analysis, Admin, Login
+        App.tsx
+        App.css
+        CandleChart.tsx
+        PriceCard.tsx
+      .env.example
+      package.json
 
+    DESIGN.md
+    Readme.md
 
----
+## 4. 사전 준비
 
-## 🛠️ 기술 스택
+- Rust toolchain (프로젝트 기준 1.100.0 이상)
+- Node.js 22.x 이상 및 npm
+- Docker Desktop
+- 한국투자증권 Open API 키
+- Supabase 프로젝트 및 Google OAuth 설정
 
-| 계층 | 기술 | 버전 |
-|---|---|---|
-| 백엔드 언어 | Rust | 1.100.0 |
-| 백엔드 프레임워크 | Axum | 0.8 |
-| 비동기 런타임 | Tokio | 1.x |
-| HTTP 클라이언트 | reqwest (연결 풀 공유) | 0.12 |
-| 캐시 | Redis | 7-alpine (Docker) |
-| 프론트엔드 | React + TypeScript + Vite | - |
-| 차트 | TradingView Lightweight Charts | - |
-| 로깅 | tracing + tracing-appender | 0.3 / 0.2 |
+## 5. 환경 변수 설정
 
----
+실제 비밀 키를 저장하는 .env 파일은 Git에 커밋하지 마세요.
 
-## 📁 프로젝트 구조
+### Backend
 
+① Project main PowerShell에서 프로젝트 폴더에 있는지 확인한 뒤 실행합니다.
 
-rust/
-├── history.md # 개발 히스토리 (타임라인)
-├── README.md # 이 파일
-│
-├── backend/ # Rust 백엔드
-│ ├── src/
-│ │ ├── main.rs # 진입점
-│ │ ├── kis.rs # KIS API 클라이언트 (토큰, 시세, 분봉)
-│ │ ├── kis_ws.rs # KIS WebSocket (실시간 체결)
-│ │ ├── master.rs # 종목 마스터 다운로드/파싱
-│ │ ├── logging.rs # 로그 시스템
-│ │ ├── core/
-│ │ │ ├── mod.rs
-│ │ │ ├── state.rs # AppState (공유 상태)
-│ │ │ └── candles.rs # 캔들 저장소 + N분봉 파생
-│ │ ├── cache/
-│ │ │ ├── mod.rs
-│ │ │ └── redis_cache.rs # Redis 시세 캐시
-│ │ └── server/
-│ │ ├── mod.rs
-│ │ ├── router.rs # Axum 라우터
-│ │ └── handlers.rs # HTTP + WebSocket 핸들러
-│ ├── logs/ # 일별 로그 (yyyy-mm-dd.log)
-│ ├── .env # 환경 변수 (Git 제외)
-│ ├── .token # KIS 토큰 캐시 (Git 제외)
-│ └── Cargo.toml
-│
-└── frontend/ # React 프론트엔드
-├── src/
-│ ├── App.tsx
-│ ├── App.css
-│ ├── index.css
-│ ├── PriceCard.tsx # 시세 카드
-│ ├── CandleChart.tsx # 캔들 차트
-│ └── types.ts
-└── package.json
+    cd backend
+    Copy-Item .env.example .env
 
+backend/.env에 KIS 앱 키·시크릿, 계좌 정보, Supabase URL 및 키, JWT Secret 등을 실제 환경에 맞게 입력합니다. 변수 이름과 설명은 backend/.env.example을 기준으로 확인하세요. Service Role Key와 JWT Secret은 백엔드 전용 비밀 값이며 프론트엔드에 넣지 않습니다.
 
+### Frontend
 
----
+① Project main PowerShell에서 실행합니다.
 
-## 🚀 실행 방법
+    cd ..\frontend
+    Copy-Item .env.example .env
 
-### 1. 사전 준비
+기본 개발 설정은 VITE_PORT=5173, VITE_DEV_BACKEND_URL=http://127.0.0.1:8080입니다. 실제 프론트엔드 환경 변수 목록은 frontend/.env.example을 기준으로 합니다.
 
-- **Rust** 1.100.0 이상
-- **Node.js** 22.x 이상
-- **Docker Desktop** (Redis 실행용)
-- **KIS API 키** (한국투자증권 Open API 포털에서 발급)
+## 6. 로컬 실행
 
-### 2. Redis 실행
+각 프로세스는 별도의 PowerShell 창에서 실행합니다.
 
-Redis는 백엔드 실행 전에 반드시 실행되어 있어야 합니다. 현재 백엔드는 `127.0.0.1:6379`에 Redis가 열려 있다고 가정합니다.
+### 1) Redis
 
-**Docker Desktop UI로 실행하는 방법**
+Docker Desktop을 실행한 후 Redis 컨테이너를 시작합니다. 최초 생성 시 한 번만 실행합니다.
 
-1. Windows 시작 메뉴에서 **Docker Desktop**을 실행합니다.
-2. Docker Desktop이 완전히 시작될 때까지 기다립니다.
-3. 왼쪽 메뉴에서 **Containers**를 엽니다.
-4. Redis 컨테이너(기본 이름: `stock-redis`)를 찾습니다.
-5. 해당 컨테이너의 **Start(▶)** 버튼을 눌러 실행합니다. 상태가 Running인지 확인합니다.
-6. 백엔드를 실행합니다.
+    docker run -d --name stock-redis --restart unless-stopped -p 6379:6379 redis:7-alpine
 
-> Docker Desktop을 켜는 것만으로 Redis 컨테이너가 항상 실행되는 것은 아닙니다. 컨테이너가 중지 상태라면 UI에서 Start를 눌러야 합니다. `--restart unless-stopped` 옵션으로 생성한 컨테이너는 Docker가 시작될 때 자동 재시작되지만, 수동 중지한 컨테이너는 다시 시작해야 합니다.
+이미 컨테이너가 생성되어 있다면 Docker Desktop에서 시작하거나 다음 명령을 사용합니다.
 
-**최초 1회 컨테이너 생성(아직 Redis 컨테이너가 없는 경우)**
+    docker start stock-redis
+    docker exec -it stock-redis redis-cli ping
 
-```powershell
-docker run -d --name stock-redis --restart unless-stopped -p 6379:6379 redis:7-alpine
-```
+정상 응답은 PONG입니다.
 
-**실행 확인(선택 사항)**
+### 2) Backend
 
-```powershell
-docker exec -it stock-redis redis-cli ping
-# 정상 응답: PONG
+② Backend PowerShell (backend 폴더)에서 실행합니다.
 
-# 또는 Windows PowerShell에서 포트 확인
-Test-NetConnection 127.0.0.1 -Port 6379
-# TcpTestSucceeded : True
-```
+    cargo run
 
-Redis가 실행되지 않은 상태에서 `cargo run`을 실행하면 연결 거부 오류(Windows의 경우 OS error 10061)가 발생할 수 있습니다.
+기본 로컬 주소는 http://127.0.0.1:8080입니다. 실제 바인딩 주소는 BACKEND_BIND_ADDR 설정을 따릅니다.
 
-### 3. 환경 변수 설정
+### 3) Frontend
 
+③ Frontend PowerShell (frontend 폴더)에서 실행합니다.
 
-```powershell
-cd backend
-Copy-Item .env.example .env
+    npm install
+    npm run dev
 
+브라우저에서 http://localhost:5173을 엽니다.
 
+## 7. 검증 명령
 
+명령은 해당 폴더에서 실행합니다.
 
+② Backend PowerShell:
 
+    cargo check
+    cargo test
 
+③ Frontend PowerShell:
 
+    npm run lint
+    npm run build
+
+## 8. API 및 운영 참고
+
+- 시세 API와 브라우저 WebSocket 경로는 백엔드 라우터에서 관리합니다.
+- 분석 글·뉴스 API는 인증이 필요하며, 관리자 변경 API는 관리자 권한 검증을 거칩니다.
+- 콘텐츠 보존·삭제 정책, 인증 및 데이터 모델의 상세 설계는 DESIGN.md를 참고하세요.
+- 주말/휴장일의 최근 거래일 차트 표시 정책은 DESIGN.md에 미확정 안건으로 기록되어 있습니다. 합의 전에는 날짜 조회 정책을 임의로 변경하지 않습니다.
+
+## 9. 보안 주의사항
+
+- .env, .token, 서비스 키, JWT Secret, 계좌 정보는 저장소에 커밋하지 않습니다.
+- Supabase Service Role Key는 백엔드에서만 사용합니다.
+- 뉴스는 제목과 링크 중심으로 관리하며 기사 본문 전문을 무단 저장하지 않습니다.

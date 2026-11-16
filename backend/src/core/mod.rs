@@ -4,6 +4,7 @@
 // 작성일: 2026-11-14
 // ============================================================
 
+pub mod bootstrap;
 pub mod candles;
 pub mod cleanup;
 pub mod db;
