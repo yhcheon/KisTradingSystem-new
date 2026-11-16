@@ -6,6 +6,8 @@ pub(super) const TR_ID: &str = "H0IFCNT0";
 #[derive(Debug, Clone)]
 pub struct RealtimeTick {
     pub code: String,
+    // 거래일은 내부 시세 메타데이터로 보존하며 브라우저 메시지에는 노출하지 않습니다.
+    #[allow(dead_code)]
     pub date: String,
     pub price: String,
     pub change: String,
