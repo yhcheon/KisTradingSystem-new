@@ -5,7 +5,7 @@
 //       - Supabase, KIS WebSocket, AppState 구성
 // ============================================================
 
-use crate::{core, kis, kis_ws};
+use crate::{core, kis, kis_ws, market};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -135,6 +135,17 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
             .into());
         }
     };
+    // 야간 분봉은 18시 전에는 조회하지 않고, 야간 세션 중 재시작하면 현재 시각부터 조회합니다.
+    // H0MFCNT0 구독은 아래 WebSocket 연결에서 장 시작 전부터 미리 신청합니다.
+    market::history::spawn_night_candle_loader(
+        http_client.clone(),
+        app_key.clone(),
+        app_secret.clone(),
+        access_token.clone(),
+        night_symbols.clone(),
+        candle_store.clone(),
+    );
+
     let (ws_tx, _) = tokio::sync::broadcast::channel::<kis_ws::RealtimeTick>(256);
     let ws_symbols = vec![regular.code.clone(), mini.code.clone()];
     {
