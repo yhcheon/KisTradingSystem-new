@@ -16,24 +16,22 @@ import Admin from './pages/Admin';
 import PricesTab from './features/prices/PricesTab';
 import './App.css';
 
-type Tab = 'prices' | 'admin';
 
 export default function App() {
   const { session, authLoading } = useAuthSession();
-  const [tab, setTab] = useState<Tab>('prices');
-  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState<'analysis' | 'admin' | null>(null);
   const isAdmin = useAdminRole(session);
 
   useEffect(() => {
-    if (!analysisOpen) return;
+    if (!activeModal) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAnalysisOpen(false);
+      if (event.key === 'Escape') setActiveModal(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [analysisOpen]);
+  }, [activeModal]);
 
   if (authLoading) {
     return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
@@ -46,28 +44,26 @@ export default function App() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             onClick={() => {
-              setTab('prices');
-              setAnalysisOpen(false);
+              setActiveModal(null);
             }}
-            className={tab === 'prices' && !analysisOpen ? 'active' : ''}
+            className={!activeModal ? 'active' : ''}
           >
             시세
           </button>
           <button
-            onClick={() => setAnalysisOpen(true)}
-            className={analysisOpen ? 'active' : ''}
+            onClick={() => setActiveModal('analysis')}
+            className={activeModal === 'analysis' ? 'active' : ''}
             aria-haspopup="dialog"
-            aria-expanded={analysisOpen}
+            aria-expanded={activeModal === 'analysis'}
           >
             분석
           </button>
           {isAdmin && (
             <button
-              onClick={() => {
-                setTab('admin');
-                setAnalysisOpen(false);
-              }}
-              className={tab === 'admin' ? 'active' : ''}
+              onClick={() => setActiveModal('admin')}
+              className={activeModal === 'admin' ? 'active' : ''}
+              aria-haspopup="dialog"
+              aria-expanded={activeModal === 'admin'}
             >
               관리자
             </button>
@@ -76,8 +72,8 @@ export default function App() {
             <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
           ) : (
             <button
-              onClick={() => setAnalysisOpen(true)}
-              className={analysisOpen ? 'active' : ''}
+              onClick={() => setActiveModal('analysis')}
+              className={activeModal === 'analysis' ? 'active' : ''}
             >
               로그인
             </button>
@@ -85,47 +81,45 @@ export default function App() {
         </div>
       </header>
 
-      {/* 시세 화면은 숨겨져도 언마운트하지 않아 선택 종목/분봉/실시간 연결을 유지합니다. */}
-      <div style={{ display: tab === 'prices' ? 'block' : 'none' }}>
-        <PricesTab />
-      </div>
+      {/* 시세 화면은 항상 마운트하여 모달을 열고 닫아도 상태와 WebSocket을 유지합니다. */}
+      <PricesTab />
 
-      {tab === 'admin' && (
-        !session ? (
-          <Login />
-        ) : isAdmin ? (
-          <Admin />
-        ) : (
-          <p style={{ padding: 20 }}>관리자 권한이 없습니다</p>
-        )
-      )}
-
-      {analysisOpen && (
+      {activeModal && (
         <div
           className="analysis-modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setAnalysisOpen(false);
+            if (event.target === event.currentTarget) setActiveModal(null);
           }}
         >
           <section
             className="analysis-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="analysis-modal-title"
+            aria-labelledby="app-modal-title"
           >
             <header className="analysis-modal-header">
-              <h2 id="analysis-modal-title">분석</h2>
+              <h2 id="app-modal-title">
+                {activeModal === 'analysis' ? '분석' : '관리자'}
+              </h2>
               <button
                 type="button"
                 className="analysis-modal-close"
-                onClick={() => setAnalysisOpen(false)}
-                aria-label="분석 창 닫기"
+                onClick={() => setActiveModal(null)}
+                aria-label="창 닫기"
               >
                 닫기 ✕
               </button>
             </header>
             <div className="analysis-modal-content">
-              {session ? <Analysis /> : <Login />}
+              {activeModal === 'analysis' ? (
+                session ? <Analysis /> : <Login />
+              ) : !session ? (
+                <Login />
+              ) : isAdmin ? (
+                <Admin />
+              ) : (
+                <p style={{ padding: 20 }}>관리자 권한이 없습니다</p>
+              )}
             </div>
           </section>
         </div>
