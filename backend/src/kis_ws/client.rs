@@ -80,9 +80,8 @@ async fn connect_and_listen(
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         if let Some(tick) = parse_tick(&text) {
-                            let tr_id = text.split('|').nth(1).unwrap_or_default();
-                            if tr_id == NIGHT_TR_ID {
-                                // 검증 단계: 야간 체결은 우선 로그만 남기고 기존 주간 차트 저장소에는 합치지 않습니다.
+                            if tick.market_session == "night" {
+                                // 야간 체결은 주간 CandleStore에 합치지 않고 브라우저 시세 채널로만 전달합니다.
                                 if night_logged < 10 {
                                     tracing::info!(
                                         "KRX 야간선물 체결 수신({}/10): code={}, time={}, price={}, change={}, volume={}",
@@ -95,6 +94,7 @@ async fn connect_and_listen(
                                     );
                                 }
                                 night_logged += 1;
+                                let _ = tx.send(tick);
                             } else {
                                 {
                                     let mut store = candle_store.lock().await;
