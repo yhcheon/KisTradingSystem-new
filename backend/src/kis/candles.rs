@@ -121,10 +121,10 @@ pub async fn get_minute_chart_for_market(
             "[MINUTE-HTTP-ERROR] market={} symbol={} date={} cursor={} status={} elapsed_ms={} headers={} body={}",
             market_div_code, symbol, date, hour, status, elapsed_ms, response_headers, body_text
         );
-        return Err(format!(
+        return Err(std::io::Error::other(format!(
             "KIS minute chart HTTP {} (market={}, symbol={}, date={}, cursor={}): {}",
             status, market_div_code, symbol, date, hour, body_text
-        ).into());
+        )).into());
     }
 
     tracing::info!(
