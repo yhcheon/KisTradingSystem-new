@@ -19,9 +19,9 @@ pub(super) async fn fetch_one(
     }
     let price = kis::get_futures_price(
         &state.http_client,
-        &state.app_key,
-        &state.app_secret,
-        &state.access_token,
+        &state.kis.app_key,
+        &state.kis.app_secret,
+        &state.kis.access_token,
         &symbol.code,
     )
     .await
