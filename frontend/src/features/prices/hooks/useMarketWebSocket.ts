@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { PricesResponse, RealtimeTick } from '../../../types';
 import type { CandleData } from '../types';
@@ -27,7 +27,9 @@ export function useMarketWebSocket({
 }: UseMarketWebSocketOptions): void {
   const selectedCodeRef = useRef<string | null>(selectedCode);
   const intervalRef = useRef(interval);
-  intervalRef.current = interval;
+  useLayoutEffect(() => {
+    intervalRef.current = interval;
+  }, [interval]);
 
   useEffect(() => {
     selectedCodeRef.current = selectedCode;
