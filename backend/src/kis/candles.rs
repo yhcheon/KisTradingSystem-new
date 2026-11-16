@@ -82,7 +82,23 @@ pub async fn get_minute_chart_for_market(
         rest_domain.trim_end_matches('/')
     );
 
-    let resp = client
+    let query = [
+        ("FID_COND_MRKT_DIV_CODE", market_div_code),
+        ("FID_INPUT_ISCD", symbol),
+        ("FID_HOUR_CLS_CODE", "60"),
+        ("FID_PW_DATA_INCU_YN", "Y"),
+        ("FID_FAKE_TICK_INCU_YN", "N"),
+        ("FID_INPUT_DATE_1", date),
+        ("FID_INPUT_HOUR_1", hour),
+    ];
+    let request_started = std::time::Instant::now();
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-REQUEST] market={} symbol={} date={} cursor={} tr_id=FHKIF03020200 url={} query={:?}",
+        market_div_code, symbol, date, hour, url, query
+    );
+
+    let response = client
         .get(&url)
         .header("Content-Type", "application/json; charset=utf-8")
         .header("authorization", format!("Bearer {}", access_token))
@@ -90,21 +106,48 @@ pub async fn get_minute_chart_for_market(
         .header("appsecret", app_secret)
         .header("tr_id", "FHKIF03020200")
         .header("custtype", "P")
-        .query(&[
-            ("FID_COND_MRKT_DIV_CODE", market_div_code),
-            ("FID_INPUT_ISCD", symbol),
-            ("FID_HOUR_CLS_CODE", "60"),
-            ("FID_PW_DATA_INCU_YN", "Y"),
-            ("FID_FAKE_TICK_INCU_YN", "N"),
-            ("FID_INPUT_DATE_1", date),
-            ("FID_INPUT_HOUR_1", hour),
-        ])
+        .query(&query)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<MinuteChartResponse>()
         .await?;
+    let status = response.status();
+    let response_headers = format!("{:?}", response.headers());
+    let body = response.bytes().await?;
+    let elapsed_ms = request_started.elapsed().as_millis();
 
+    if !status.is_success() {
+        let body_text = String::from_utf8_lossy(&body);
+        tracing::error!(
+            target: "kis::night_candles",
+            "[MINUTE-HTTP-ERROR] market={} symbol={} date={} cursor={} status={} elapsed_ms={} headers={} body={}",
+            market_div_code, symbol, date, hour, status, elapsed_ms, response_headers, body_text
+        );
+        return Err(format!(
+            "KIS minute chart HTTP {} (market={}, symbol={}, date={}, cursor={}): {}",
+            status, market_div_code, symbol, date, hour, body_text
+        ).into());
+    }
+
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-HTTP-OK] market={} symbol={} date={} cursor={} status={} bytes={} elapsed_ms={} headers={}",
+        market_div_code, symbol, date, hour, status, body.len(), elapsed_ms, response_headers
+    );
+
+    let resp: MinuteChartResponse = serde_json::from_slice(&body).map_err(|error| {
+        let body_text = String::from_utf8_lossy(&body);
+        tracing::error!(
+            target: "kis::night_candles",
+            "[MINUTE-JSON-ERROR] market={} symbol={} date={} cursor={} error={} body={}",
+            market_div_code, symbol, date, hour, error, body_text
+        );
+        error
+    })?;
+
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-RESPONSE] market={} symbol={} date={} cursor={} rt_cd={} msg_cd={} msg1={} output2_count={}",
+        market_div_code, symbol, date, hour, resp.rt_cd, resp.msg_cd, resp.msg1, resp.output2.len()
+    );
     ensure_success(&resp).map_err(std::io::Error::other)?;
 
     let mut candles: Vec<MinuteCandle> = resp
@@ -125,6 +168,13 @@ pub async fn get_minute_chart_for_market(
         (a.stck_bsop_date.clone(), a.stck_cntg_hour.clone())
             .cmp(&(b.stck_bsop_date.clone(), b.stck_cntg_hour.clone()))
     });
+    let first = candles.first().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
+    let last = candles.last().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
+    tracing::info!(
+        target: "kis::night_candles",
+        "[MINUTE-PARSED] market={} symbol={} date={} cursor={} candles={} first={} last={}",
+        market_div_code, symbol, date, hour, candles.len(), first, last
+    );
     Ok(candles)
 }
 
