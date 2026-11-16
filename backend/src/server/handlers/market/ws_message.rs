@@ -20,3 +20,49 @@ pub(super) fn tick_message(tick: &RealtimeTick) -> String {
     }))
     .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tick() -> RealtimeTick {
+        RealtimeTick {
+            code: "101S".to_string(),
+            date: "20261116".to_string(),
+            price: "350.25".to_string(),
+            change: "+1.25".to_string(),
+            change_rate: "0.36".to_string(),
+            volume: "1200".to_string(),
+            last_qty: "3".to_string(),
+            time: "091530".to_string(),
+        }
+    }
+
+    #[test]
+    fn serializes_tick_with_expected_browser_message_fields() {
+        let result = tick_message(&tick());
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "type": "tick",
+                "code": "101S",
+                "price": "350.25",
+                "change": "+1.25",
+                "change_rate": "0.36",
+                "volume": "1200",
+                "last_qty": "3",
+                "time": "091530"
+            })
+        );
+    }
+
+    #[test]
+    fn does_not_expose_internal_tick_date_in_browser_message() {
+        let result = tick_message(&tick());
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert!(value.get("date").is_none());
+    }
+}
