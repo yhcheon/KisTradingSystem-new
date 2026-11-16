@@ -124,8 +124,8 @@ async fn load_night_session(
     let mut result = Vec::new();
     let mut cursor = initial_hour.to_string();
 
-    // 실전 API는 호출당 최대 102건이므로, 18시까지 최대 5페이지를 역순 조회합니다.
-    for page in 0..5 {
+    // 실전 API는 호출당 최대 102건이므로, 18:00~익일 06:00 전체 구간을 최대 8페이지로 조회합니다.
+    for page in 0..8 {
         let chunk = kis::get_minute_chart_for_market(
             http_client,
             app_key,
@@ -155,7 +155,7 @@ async fn load_night_session(
         if earliest.is_empty() || earliest.as_str() <= "180000" {
             break;
         }
-        if page == 4 {
+        if page == 7 {
             break;
         }
         cursor = subtract_one_minute(&earliest);
