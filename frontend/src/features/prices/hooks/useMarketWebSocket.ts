@@ -26,6 +26,8 @@ export function useMarketWebSocket({
   setCandles,
 }: UseMarketWebSocketOptions): void {
   const selectedCodeRef = useRef<string | null>(selectedCode);
+  const intervalRef = useRef(interval);
+  intervalRef.current = interval;
 
   useEffect(() => {
     selectedCodeRef.current = selectedCode;
@@ -80,7 +82,9 @@ export function useMarketWebSocket({
           });
 
           if (tick.code !== selectedCodeRef.current) return;
-          setCandles((previous) => applyTickToCandles(previous, tick, interval));
+          setCandles((previous) =>
+            applyTickToCandles(previous, tick, intervalRef.current),
+          );
         } catch {
           // Ignore malformed or unexpected WebSocket messages.
         }
@@ -107,5 +111,5 @@ export function useMarketWebSocket({
       }
       socket?.close();
     };
-  }, [interval, setData, setCandles]);
+  }, [setData, setCandles]);
 }
