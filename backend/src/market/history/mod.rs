@@ -27,6 +27,12 @@ pub fn spawn_night_candle_loader(
     candle_store: std::sync::Arc<tokio::sync::Mutex<CandleStore>>,
 ) {
     tokio::spawn(async move {
+        tracing::info!(
+            target: "kis::night_candles",
+            "[NIGHT-LOADER-START] symbols={:?} page_size=102 max_pages=8 market=CM",
+            symbols
+        );
+
         loop {
             let now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let hour = chrono::Timelike::hour(&now);
@@ -40,21 +46,22 @@ pub fn spawn_night_candle_loader(
                 let wait = (next_start - now.naive_local())
                     .to_std()
                     .unwrap_or_default();
-                tracing::info!("야간 분봉 조회 대기: KST 18:00까지");
+                tracing::info!(
+                    target: "kis::night_candles",
+                    "[NIGHT-WAIT] now={} next_session=18:00:00 wait_seconds={}",
+                    now, wait.as_secs()
+                );
                 tokio::time::sleep(wait).await;
             }
 
-            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
+            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia__Seoul);
             let session_hour = chrono::Timelike::hour(&session_now);
             let (trade_date, cursor_hour) = if session_hour < 6 {
                 (
                     (session_now.date_naive() - chrono::Duration::days(1))
                         .format("%Y%m%d")
                         .to_string(),
-                    format!("{:02}{}",
-                        session_hour + 24,
-                        session_now.format("%M%S")
-                    ),
+                    format!("{:02}{}", session_hour + 24, session_now.format("%M%S")),
                 )
             } else {
                 (
@@ -63,7 +70,18 @@ pub fn spawn_night_candle_loader(
                 )
             };
 
+            tracing::info!(
+                target: "kis::night_candles",
+                "[NIGHT-SESSION-BEGIN] now={} trade_date={} initial_cursor={} symbols={}",
+                session_now, trade_date, cursor_hour, symbols.len()
+            );
+
             for symbol in &symbols {
+                tracing::info!(
+                    target: "kis::night_candles",
+                    "[NIGHT-SYMBOL-BEGIN] symbol={} date={} cursor={}",
+                    symbol, trade_date, cursor_hour
+                );
                 let load_result = load_night_session(
                     &http_client,
                     &app_key,
@@ -78,26 +96,37 @@ pub fn spawn_night_candle_loader(
 
                 match load_result {
                     Ok(candles) => {
+                        let count = candles.len();
                         tracing::info!(
-                            "야간 CM 분봉 조회 완료: code={}, date={}, cursor={}, candles={}",
-                            symbol, trade_date, cursor_hour, candles.len()
+                            target: "kis::night_candles",
+                            "[NIGHT-SYMBOL-DONE] symbol={} date={} loaded_candles={}",
+                            symbol, trade_date, count
                         );
                         if !candles.is_empty() {
-                            candle_store
-                                .lock()
-                                .await
-                                .load_1m(symbol, &trade_date, candles);
+                            let mut store = candle_store.lock().await;
+                            store.load_1m(symbol, &trade_date, candles);
+                            tracing::info!(
+                                target: "kis::night_candles",
+                                "[NIGHT-STORE-MERGED] symbol={} date={} loaded_candles={} store_merge=complete",
+                                symbol, trade_date, count
+                            );
+                        } else {
+                            tracing::warn!(
+                                target: "kis::night_candles",
+                                "[NIGHT-STORE-SKIP] symbol={} date={} reason=no_candles",
+                                symbol, trade_date
+                            );
                         }
                     }
-                    Err(error) => tracing::warn!(
-                        "야간 CM 분봉 조회 실패: code={}, date={}, cursor={}, error={}",
+                    Err(error) => tracing::error!(
+                        target: "kis::night_candles",
+                        "[NIGHT-SYMBOL-FAILED] symbol={} date={} initial_cursor={} error={}",
                         symbol, trade_date, cursor_hour, error
                     ),
                 }
             }
 
-            // 다음 야간 개장까지 대기합니다. 실시간 H0MFCNT0 체결은 계속 CandleStore에 누적됩니다.
-            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
+            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
             let next_start_date = if chrono::Timelike::hour(&after_load) < 6 {
                 after_load.date_naive()
             } else {
@@ -109,6 +138,11 @@ pub fn spawn_night_candle_loader(
             let wait = (next_day_start - after_load.naive_local())
                 .to_std()
                 .unwrap_or_default();
+            tracing::info!(
+                target: "kis::night_candles",
+                "[NIGHT-SESSION-END] now={} next_run={} wait_seconds={}",
+                after_load, next_day_start, wait.as_secs()
+            );
             tokio::time::sleep(wait).await;
         }
     });
@@ -126,8 +160,20 @@ async fn load_night_session(
     let mut result = Vec::new();
     let mut cursor = initial_hour.to_string();
 
-    // 실전 API는 호출당 최대 102건이므로, 18:00~익일 06:00 전체 구간을 최대 8페이지로 조회합니다.
+    tracing::info!(
+        target: "kis::night_candles",
+        "[NIGHT-PAGINATION-START] symbol={} date={} start_cursor={} page_size=102 max_pages=8",
+        symbol, trade_date, cursor
+    );
+
     for page in 0..8 {
+        let page_started = std::time::Instant::now();
+        tracing::info!(
+            target: "kis::night_candles",
+            "[NIGHT-PAGE-REQUEST] symbol={} date={} page={} cursor={} market=CM",
+            symbol, trade_date, page + 1, cursor
+        );
+
         let chunk = kis::get_minute_chart_for_market(
             http_client,
             app_key,
@@ -140,32 +186,97 @@ async fn load_night_session(
         )
         .await?;
 
+        let chunk_count = chunk.len();
+        let response_first = chunk.first()
+            .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
+            .unwrap_or_else(|| "none".to_string());
+        let response_last = chunk.last()
+            .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
+            .unwrap_or_else(|| "none".to_string());
+
         if chunk.is_empty() {
+            tracing::warn!(
+                target: "kis::night_candles",
+                "[NIGHT-PAGE-EMPTY] symbol={} date={} page={} cursor={} elapsed_ms={} stop=empty_response",
+                symbol, trade_date, page + 1, cursor, page_started.elapsed().as_millis()
+            );
             break;
         }
 
         let mut earliest = String::new();
-        for candle in chunk.iter().filter(|c| {
-            c.stck_bsop_date == trade_date && c.stck_cntg_hour.as_str() >= "180000"
-        }) {
+        let mut accepted = 0usize;
+        let mut rejected_date = 0usize;
+        let mut rejected_before_open = 0usize;
+        for candle in &chunk {
+            if candle.stck_bsop_date != trade_date {
+                rejected_date += 1;
+                continue;
+            }
+            if candle.stck_cntg_hour.as_str() < "180000" {
+                rejected_before_open += 1;
+                continue;
+            }
             if earliest.is_empty() || candle.stck_cntg_hour < earliest {
                 earliest = candle.stck_cntg_hour.clone();
             }
             result.push(to_candle(candle));
+            accepted += 1;
         }
 
-        if earliest.is_empty() || earliest.as_str() <= "180000" {
+        tracing::info!(
+            target: "kis::night_candles",
+            "[NIGHT-PAGE-RESULT] symbol={} date={} page={} request_cursor={} response_count={} response_first={} response_last={} accepted={} rejected_date={} rejected_before_180000={} earliest_accepted={} accumulated={} elapsed_ms={}",
+            symbol, trade_date, page + 1, cursor, chunk_count, response_first, response_last,
+            accepted, rejected_date, rejected_before_open,
+            if earliest.is_empty() { "none" } else { &earliest },
+            result.len(), page_started.elapsed().as_millis()
+        );
+
+        if earliest.is_empty() {
+            tracing::warn!(
+                target: "kis::night_candles",
+                "[NIGHT-PAGE-STOP] symbol={} date={} page={} reason=no_valid_candle_for_trade_date_and_session",
+                symbol, trade_date, page + 1
+            );
+            break;
+        }
+        if earliest.as_str() <= "180000" {
+            tracing::info!(
+                target: "kis::night_candles",
+                "[NIGHT-PAGE-STOP] symbol={} date={} page={} reason=session_open_reached earliest={}",
+                symbol, trade_date, page + 1, earliest
+            );
             break;
         }
         if page == 7 {
+            tracing::warn!(
+                target: "kis::night_candles",
+                "[NIGHT-PAGE-STOP] symbol={} date={} page={} reason=max_pages_reached earliest={}",
+                symbol, trade_date, page + 1, earliest
+            );
             break;
         }
-        cursor = subtract_one_minute(&earliest);
+
+        let next_cursor = subtract_one_minute(&earliest);
+        tracing::info!(
+            target: "kis::night_candles",
+            "[NIGHT-PAGE-NEXT] symbol={} date={} completed_page={} earliest={} next_cursor={} delay_ms=200",
+            symbol, trade_date, page + 1, earliest, next_cursor
+        );
+        cursor = next_cursor;
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 
     result.sort_by(|a, b| a.time.cmp(&b.time));
+    let before_dedup = result.len();
     result.dedup_by(|a, b| a.time == b.time);
+    let first = result.first().map(|c| c.time.clone()).unwrap_or_else(|| "none".to_string());
+    let last = result.last().map(|c| c.time.clone()).unwrap_or_else(|| "none".to_string());
+    tracing::info!(
+        target: "kis::night_candles",
+        "[NIGHT-PAGINATION-DONE] symbol={} date={} raw_accumulated={} deduplicated={} duplicates_removed={} first_time={} last_time={}",
+        symbol, trade_date, before_dedup, result.len(), before_dedup - result.len(), first, last
+    );
     Ok(result)
 }
 
