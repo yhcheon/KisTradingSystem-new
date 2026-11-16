@@ -62,3 +62,35 @@ pub async fn get_futures_price(
         .await?;
     Ok(resp)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_quote_metadata_and_preserves_extra_output_fields() {
+        let response: FuturesPriceResponse = serde_json::from_value(serde_json::json!({
+            "rt_cd": "0",
+            "msg_cd": "OK",
+            "msg1": "정상 처리",
+            "output1": {
+                "hts_kor_isnm": "KOSPI200 선물",
+                "futs_prpr": "350.25",
+                "futs_prdy_vrss": "1.25",
+                "futs_prdy_ctrt": "0.36",
+                "futs_oprc": "349.50",
+                "futs_hgpr": "351.00",
+                "futs_lwpr": "348.75",
+                "futs_prdy_clpr": "349.00",
+                "acml_vol": "1200"
+            },
+            "output2": { "some_extra_field": "retained" }
+        })).unwrap();
+
+        assert_eq!(response.rt_cd, "0");
+        assert_eq!(response.msg_cd, "OK");
+        assert_eq!(response.msg1, "정상 처리");
+        assert_eq!(response.output1.futs_prpr, "350.25");
+        assert_eq!(response.output2.extra["some_extra_field"], "retained");
+    }
+}
