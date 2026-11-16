@@ -35,6 +35,8 @@ pub struct RealtimeTick {
     pub volume: String,
     pub last_qty: String,
     pub time: String,
+    /// 주간 체결은 "day", KRX 야간 체결은 "night".
+    pub market_session: String,
 }
 
 /// 주간(H0IFCNT0) 및 KRX 야간선물(H0MFCNT0) 체결을 공통 Tick으로 변환합니다.
@@ -70,6 +72,7 @@ pub(super) fn parse_tick(text: &str) -> Option<RealtimeTick> {
         price: fields[FIELD_PRICE].to_string(),
         last_qty: last_qty.to_string(),
         volume: cumulative_volume.to_string(),
+        market_session: if tr_id == NIGHT_TR_ID { "night" } else { "day" }.to_string(),
     })
 }
 
@@ -95,22 +98,23 @@ mod tests {
     }
 
     #[test]
-    fn parses_day_and_night_trade_frames() {
-        for tr_id in [DAY_TR_ID, NIGHT_TR_ID] {
-            let tick = parse_tick(&frame(tr_id, "350.25", "091530", "3")).unwrap();
-            assert_eq!(tick.code, "101W9000");
-            assert_eq!(tick.time, "091530");
-            assert_eq!(tick.price, "350.25");
-            assert_eq!(tick.last_qty, "3");
-            assert_eq!(tick.volume, "1200");
-            assert_eq!(tick.change, "+1.25");
-        }
+    fn parses_day_and_night_trade_frames_with_session() {
+        let day = parse_tick(&frame(DAY_TR_ID, "350.25", "091530", "3")).unwrap();
+        assert_eq!(day.market_session, "day");
+        let night = parse_tick(&frame(NIGHT_TR_ID, "350.25", "201530", "3")).unwrap();
+        assert_eq!(night.market_session, "night");
+        assert_eq!(night.code, "101W9000");
+        assert_eq!(night.time, "201530");
+        assert_eq!(night.price, "350.25");
+        assert_eq!(night.last_qty, "3");
+        assert_eq!(night.volume, "1200");
+        assert_eq!(night.change, "+1.25");
     }
 
     #[test]
     fn rejects_invalid_price_and_time() {
         assert!(parse_tick(&frame(DAY_TR_ID, "not-a-price", "091530", "3")).is_none());
-        assert!(parse_tick(&frame(NIGHT_TR_ID, "0", "091530", "3")).is_none());
+        assert!(parse_tick(&frame(NIGHT_TR_ID, "0", "201530", "3")).is_none());
         assert!(parse_tick(&frame(DAY_TR_ID, "350.25", "91530", "3")).is_none());
         assert!(parse_tick(&frame(DAY_TR_ID, "350.25", "09AB30", "3")).is_none());
         assert!(parse_tick(&frame(DAY_TR_ID, "350.25", "246000", "3")).is_none());
@@ -119,8 +123,8 @@ mod tests {
 
     #[test]
     fn rejects_invalid_quantities() {
-        assert!(parse_tick(&frame(NIGHT_TR_ID, "350.25", "091530", "x")).is_none());
-        let invalid_volume = format!("0|{NIGHT_TR_ID}|001|101W9000^091530^1.25^+^0.36^350.25^0^0^0^3^x");
+        assert!(parse_tick(&frame(NIGHT_TR_ID, "350.25", "201530", "x")).is_none());
+        let invalid_volume = format!("0|{NIGHT_TR_ID}|001|101W9000^201530^1.25^+^0.36^350.25^0^0^0^3^x");
         assert!(parse_tick(&invalid_volume).is_none());
     }
 
