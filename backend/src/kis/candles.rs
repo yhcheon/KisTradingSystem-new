@@ -57,7 +57,7 @@ pub async fn get_minute_chart(
     symbol: &str,
     date: &str,
     hour: &str,
-) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
+) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error + Send + Sync>> {
     get_minute_chart_for_market(
         client, app_key, app_secret, access_token, "F", symbol, date, hour,
     )
