@@ -28,7 +28,7 @@ pub fn spawn_night_candle_loader(
 ) {
     tokio::spawn(async move {
         loop {
-            let now = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+            let now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let hour = chrono::Timelike::hour(&now);
             let session_active = hour >= 18 || hour < 6;
 
@@ -44,7 +44,7 @@ pub fn spawn_night_candle_loader(
                 tokio::time::sleep(wait).await;
             }
 
-            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let session_hour = chrono::Timelike::hour(&session_now);
             let (trade_date, cursor_hour) = if session_hour < 6 {
                 (
@@ -95,7 +95,7 @@ pub fn spawn_night_candle_loader(
             }
 
             // 다음 야간 개장까지 대기합니다. 실시간 H0MFCNT0 체결은 계속 CandleStore에 누적됩니다.
-            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let next_day_start = (after_load.date_naive() + chrono::Duration::days(1))
                 .and_hms_opt(18, 0, 0)
                 .expect("valid next night session start");
