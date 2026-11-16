@@ -440,3 +440,16 @@ footer {
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* 로그인 안내는 분석/관리자보다 작은 크기로 시세 화면 위에 표시합니다. */
+.analysis-modal.login-modal {
+  width: min(440px, 100%);
+  height: auto;
+  max-height: calc(100vh - 48px);
+}
+
+.login-modal .analysis-modal-content {
+  flex: 0 1 auto;
+  overflow: visible;
+}
