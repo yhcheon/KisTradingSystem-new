@@ -64,10 +64,6 @@ export function useMarketWebSocket({
             if (!previous) return previous;
 
             const updateOne = (result: PricesResponse['regular']) => {
-              if (!result.ok || !result.data || result.data.code !== tick.code) {
-                return result;
-              }
-
               if (tick.market_session === 'night') {
                 const night = result.night;
                 if (!night?.ok || !night.data || night.data.code !== tick.code) {
@@ -93,6 +89,9 @@ export function useMarketWebSocket({
                 };
               }
 
+              if (!result.ok || !result.data || result.data.code !== tick.code) {
+                return result;
+              }
               return {
                 ...result,
                 data: {
