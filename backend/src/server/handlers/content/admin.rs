@@ -3,7 +3,7 @@
 // 설명: 관리자 콘텐츠 CRUD API
 // ============================================================
 
-use super::auth::{require_admin, require_auth};
+use super::{access::is_note_category, auth::{require_admin, require_auth}};
 use crate::core::state::AppState;
 use axum::{Json, extract::State, http::HeaderMap};
 use serde::Deserialize;
@@ -49,10 +49,10 @@ pub async fn create_note(
     let content = body.content.trim();
     let category = body.category.trim();
 
-    if title.is_empty() || content.is_empty() || category.is_empty() {
+    if title.is_empty() || content.is_empty() || !is_note_category(category) {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
-            "제목과 본문 필요".to_string(),
+            "제목, 본문과 올바른 카테고리가 필요합니다".to_string(),
         ));
     }
 
@@ -113,10 +113,10 @@ pub async fn update_note(
     let title = body.title.trim();
     let content = body.content.trim();
     let category = body.category.trim();
-    if id.is_empty() || title.is_empty() || content.is_empty() || category.is_empty() {
+    if id.is_empty() || title.is_empty() || content.is_empty() || !is_note_category(category) {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
-            "글 ID, 제목과 본문이 필요합니다".to_string(),
+            "글 ID, 제목, 본문과 올바른 카테고리가 필요합니다".to_string(),
         ));
     }
 
