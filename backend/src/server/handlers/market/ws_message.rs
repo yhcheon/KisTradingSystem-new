@@ -10,6 +10,7 @@ use serde_json::json;
 pub(super) fn tick_message(tick: &RealtimeTick) -> String {
     serde_json::to_string(&json!({
         "type": "tick",
+        "market_session": tick.market_session,
         "code": tick.code,
         "price": tick.price,
         "change": tick.change,
@@ -25,7 +26,7 @@ pub(super) fn tick_message(tick: &RealtimeTick) -> String {
 mod tests {
     use super::*;
 
-    fn tick() -> RealtimeTick {
+    fn tick(market_session: &str) -> RealtimeTick {
         RealtimeTick {
             code: "101S".to_string(),
             date: "20261116".to_string(),
@@ -35,21 +36,20 @@ mod tests {
             volume: "1200".to_string(),
             last_qty: "3".to_string(),
             time: "091530".to_string(),
+            market_session: market_session.to_string(),
         }
     }
 
     #[test]
     fn serializes_tick_with_expected_browser_message_fields() {
-        let tick = tick();
-        assert_eq!(tick.date, "20261116");
-
-        let result = tick_message(&tick);
+        let result = tick_message(&tick("night"));
         let value: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert_eq!(
             value,
             json!({
                 "type": "tick",
+                "market_session": "night",
                 "code": "101S",
                 "price": "350.25",
                 "change": "+1.25",
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn does_not_expose_internal_tick_date_in_browser_message() {
-        let result = tick_message(&tick());
+        let result = tick_message(&tick("day"));
         let value: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert!(value.get("date").is_none());
