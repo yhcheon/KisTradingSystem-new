@@ -14,13 +14,13 @@ use super::protocol::{
 pub async fn run(
     approval_key: String,
     symbols: Vec<String>,
-    night_symbol: String,
+    night_symbols: Vec<String>,
     tx: broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
 ) {
     loop {
         match connect_and_listen(
-            &approval_key, &symbols, &night_symbol, &tx, candle_store.clone()
+            &approval_key, &symbols, &night_symbols, &tx, candle_store.clone()
         ).await {
             Ok(_) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
             Err(e) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", e),
@@ -56,7 +56,7 @@ where
 async fn connect_and_listen(
     approval_key: &str,
     symbols: &[String],
-    night_symbol: &str,
+    night_symbols: &[String],
     tx: &broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -71,7 +71,9 @@ async fn connect_and_listen(
     for symbol in symbols {
         subscribe(&mut ws, approval_key, DAY_TR_ID, symbol).await?;
     }
-    subscribe(&mut ws, approval_key, NIGHT_TR_ID, night_symbol).await?;
+    for symbol in night_symbols {
+        subscribe(&mut ws, approval_key, NIGHT_TR_ID, symbol).await?;
+    }
 
     let mut night_logged = 0usize;
     loop {
