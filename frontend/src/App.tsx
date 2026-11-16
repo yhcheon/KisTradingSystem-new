@@ -6,7 +6,7 @@
 //       - admin: 관리자 화면
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useAuthSession } from './features/auth/hooks/useAuthSession';
 import { useAdminRole } from './features/auth/hooks/useAdminRole';
@@ -20,6 +20,7 @@ import './App.css';
 export default function App() {
   const { session, authLoading } = useAuthSession();
   const [activeModal, setActiveModal] = useState<'analysis' | 'admin' | 'login' | null>(null);
+  const previousSessionRef = useRef(session);
   const isAdmin = useAdminRole(session);
 
   // Google OAuth 팝업에서 인증이 완료되면 이 창의 세션도 공유되고, 팝업은 자동으로 닫습니다.
@@ -29,6 +30,17 @@ export default function App() {
       window.close();
     }
   }, [session]);
+
+  // 비회원 상태에서 로그인에 성공하면 로그인 유도 모달만 닫고 시세 화면에 머뭅니다.
+  // 분석 화면은 사용자가 분석 버튼을 다시 눌렀을 때만 엽니다.
+  useEffect(() => {
+    const justSignedIn = !previousSessionRef.current && !!session;
+    previousSessionRef.current = session;
+
+    if (justSignedIn && (activeModal === 'login' || activeModal === 'analysis')) {
+      setActiveModal(null);
+    }
+  }, [session, activeModal]);
 
   useEffect(() => {
     if (!activeModal) return;
