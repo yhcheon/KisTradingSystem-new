@@ -32,3 +32,17 @@ pub fn parse_master(text: &str) -> Vec<FuturesSymbol> {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_month_code_and_year_month_from_symbol_name() {
+        let symbols = parse_master("1|101S|unused|KOSPI200 202612");
+
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].month_code, "202612");
+        assert_eq!(symbols[0].month_ym, (2026, 12));
+    }
+}
