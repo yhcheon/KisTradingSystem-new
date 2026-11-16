@@ -17,18 +17,25 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
   const [candles, setCandles] = useState<CandleData[]>([]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchPrices = async () => {
       try {
-        const response = await fetch('/api/prices');
+        const response = await fetch('/api/prices', {
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const json: PricesResponse = await response.json();
         setData(json);
       } catch (error) {
-        console.error('prices fetch 실패:', error);
+        if (!controller.signal.aborted) {
+          console.error('prices fetch 실패:', error);
+        }
       }
     };
 
     fetchPrices();
+    return () => controller.abort();
   }, []);
 
   const selectedResult = selected === 'regular' ? data?.regular : data?.mini;
@@ -36,13 +43,25 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
     selectedResult?.ok && selectedResult.data ? selectedResult.data.code : null;
 
   useEffect(() => {
-    if (!selectedCode) return;
+    if (!selectedCode) {
+      setCandles([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      code: selectedCode,
+      interval,
+      date: 'both',
+    });
+
+    setCandles([]);
 
     const fetchCandles = async () => {
       try {
-        const response = await fetch(
-          `/api/candles?code=${selectedCode}&interval=${interval}&date=both`,
-        );
+        const response = await fetch(`/api/candles?${params.toString()}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) return;
 
         const json = await response.json();
@@ -51,11 +70,14 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
         const raw: CandleData[] = json.data;
         setCandles(mapCandlesForChart(raw));
       } catch (error) {
-        console.error('candles fetch 실패:', error);
+        if (!controller.signal.aborted) {
+          console.error('candles fetch 실패:', error);
+        }
       }
     };
 
     fetchCandles();
+    return () => controller.abort();
   }, [selectedCode, interval]);
 
   return { data, setData, candles, setCandles, selectedCode };
