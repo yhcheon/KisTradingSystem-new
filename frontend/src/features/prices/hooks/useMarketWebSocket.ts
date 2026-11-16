@@ -16,7 +16,7 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
 
 function getWebSocketUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.hostname}:8080/ws`;
+  return `${protocol}//${window.location.host}/ws`;
 }
 
 export function useMarketWebSocket({
