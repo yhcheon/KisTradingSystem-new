@@ -1,32 +1,29 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+이 디렉터리는 KOSPI200 선물 시세 웹서비스의 React + TypeScript + Vite 프론트엔드입니다.
 
-Currently, two official plugins are available:
+## 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+프로젝트 루트의 Readme.md에서 환경 변수 설정 및 전체 서비스 실행 방법을 확인하세요.
 
-## React Compiler
+Frontend PowerShell에서:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+    npm install
+    npm run dev
 
-## Expanding the Oxlint configuration
+개발 서버는 기본적으로 http://localhost:5173에서 실행됩니다. 백엔드 프록시 주소는 .env의 VITE_DEV_BACKEND_URL 설정을 사용합니다.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 검증
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+    npm run lint
+    npm run build
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 주요 디렉터리
+
+- src/components: 앱 헤더 및 모달
+- src/features/admin: 관리자 글·뉴스 관리
+- src/features/analysis: 분석 글 목록·상세
+- src/features/auth: 인증 세션 및 권한
+- src/features/news: 뉴스 링크 표시
+- src/features/prices: 시세 화면, WebSocket 및 차트 데이터 훅
+- src/pages: 분석·관리자·로그인 페이지
