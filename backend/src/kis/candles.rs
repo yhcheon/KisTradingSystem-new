@@ -93,3 +93,36 @@ pub async fn get_minute_chart(
     });
     Ok(candles)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_minute_chart_metadata_and_candle_fields() {
+        let response: MinuteChartResponse = serde_json::from_value(serde_json::json!({
+            "rt_cd": "0",
+            "msg_cd": "OK",
+            "msg1": "정상 처리",
+            "output1": { "request": "minute-chart" },
+            "output2": [{
+                "stck_bsop_date": "20261116",
+                "stck_cntg_hour": "090100",
+                "futs_prpr": "350.25",
+                "futs_oprc": "350.00",
+                "futs_hgpr": "351.00",
+                "futs_lwpr": "349.50",
+                "cntg_vol": "12",
+                "acml_tr_pbmn": "4203000"
+            }]
+        })).unwrap();
+
+        assert_eq!(response.rt_cd, "0");
+        assert_eq!(response.msg_cd, "OK");
+        assert_eq!(response.msg1, "정상 처리");
+        assert_eq!(response.output1["request"], "minute-chart");
+        assert_eq!(response.output2.len(), 1);
+        assert_eq!(response.output2[0].acml_tr_pbmn, "4203000");
+        assert_eq!(response.output2[0].cntg_vol, "12");
+    }
+}
