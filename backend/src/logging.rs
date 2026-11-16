@@ -2,7 +2,7 @@
 // 파일명: logging.rs
 // 설명: 일별 로그 파일 시스템 (파일 전용, 콘솔 출력 없음)
 //       - logs/ 디렉토리에 yyyy-mm-dd.log 형식으로 저장
-//       - RUST_LOG 환경변수로 레벨 제어 (기본: debug)
+//       - LOG_LEVEL 환경변수로 레벨 제어 (기본: info)
 // 작성일: 2026-11-14
 // ============================================================
 
@@ -13,7 +13,9 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 /// 로깅 초기화. 반환된 guard는 프로그램 종료 시까지 유지해야 함.
 pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
     // logs 디렉토리 생성
-    let log_dir = PathBuf::from("./logs");
+    let log_dir = PathBuf::from(
+        std::env::var("LOG_DIR").unwrap_or_else(|_| "./logs".to_string()),
+    );
     std::fs::create_dir_all(&log_dir).expect("logs 디렉토리 생성 실패");
 
     // 일별 로테이션 파일 appender: logs/2026-11-14.log
@@ -33,8 +35,8 @@ pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
         .with_line_number(true)
         .with_file(true);
 
-    // 필터: RUST_LOG 없으면 debug
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
+    // 필터: LOG_LEVEL 없으면 info
+    let filter = EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(filter)
