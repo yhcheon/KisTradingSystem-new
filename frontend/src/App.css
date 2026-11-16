@@ -361,3 +361,82 @@ footer {
   }
 }
 
+
+
+/* ── 분석 모달: 기존 시세 화면 위에 표시하고 시세 컴포넌트는 유지 ── */
+.analysis-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.78);
+}
+
+.analysis-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1440px, 100%);
+  height: min(900px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.analysis-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.analysis-modal-header h2 {
+  color: var(--text-main);
+  font-size: 18px;
+  margin: 0;
+}
+
+.analysis-modal-close {
+  padding: 7px 12px;
+  color: var(--text-main);
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.analysis-modal-close:hover {
+  background: #475569;
+}
+
+.analysis-modal-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 700px) {
+  .analysis-modal-backdrop {
+    padding: 8px;
+  }
+
+  .analysis-modal {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 10px;
+  }
+
+  .analysis-modal-content > div > div {
+    grid-template-columns: 1fr !important;
+  }
+}
