@@ -66,27 +66,29 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
 
     // 야간선물은 별도 고정 코드를 쓰지 않고, 마스터에서 선택한 정규 KOSPI200 최근월물 코드를 사용합니다.
     // REST는 CM, WebSocket은 H0MFCNT0로 야간 시장을 구분합니다.
-    let night_symbol = regular.code.clone();
-    tracing::info!(
-        "야간선물 REST 검증 시작: market=CM, 최근월물 code={} (정규선물 마스터 선택 결과)",
-        night_symbol
-    );
-    match kis::get_futures_price_for_market(
-        &http_client, &app_key, &app_secret, &access_token, "CM", &night_symbol
-    ).await {
-        Ok(price) => tracing::info!(
-            "야간선물 REST 조회 성공: code={}, name={}, price={}, change={}, change_rate={}, volume={}",
-            night_symbol,
-            price.output1.hts_kor_isnm,
-            price.output1.futs_prpr,
-            price.output1.futs_prdy_vrss,
-            price.output1.futs_prdy_ctrt,
-            price.output1.acml_vol
-        ),
-        Err(error) => tracing::warn!(
-            "야간선물 REST 조회 실패: market=CM, code={}, error={}",
-            night_symbol, error
-        ),
+    let night_symbols = vec![regular.code.clone(), mini.code.clone()];
+    for night_symbol in &night_symbols {
+        tracing::info!(
+            "야간선물 REST 검증 시작: market=CM, code={} (선물 마스터 선택 결과)",
+            night_symbol
+        );
+        match kis::get_futures_price_for_market(
+            &http_client, &app_key, &app_secret, &access_token, "CM", night_symbol
+        ).await {
+            Ok(price) => tracing::info!(
+                "야간선물 REST 조회 성공: code={}, name={}, price={}, change={}, change_rate={}, volume={}",
+                night_symbol,
+                price.output1.hts_kor_isnm,
+                price.output1.futs_prpr,
+                price.output1.futs_prdy_vrss,
+                price.output1.futs_prdy_ctrt,
+                price.output1.acml_vol
+            ),
+            Err(error) => tracing::warn!(
+                "야간선물 REST 조회 실패: market=CM, code={}, error={}",
+                night_symbol, error
+            ),
+        }
     }
 
     // Supabase 초기화
@@ -135,16 +137,15 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     };
     let (ws_tx, _) = tokio::sync::broadcast::channel::<kis_ws::RealtimeTick>(256);
     let ws_symbols = vec![regular.code.clone(), mini.code.clone()];
-    let night_code = night_symbol.clone();
     {
         let tx = ws_tx.clone();
         let key = approval_key;
         let store = candle_store.clone();
         tokio::spawn(async move {
-            kis_ws::run(key, ws_symbols, night_code, tx, store).await;
+            kis_ws::run(key, ws_symbols, night_symbols, tx, store).await;
         });
     }
-    tracing::info!("KIS WebSocket 백그라운드 시작 (주간 H0IFCNT0 + 야간 H0MFCNT0)");
+    tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
 
     Ok(AppState {
         kis: KisCredentials {
