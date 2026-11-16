@@ -4,7 +4,7 @@
 // 작성일: 2026-11-14
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../lib/apiClient';
 import type { NoteListItem, Note } from '../types';
 import NewsLinks from '../features/news/NewsLinks';
@@ -16,55 +16,91 @@ export default function Analysis() {
   const [selected, setSelected] = useState<Note | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const detailControllerRef = useRef<AbortController | null>(null);
 
-  // 글 목록 로드
+  // 글 목록 로드: 화면 이탈 시 요청을 취소하고 언마운트 후 상태 변경을 방지
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchList = async () => {
-      const res = await authenticatedFetch('/api/notes');
+      try {
+        const res = await authenticatedFetch('/api/notes', {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+
+        if (!res) {
+          setError('로그인 필요');
+          return;
+        }
+        if (res.status === 403) {
+          setError('무료 회원은 오후 2시부터 열람 가능합니다');
+          return;
+        }
+        if (!res.ok) {
+          setError('글을 불러올 수 없습니다');
+          return;
+        }
+
+        const json = await res.json();
+        if (!controller.signal.aborted) {
+          setList(Array.isArray(json.data) ? json.data : []);
+        }
+      } catch (requestError) {
+        if (!controller.signal.aborted) {
+          console.error('분석 글 목록 조회 실패:', requestError);
+          setError('글을 불러올 수 없습니다');
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+
+    void fetchList();
+    return () => {
+      controller.abort();
+      detailControllerRef.current?.abort();
+    };
+  }, []);
+
+  // 새 글 선택 시 이전 상세 요청을 취소해 늦게 도착한 응답이 선택 상태를 덮지 않도록 처리
+  const handleSelect = async (id: string) => {
+    detailControllerRef.current?.abort();
+    const controller = new AbortController();
+    detailControllerRef.current = controller;
+
+    try {
+      const res = await authenticatedFetch(
+        `/api/notes/${encodeURIComponent(id)}`,
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+
       if (!res) {
-        setError('로그인 필요');
-        setLoading(false);
+        alert('로그인이 필요합니다');
         return;
       }
       if (res.status === 403) {
-        setError('무료 회원은 오후 2시부터 열람 가능합니다');
-        setLoading(false);
+        alert('무료 회원은 오후 2시부터 열람 가능합니다');
+        return;
+      }
+      if (res.status === 404) {
+        alert('글을 찾을 수 없습니다');
         return;
       }
       if (!res.ok) {
-        setError('글을 불러올 수 없습니다');
-        setLoading(false);
+        alert('글 상세를 불러올 수 없습니다');
         return;
       }
 
-      const json = await res.json();
-      setList(json.data || []);
-      setLoading(false);
-    };
-    fetchList();
-  }, []);
-
-  // 글 상세 로드
-  const handleSelect = async (id: string) => {
-    const res = await authenticatedFetch(`/api/notes/${encodeURIComponent(id)}`);
-    if (!res) {
-      alert('로그인이 필요합니다');
-      return;
+      const result = await res.json();
+      if (!controller.signal.aborted) setSelected(result.data as Note);
+    } catch (requestError) {
+      if (!controller.signal.aborted) {
+        console.error('분석 글 상세 조회 실패:', requestError);
+        alert('글 상세를 불러오지 못했습니다. 다시 시도해 주세요.');
+      }
     }
-    if (res.status === 403) {
-      alert('무료 회원은 오후 2시부터 열람 가능합니다');
-      return;
-    }
-    if (res.status === 404) {
-      alert('글을 찾을 수 없습니다');
-      return;
-    }
-    if (!res.ok) {
-      alert('글 상세를 불러올 수 없습니다');
-      return;
-    }
-    const result = await res.json();
-    setSelected(result.data as Note);
   };
 
   if (loading) return <p style={{ color: '#94a3b8', padding: 20 }}>불러오는 중...</p>;
