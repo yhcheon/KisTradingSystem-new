@@ -94,9 +94,22 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
           for (const candle of raw) {
             merged.set(`${candle.date}:${candle.time}`, candle);
           }
-          // API 응답이 늦게 도착해도 이미 수신한 실시간 체결 봉은 유지합니다.
+          // REST 누적 거래량과 조회 이후 실시간 체결을 함께 보존합니다.
           for (const candle of current) {
-            merged.set(`${candle.date}:${candle.time}`, candle);
+            const key = `${candle.date}:${candle.time}`;
+            const apiCandle = merged.get(key);
+            merged.set(
+              key,
+              apiCandle
+                ? {
+                    ...apiCandle,
+                    high: Math.max(apiCandle.high, candle.high),
+                    low: Math.min(apiCandle.low, candle.low),
+                    close: candle.close,
+                    volume: Math.max(apiCandle.volume, candle.volume),
+                  }
+                : candle,
+            );
           }
           return {
             key: candleKey,
