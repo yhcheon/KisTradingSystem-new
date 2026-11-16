@@ -88,9 +88,20 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
         if (!json.ok || controller.signal.aborted) return;
 
         const raw: CandleData[] = json.data;
-        setCandleState({
-          key: candleKey,
-          data: mapCandlesForChart(raw),
+        setCandleState((previous) => {
+          const current = previous.key === candleKey ? previous.data : [];
+          const merged = new Map<string, CandleData>();
+          for (const candle of raw) {
+            merged.set(`${candle.date}:${candle.time}`, candle);
+          }
+          // API 응답이 늦게 도착해도 이미 수신한 실시간 체결 봉은 유지합니다.
+          for (const candle of current) {
+            merged.set(`${candle.date}:${candle.time}`, candle);
+          }
+          return {
+            key: candleKey,
+            data: mapCandlesForChart([...merged.values()]),
+          };
         });
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -100,7 +111,16 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
     };
 
     void fetchCandles();
-    return () => controller.abort();
+    // 서버가 18시 이후 REST 야간 분봉을 비동기로 채우는 경우를 반영하고,
+    // 조회 사이에 새로 생성된 분봉도 주기적으로 동기화합니다.
+    const refreshTimer = window.setInterval(() => {
+      void fetchCandles();
+    }, 10_000);
+
+    return () => {
+      controller.abort();
+      window.clearInterval(refreshTimer);
+    };
   }, [selectedCode, interval, candleKey]);
 
   return { data, setData, candles, setCandles, selectedCode };
