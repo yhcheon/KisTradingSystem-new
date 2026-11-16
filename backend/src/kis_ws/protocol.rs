@@ -1,5 +1,5 @@
 use crate::core::time::today_yyyymmdd;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 
 pub(super) const TR_ID: &str = "H0IFCNT0";
 
@@ -56,7 +56,7 @@ pub(super) fn handle_text(
     text: &str,
     pong_tx: &mpsc::Sender<String>,
 ) {
-    if text.contains("\\"tr_id\\":\\"PINGPONG\\"") {
+    if text.contains(r#""tr_id":"PINGPONG""#) {
         tracing::debug!("PINGPONG 수신, 응답 전송 예약");
         let _ = pong_tx.try_send(text.to_string());
         return;
