@@ -19,7 +19,8 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     let mini = fetch_one(&state, &state.mini).await;
 
     // KRX 야간선물은 정규 KOSPI200 최근월물 코드를 사용합니다.
-    // 야간 전일종가는 화면에 노출하지 않고, 주간 마지막 현재가를 비교 기준으로 사용합니다.
+    // 야간 기준가는 당일 주간 정규장의 마지막 현재가(종가)를 사용합니다.
+    let day_close = regular.as_ref().ok().map(|price| price.price.clone());
     let night = match kis::get_futures_price_for_market(
         &state.http_client,
         &state.kis.app_key,
@@ -36,6 +37,7 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
                 "code": state.regular.code,
                 "name": price.output1.hts_kor_isnm,
                 "price": price.output1.futs_prpr,
+                "reference_price": day_close,
                 "open": price.output1.futs_oprc,
                 "high": price.output1.futs_hgpr,
                 "low": price.output1.futs_lwpr,
