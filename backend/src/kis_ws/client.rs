@@ -29,14 +29,15 @@ pub async fn run(
     }
 }
 
-async fn subscribe(
-    ws: &mut tokio_tungstenite::WebSocketStream<
-        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>
-    >,
+async fn subscribe<S>(
+    ws: &mut tokio_tungstenite::WebSocketStream<S>,
     approval_key: &str,
     tr_id: &str,
     symbol: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let msg = json!({
         "header": {
             "approval_key": approval_key,
