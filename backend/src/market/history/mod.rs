@@ -202,20 +202,27 @@ async fn load_night_session(
                     tokio::time::sleep(std::time::Duration::from_millis(request_delay_ms)).await;
                     break chunk;
                 }
-                Err(error) if error.to_string().contains("EGW00201")
-                    && retry < MAX_RATE_LIMIT_RETRIES =>
-                {
-                    retry += 1;
-                    let backoff_ms = request_delay_ms.max(1000u64.saturating_mul(2u64.pow(retry as u32 - 1)));
-                    tracing::warn!(
-                        target: "kis::night_candles",
-                        "[NIGHT-RATE-LIMIT-RETRY] symbol={} date={} page={} cursor={} retry={}/{} wait_ms={} error={}",
-                        symbol, trade_date, page + 1, cursor, retry,
-                        MAX_RATE_LIMIT_RETRIES, backoff_ms, error
-                    );
-                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-                }
-                Err(error) => return Err(error),
+                Err(error) => {
+                    // Box<dyn Error>는 Send를 보장하지 않으므로 await 전에 문자열로 변환합니다.
+                    let error_message = error.to_string();
+                    if error_message.contains("EGW00201")
+                        && retry < MAX_RATE_LIMIT_RETRIES
+                    {
+                        retry += 1;
+                        let backoff_ms = request_delay_ms.max(
+                            1000u64.saturating_mul(2u64.pow(retry as u32 - 1)),
+                        );
+                        tracing::warn!(
+                            target: "kis::night_candles",
+                            "[NIGHT-RATE-LIMIT-RETRY] symbol={} date={} page={} cursor={} retry={}/{} wait_ms={} error={}",
+                            symbol, trade_date, page + 1, cursor, retry,
+                            MAX_RATE_LIMIT_RETRIES, backoff_ms, error_message
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    } else {
+                        return Err(std::io::Error::other(error_message).into());
+                    }
+                },
             }
         };
 
