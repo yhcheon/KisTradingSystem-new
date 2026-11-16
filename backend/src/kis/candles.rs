@@ -74,7 +74,7 @@ pub async fn get_minute_chart_for_market(
     symbol: &str,
     date: &str,
     hour: &str,
-) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
+) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error + Send + Sync>> {
     let rest_domain = std::env::var("KIS_REST_DOMAIN")
         .unwrap_or_else(|_| "https://openapi.koreainvestment.com:9443".to_string());
     let url = format!(
