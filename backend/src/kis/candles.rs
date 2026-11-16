@@ -58,6 +58,23 @@ pub async fn get_minute_chart(
     date: &str,
     hour: &str,
 ) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
+    get_minute_chart_for_market(
+        client, app_key, app_secret, access_token, "F", symbol, date, hour,
+    )
+    .await
+}
+
+/// 시장 구분(F: 주간, CM: 야간)을 지정해 선물 1분봉을 조회합니다.
+pub async fn get_minute_chart_for_market(
+    client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    market_div_code: &str,
+    symbol: &str,
+    date: &str,
+    hour: &str,
+) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
     let rest_domain = std::env::var("KIS_REST_DOMAIN")
         .unwrap_or_else(|_| "https://openapi.koreainvestment.com:9443".to_string());
     let url = format!(
@@ -74,7 +91,7 @@ pub async fn get_minute_chart(
         .header("tr_id", "FHKIF03020200")
         .header("custtype", "P")
         .query(&[
-            ("FID_COND_MRKT_DIV_CODE", "F"),
+            ("FID_COND_MRKT_DIV_CODE", market_div_code),
             ("FID_INPUT_ISCD", symbol),
             ("FID_HOUR_CLS_CODE", "60"),
             ("FID_PW_DATA_INCU_YN", "Y"),
