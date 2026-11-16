@@ -16,18 +16,16 @@ function toNumber(value: string): number {
   return Number.parseFloat(value.replace(/,/g, '').trim());
 }
 
-// 가격을 전일종가와 비교해 방향 및 차이 포인트를 계산합니다.
+// 기준가 대비 차이를 부호와 함께 계산합니다.
 function diffFrom(value: string, base: string) {
   const v = toNumber(value);
   const b = toNumber(base);
   if (!Number.isFinite(v) || !Number.isFinite(b)) return null;
-
   const diff = v - b;
-  const abs = Math.abs(diff);
-  const formatted = abs.toFixed(2).padStart(6, '0').replace(/^0+/, (m) => ' '.repeat(m.length));
   return {
     sign: diff > 0 ? '▲' : diff < 0 ? '▼' : '-',
-    abs: formatted,
+    amount: diff > 0 ? `+${diff.toFixed(2)}` : diff < 0 ? diff.toFixed(2) : '0.00',
+    value: diff,
   };
 }
 
@@ -41,57 +39,53 @@ function formatPrice(value?: string): string {
   return value && value.trim() ? value : '-';
 }
 
-function DiffValue({ value, base }: { value: string; base: string }) {
+function DiffValue({ value, base, showRate = false }: {
+  value: string;
+  base: string;
+  showRate?: boolean;
+}) {
   const diff = diffFrom(value, base);
   if (!diff) return null;
-
-  const directionClass =
-    diff.sign === '▲' ? 'up' : diff.sign === '▼' ? 'down' : 'flat';
-
+  const directionClass = diff.sign === '▲' ? 'up' : diff.sign === '▼' ? 'down' : 'flat';
+  const baseNumber = toNumber(base);
+  const rate = Number.isFinite(baseNumber) && baseNumber !== 0
+    ? (diff.value / baseNumber) * 100
+    : Number.NaN;
+  const rateText = rate > 0 ? `+${rate.toFixed(2)}` : rate.toFixed(2);
   return (
     <span className={`diff ${directionClass}`}>
-      {diff.sign} {diff.abs}
+      {diff.sign} {diff.amount}{showRate && Number.isFinite(rate) ? ` (${rateText}%)` : ''}
     </span>
   );
 }
 
-function SessionStats({ quote, includePreviousClose }: {
-  quote: {
-    open: string;
-    high: string;
-    low: string;
-    prev_close?: string;
-  };
-  includePreviousClose: boolean;
+function SessionStats({ quote, baseLabel, baseValue }: {
+  quote: { open: string; high: string; low: string };
+  baseLabel: string;
+  baseValue?: string;
 }) {
-  const base = quote.prev_close;
   const rows = [
-    ...(includePreviousClose ? [{ label: '전일종가', value: quote.prev_close ?? '-' }] : []),
-    { label: '시가', value: quote.open },
-    { label: '고가', value: quote.high },
-    { label: '저가', value: quote.low },
+    { label: baseLabel, value: baseValue ?? '-', isBase: true },
+    { label: '시가', value: quote.open, isBase: false },
+    { label: '고가', value: quote.high, isBase: false },
+    { label: '저가', value: quote.low, isBase: false },
   ];
-
   return (
     <div className="session-stats">
       {rows.map((row) => {
-        const isComparedValue = row.label !== '전일종가' && includePreviousClose && !!base;
-        const openValue = row.label === '시가' ? toNumber(row.value) : Number.NaN;
-        const previousClose = base ? toNumber(base) : Number.NaN;
-        const openColor =
-          row.label === '시가' && Number.isFinite(openValue) && Number.isFinite(previousClose)
-            ? openValue > previousClose ? 'up' : openValue < previousClose ? 'down' : ''
-            : '';
-
+        const isComparedValue = !row.isBase && !!baseValue;
+        const rowValue = toNumber(row.value);
+        const base = baseValue ? toNumber(baseValue) : Number.NaN;
+        const direction = Number.isFinite(rowValue) && Number.isFinite(base)
+          ? rowValue > base ? 'up' : rowValue < base ? 'down' : ''
+          : '';
         return (
           <div className="session-stat-row" key={row.label}>
             <span className="label">{row.label}</span>
-            <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : openColor}`}>
+            <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : direction}`}>
               {formatPrice(row.value)}
             </span>
-            {isComparedValue && (
-              <DiffValue value={row.value} base={base!} />
-            )}
+            {isComparedValue && <DiffValue value={row.value} base={baseValue!} />}
           </div>
         );
       })}
@@ -121,8 +115,11 @@ function NightSession({ night }: { night: NonNullable<PriceResult['night']> }) {
       </div>
       <div className="session-price-row">
         <span className="session-price">{formatPrice(quote.price)}</span>
+        {quote.reference_price && (
+          <DiffValue value={quote.price} base={quote.reference_price} showRate />
+        )}
       </div>
-      <SessionStats quote={quote} includePreviousClose={false} />
+      <SessionStats quote={quote} baseLabel="기준가" baseValue={quote.reference_price} />
     </section>
   );
 }
@@ -157,7 +154,9 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
       : toNumber(day.change);
   const colorClass = priceDiff > 0 ? 'up' : priceDiff < 0 ? 'down' : 'flat';
   const changeSign = priceDiff > 0 ? '▲' : priceDiff < 0 ? '▼' : '-';
-  const changeText = Number.isFinite(priceDiff) ? priceDiff.toFixed(2) : day.change;
+  const changeText = Number.isFinite(priceDiff)
+    ? priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)
+    : day.change;
   const changeRate =
     Number.isFinite(priceDiff) && Number.isFinite(previousClose) && previousClose !== 0
       ? ((priceDiff / previousClose) * 100).toFixed(2)
@@ -182,13 +181,9 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
           </span>
         </div>
         <SessionStats
-          quote={{
-            prev_close: day.prev_close,
-            open: day.open,
-            high: day.high,
-            low: day.low,
-          }}
-          includePreviousClose
+          quote={{ open: day.open, high: day.high, low: day.low }}
+          baseLabel="전일종가"
+          baseValue={day.prev_close}
         />
       </section>
 
