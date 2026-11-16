@@ -29,6 +29,8 @@ pub struct FuturesPriceResponse {
     pub msg_cd: String,
     pub msg1: String,
     pub output1: FuturesPriceOutput1,
+    // 확장 응답 필드를 보존하기 위한 데이터이며 현재 서비스 로직에서는 소비하지 않습니다.
+    #[allow(dead_code)]
     pub output2: FuturesPriceOutput2,
 }
 
