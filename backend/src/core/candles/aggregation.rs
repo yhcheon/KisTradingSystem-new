@@ -102,4 +102,60 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].close, 104.0);
     }
+
+    #[test]
+    fn test_aggregate_empty_input_returns_empty() {
+        let input: Vec<Candle> = vec![];
+
+        let result = aggregate(&input, 5);
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_aggregate_zero_interval_returns_input_unchanged() {
+        let input = vec![
+            c("0900", 100.0, 105.0, 99.0, 104.0, 10),
+            c("0901", 104.0, 108.0, 103.0, 107.0, 15),
+        ];
+
+        let result = aggregate(&input, 0);
+
+        assert_eq!(result.len(), input.len());
+        assert_eq!(result[0].time, "0900");
+        assert_eq!(result[0].open, 100.0);
+        assert_eq!(result[0].high, 105.0);
+        assert_eq!(result[0].low, 99.0);
+        assert_eq!(result[0].close, 104.0);
+        assert_eq!(result[0].volume, 10);
+        assert_eq!(result[1].time, "0901");
+        assert_eq!(result[1].close, 107.0);
+    }
+
+    #[test]
+    fn test_aggregate_15m_boundary() {
+        let input = vec![
+            c("0914", 100.0, 105.0, 99.0, 104.0, 10),
+            c("0915", 104.0, 108.0, 103.0, 107.0, 15),
+            c("0916", 107.0, 110.0, 106.0, 109.0, 20),
+        ];
+
+        let result = aggregate(&input, 15);
+
+        assert_eq!(result.len(), 2);
+
+        assert_eq!(result[0].time, "0914");
+        assert_eq!(result[0].open, 100.0);
+        assert_eq!(result[0].high, 105.0);
+        assert_eq!(result[0].low, 99.0);
+        assert_eq!(result[0].close, 104.0);
+        assert_eq!(result[0].volume, 10);
+
+        assert_eq!(result[1].time, "0915");
+        assert_eq!(result[1].open, 104.0);
+        assert_eq!(result[1].high, 110.0);
+        assert_eq!(result[1].low, 103.0);
+        assert_eq!(result[1].close, 109.0);
+        assert_eq!(result[1].volume, 35);
+    }
 }
