@@ -64,11 +64,11 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let mini = market_data.mini;
     let candle_store = market_data.candles;
 
-    // 야간 현재가 조회 검증: KIS 공식 예제 종목코드를 기본값으로 사용합니다.
-    let night_symbol = std::env::var("KIS_NIGHT_FUTURES_CODE")
-        .unwrap_or_else(|_| "101W9000".to_string());
+    // 야간선물은 별도 고정 코드를 쓰지 않고, 마스터에서 선택한 정규 KOSPI200 최근월물 코드를 사용합니다.
+    // REST는 CM, WebSocket은 H0MFCNT0로 야간 시장을 구분합니다.
+    let night_symbol = regular.code.clone();
     tracing::info!(
-        "야간선물 REST 검증 시작: market=CM, code={} (KIS_NIGHT_FUTURES_CODE로 변경 가능)",
+        "야간선물 REST 검증 시작: market=CM, 최근월물 code={} (정규선물 마스터 선택 결과)",
         night_symbol
     );
     match kis::get_futures_price_for_market(
