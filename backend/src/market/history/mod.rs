@@ -54,7 +54,7 @@ pub fn spawn_night_candle_loader(
                 tokio::time::sleep(wait).await;
             }
 
-            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia__Seoul);
+            let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let session_hour = chrono::Timelike::hour(&session_now);
             let (trade_date, cursor_hour) = if session_hour < 6 {
                 (
