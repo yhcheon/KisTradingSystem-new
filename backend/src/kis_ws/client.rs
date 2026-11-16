@@ -83,29 +83,28 @@ async fn connect_and_listen(
                     Some(Ok(Message::Text(text))) => {
                         if let Some(tick) = parse_tick(&text) {
                             if tick.market_session == "night" {
-                                // 야간 체결은 주간 CandleStore에 합치지 않고 브라우저 시세 채널로만 전달합니다.
                                 if night_logged < 10 {
                                     tracing::info!(
-                                        "KRX 야간선물 체결 수신({}/10): code={}, time={}, price={}, change={}, volume={}",
-                                        night_logged + 1, tick.code, tick.time, tick.price, tick.change, tick.volume
+                                        "KRX 야간선물 체결 수신({}/10): code={}, date={}, time={}, price={}, volume={}",
+                                        night_logged + 1, tick.code, tick.date, tick.time, tick.price, tick.volume
                                     );
                                 } else {
                                     tracing::debug!(
-                                        "KRX 야간선물 체결: code={}, time={}, price={}, volume={}",
-                                        tick.code, tick.time, tick.price, tick.volume
+                                        "KRX 야간선물 체결: code={}, date={}, time={}, price={}, volume={}",
+                                        tick.code, tick.date, tick.time, tick.price, tick.volume
                                     );
                                 }
                                 night_logged += 1;
-                                let _ = tx.send(tick);
-                            } else {
-                                {
-                                    let mut store = candle_store.lock().await;
-                                    let price = tick.price.parse::<f64>().unwrap_or_default();
-                                    let qty = tick.last_qty.parse::<u64>().unwrap_or_default();
-                                    store.on_tick(&tick.code, &tick.date, &tick.time, price, qty);
-                                }
-                                let _ = tx.send(tick);
                             }
+
+                            // 주간/야간 모두 동일한 CandleStore에 영업일 기준으로 누적합니다.
+                            {
+                                let mut store = candle_store.lock().await;
+                                let price = tick.price.parse::<f64>().unwrap_or_default();
+                                let qty = tick.last_qty.parse::<u64>().unwrap_or_default();
+                                store.on_tick(&tick.code, &tick.date, &tick.time, price, qty);
+                            }
+                            let _ = tx.send(tick);
                         } else {
                             handle_text(&text, &pong_tx);
                         }
