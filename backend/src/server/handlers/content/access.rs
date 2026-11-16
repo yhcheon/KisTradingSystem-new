@@ -40,6 +40,11 @@ pub async fn require_content_access(
     Ok(())
 }
 
+/// 관리자 글과 일반 글 목록에서 허용하는 카테고리입니다.
+pub fn is_note_category(value: &str) -> bool {
+    matches!(value, "us_market" | "kospi_plan")
+}
+
 /// UUID v4 형식의 글 ID인지 확인합니다.
 pub fn is_uuid(value: &str) -> bool {
     value.len() == 36
@@ -51,7 +56,15 @@ pub fn is_uuid(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_uuid;
+    use super::{is_note_category, is_uuid};
+
+    #[test]
+    fn accepts_only_supported_note_categories() {
+        assert!(is_note_category("us_market"));
+        assert!(is_note_category("kospi_plan"));
+        assert!(!is_note_category("other"));
+        assert!(!is_note_category("us_market&select=*"));
+    }
 
     #[test]
     fn accepts_uuid_format() {
