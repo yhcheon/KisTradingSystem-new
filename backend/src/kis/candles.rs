@@ -43,8 +43,15 @@ pub async fn get_minute_chart(
     date: &str,
     hour: &str,
 ) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error>> {
+    let rest_domain = std::env::var("KIS_REST_DOMAIN")
+        .unwrap_or_else(|_| "https://openapi.koreainvestment.com:9443".to_string());
+    let url = format!(
+        "{}/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice",
+        rest_domain.trim_end_matches('/')
+    );
+
     let resp = client
-        .get("https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice")
+        .get(&url)
         .header("Content-Type", "application/json; charset=utf-8")
         .header("authorization", format!("Bearer {}", access_token))
         .header("appkey", app_key)
