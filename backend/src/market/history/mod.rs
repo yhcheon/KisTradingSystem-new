@@ -84,7 +84,10 @@ pub async fn load_initial_candles(
                         candidate_date,
                         e
                     );
-                    break;
+                    // 휴장일 또는 특정 종목의 일시적인 API 오류일 수 있으므로
+                    // 탐색을 중단하지 않고 다음 과거 날짜를 확인합니다.
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    continue;
                 }
             }
             if found.len() >= 2 {
