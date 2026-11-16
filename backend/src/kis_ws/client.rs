@@ -9,8 +9,6 @@ use crate::core::{candles::CandleStore, time::today_yyyymmdd};
 
 use super::protocol::{RealtimeTick, TR_ID, handle_text};
 
-const WS_URL: &str = "ws://ops.koreainvestment.com:21000";
-
 pub async fn run(
     approval_key: String,
     symbols: Vec<String>,
@@ -32,8 +30,10 @@ async fn connect_and_listen(
     tx: &broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("KIS WS 연결 시도: {}", WS_URL);
-    let (mut ws, _) = connect_async(WS_URL).await?;
+    let ws_url = std::env::var("KIS_WS_DOMAIN")
+        .unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
+    tracing::info!("KIS WS 연결 시도: {}", ws_url);
+    let (mut ws, _) = connect_async(&ws_url).await?;
     tracing::info!("KIS WS 연결됨");
 
     let (pong_tx, mut pong_rx) = mpsc::channel::<String>(32);
