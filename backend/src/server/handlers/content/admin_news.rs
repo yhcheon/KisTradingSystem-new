@@ -17,7 +17,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 #[derive(Deserialize)]
-struct CreateNewsLinkRequest {
+pub struct CreateNewsLinkRequest {
     title: String,
     url: String,
     #[serde(default)]
@@ -27,7 +27,7 @@ struct CreateNewsLinkRequest {
 }
 
 #[derive(Deserialize)]
-struct DeleteNewsLinkRequest {
+pub struct DeleteNewsLinkRequest {
     id: String,
 }
 
