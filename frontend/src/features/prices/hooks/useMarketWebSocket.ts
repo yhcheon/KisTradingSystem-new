@@ -111,8 +111,8 @@ export function useMarketWebSocket({
             };
           });
 
-          // 야간 체결은 좌측 야간 시세만 갱신하고 주간 차트 캔들에는 반영하지 않습니다.
-          if (tick.market_session === 'night' || tick.code !== selectedCodeRef.current) return;
+          // 선택 종목의 주간/야간 체결을 모두 현재 차트에 반영합니다.
+          if (tick.code !== selectedCodeRef.current) return;
           setCandles((previous) =>
             applyTickToCandles(previous, tick, intervalRef.current),
           );
