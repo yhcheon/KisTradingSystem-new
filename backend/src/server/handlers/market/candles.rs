@@ -3,7 +3,7 @@
 // 설명: 분봉 캔들 조회 API
 // ============================================================
 
-use super::{candle_params::CandleParams, candle_query::query_candles};
+use super::{candle_params::CandleParams, candle_response::to_json};
 use crate::core::{
     state::AppState,
     time::{previous_calendar_day_yyyymmdd, today_yyyymmdd},
