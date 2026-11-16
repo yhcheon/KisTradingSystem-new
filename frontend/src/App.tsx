@@ -19,8 +19,16 @@ import './App.css';
 
 export default function App() {
   const { session, authLoading } = useAuthSession();
-  const [activeModal, setActiveModal] = useState<'analysis' | 'admin' | null>(null);
+  const [activeModal, setActiveModal] = useState<'analysis' | 'admin' | 'login' | null>(null);
   const isAdmin = useAdminRole(session);
+
+  // Google OAuth 팝업에서 인증이 완료되면 이 창의 세션도 공유되고, 팝업은 자동으로 닫습니다.
+  useEffect(() => {
+    if (window.opener && session) {
+      window.opener.postMessage({ type: 'supabase-auth-complete' }, window.location.origin);
+      window.close();
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!activeModal) return;
@@ -72,8 +80,8 @@ export default function App() {
             <button onClick={() => supabase.auth.signOut()}>로그아웃</button>
           ) : (
             <button
-              onClick={() => setActiveModal('analysis')}
-              className={activeModal === 'analysis' ? 'active' : ''}
+              onClick={() => setActiveModal('login')}
+              className={activeModal === 'login' ? 'active' : ''}
             >
               로그인
             </button>
@@ -92,14 +100,14 @@ export default function App() {
           }}
         >
           <section
-            className="analysis-modal"
+            className={`analysis-modal ${activeModal === 'login' || (activeModal === 'analysis' && !session) ? 'login-modal' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="app-modal-title"
           >
             <header className="analysis-modal-header">
               <h2 id="app-modal-title">
-                {activeModal === 'analysis' ? '분석' : '관리자'}
+                {activeModal === 'analysis' ? (session ? '분석' : '로그인') : activeModal === 'login' ? '로그인' : '관리자'}
               </h2>
               <button
                 type="button"
@@ -111,7 +119,9 @@ export default function App() {
               </button>
             </header>
             <div className="analysis-modal-content">
-              {activeModal === 'analysis' ? (
+              {activeModal === 'login' ? (
+                <Login />
+              ) : activeModal === 'analysis' ? (
                 session ? <Analysis /> : <Login />
               ) : !session ? (
                 <Login />
