@@ -501,8 +501,11 @@ footer {
   white-space: nowrap;
 }
 
-.session-change {
+.session-change,
+.session-price-row .diff {
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
