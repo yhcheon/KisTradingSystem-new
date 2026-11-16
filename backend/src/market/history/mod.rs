@@ -64,7 +64,7 @@ pub fn spawn_night_candle_loader(
             };
 
             for symbol in &symbols {
-                match load_night_session(
+                let load_result = load_night_session(
                     &http_client,
                     &app_key,
                     &app_secret,
@@ -74,7 +74,9 @@ pub fn spawn_night_candle_loader(
                     &cursor_hour,
                 )
                 .await
-                {
+                .map_err(|error| error.to_string());
+
+                match load_result {
                     Ok(candles) => {
                         tracing::info!(
                             "야간 CM 분봉 조회 완료: code={}, date={}, cursor={}, candles={}",
