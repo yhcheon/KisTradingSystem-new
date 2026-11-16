@@ -132,7 +132,8 @@ mod tests {
                 "cntg_vol": "12",
                 "acml_tr_pbmn": "4203000"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
 
         assert_eq!(response.rt_cd, "0");
         assert_eq!(response.msg_cd, "OK");
@@ -152,7 +153,8 @@ mod tests {
             "msg1": "요청 오류",
             "output1": {},
             "output2": []
-        })).unwrap();
+        }))
+        .unwrap();
 
         let error = ensure_success(&response).unwrap_err();
         assert!(error.contains("EGW00123"));

@@ -3,7 +3,10 @@
 // 설명: 관리자 콘텐츠 CRUD API
 // ============================================================
 
-use super::{access::is_note_category, auth::{require_admin, require_auth}};
+use super::{
+    access::is_note_category,
+    auth::{require_admin, require_auth},
+};
 use crate::core::state::AppState;
 use axum::{Json, extract::State, http::HeaderMap};
 use serde::Deserialize;
@@ -176,14 +179,16 @@ mod tests {
 
     #[test]
     fn update_and_delete_note_require_id() {
-        assert!(serde_json::from_str::<UpdateNoteRequest>(
-            r#"{"id":"1","title":"title","content":"body"}"#
-        )
-        .is_ok());
-        assert!(serde_json::from_str::<UpdateNoteRequest>(
-            r#"{"title":"title","content":"body"}"#
-        )
-        .is_err());
+        assert!(
+            serde_json::from_str::<UpdateNoteRequest>(
+                r#"{"id":"1","title":"title","content":"body"}"#
+            )
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_str::<UpdateNoteRequest>(r#"{"title":"title","content":"body"}"#)
+                .is_err()
+        );
         assert!(serde_json::from_str::<DeleteNoteRequest>(r#"{"id":"1"}"#).is_ok());
         assert!(serde_json::from_str::<DeleteNoteRequest>(r#"{}"#).is_err());
     }

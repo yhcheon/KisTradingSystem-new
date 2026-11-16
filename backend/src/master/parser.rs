@@ -22,7 +22,12 @@ pub fn parse_master(text: &str) -> Vec<FuturesSymbol> {
         } else {
             (0, 0)
         };
-        result.push(FuturesSymbol { info_type: info_type.to_string(), code, name, month_ym });
+        result.push(FuturesSymbol {
+            info_type: info_type.to_string(),
+            code,
+            name,
+            month_ym,
+        });
     }
     result
 }

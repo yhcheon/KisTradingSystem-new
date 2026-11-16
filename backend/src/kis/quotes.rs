@@ -66,19 +66,14 @@ pub async fn get_futures_price(
         .header("appkey", app_key)
         .header("appsecret", app_secret)
         .header("tr_id", "FHMIF10000000")
-        .query(&[
-            ("FID_COND_MRKT_DIV_CODE", "F"),
-            ("FID_INPUT_ISCD", symbol),
-        ])
+        .query(&[("FID_COND_MRKT_DIV_CODE", "F"), ("FID_INPUT_ISCD", symbol)])
         .send()
         .await?
         .error_for_status()?
         .json::<FuturesPriceResponse>()
         .await?;
 
-    ensure_success(&resp).map_err(|error| {
-        std::io::Error::new(std::io::ErrorKind::Other, error)
-    })?;
+    ensure_success(&resp).map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
     Ok(resp)
 }
 
@@ -104,7 +99,8 @@ mod tests {
                 "acml_vol": "1200"
             },
             "output2": { "some_extra_field": "retained" }
-        })).unwrap();
+        }))
+        .unwrap();
 
         assert_eq!(response.rt_cd, "0");
         assert_eq!(response.msg_cd, "OK");
@@ -132,7 +128,8 @@ mod tests {
                 "acml_vol": ""
             },
             "output2": {}
-        })).unwrap();
+        }))
+        .unwrap();
 
         let error = ensure_success(&response).unwrap_err();
         assert!(error.contains("EGW00123"));

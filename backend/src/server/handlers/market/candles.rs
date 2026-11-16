@@ -4,8 +4,14 @@
 // ============================================================
 
 use super::{candle_params::CandleParams, candle_query::query_candles};
-use crate::core::{state::AppState, time::{previous_calendar_day_yyyymmdd, today_yyyymmdd}};
-use axum::{Json, extract::{Query, State}};
+use crate::core::{
+    state::AppState,
+    time::{previous_calendar_day_yyyymmdd, today_yyyymmdd},
+};
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 use serde_json::{Value, json};
 
 pub async fn candles(

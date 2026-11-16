@@ -139,18 +139,14 @@ mod tests {
     #[test]
     fn create_news_link_accepts_optional_metadata() {
         let request: CreateNewsLinkRequest =
-            serde_json::from_str(r#"{"title":"headline","url":"https://example.com"}"#)
-                .unwrap();
+            serde_json::from_str(r#"{"title":"headline","url":"https://example.com"}"#).unwrap();
         assert!(request.source.is_none());
         assert!(request.published_at.is_none());
     }
 
     #[test]
     fn news_requests_require_core_fields() {
-        assert!(serde_json::from_str::<CreateNewsLinkRequest>(
-            r#"{"title":"headline"}"#
-        )
-        .is_err());
+        assert!(serde_json::from_str::<CreateNewsLinkRequest>(r#"{"title":"headline"}"#).is_err());
         assert!(serde_json::from_str::<DeleteNewsLinkRequest>(r#"{"id":"uuid"}"#).is_ok());
         assert!(serde_json::from_str::<DeleteNewsLinkRequest>(r#"{}"#).is_err());
     }

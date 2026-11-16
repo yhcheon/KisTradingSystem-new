@@ -49,8 +49,8 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
 
     let app = super::router::build(state).layer(cors);
 
-    let bind_addr = std::env::var("BACKEND_BIND_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+    let bind_addr =
+        std::env::var("BACKEND_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
     let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await
         .map_err(|e| {

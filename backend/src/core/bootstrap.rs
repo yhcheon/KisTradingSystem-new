@@ -14,8 +14,8 @@ use crate::core::state::{AppState, JwtConfig, KisCredentials};
 /// 외부 의존성을 초기화하고 HTTP 서버에서 공유할 AppState를 구성합니다.
 pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     // Redis
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let client = redis::Client::open(redis_url).map_err(|e| {
         tracing::error!("Redis 클라이언트 생성 실패: {}", e);
         e

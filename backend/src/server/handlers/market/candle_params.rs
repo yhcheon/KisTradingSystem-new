@@ -10,7 +10,11 @@ const SUPPORTED_DATES: &[&str] = &["yesterday", "today", "both"];
 
 impl CandleParams {
     pub(crate) fn validate(&self) -> Result<(&str, &str, &str), &'static str> {
-        let code = self.code.as_deref().map(str::trim).filter(|value| !value.is_empty())
+        let code = self
+            .code
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
             .ok_or("code 파라미터 필요")?;
         if code.len() > 32 || !code.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
             return Err("올바른 code 파라미터가 필요합니다");
@@ -44,25 +48,50 @@ mod tests {
 
     #[test]
     fn applies_defaults_and_accepts_supported_values() {
-        let params = CandleParams { code: Some("101S".into()), interval: None, date: None };
+        let params = CandleParams {
+            code: Some("101S".into()),
+            interval: None,
+            date: None,
+        };
         assert_eq!(params.validate().unwrap(), ("101S", "1m", "both"));
-        let params = CandleParams { code: Some("101S".into()), interval: Some("5m".into()), date: Some("today".into()) };
+        let params = CandleParams {
+            code: Some("101S".into()),
+            interval: Some("5m".into()),
+            date: Some("today".into()),
+        };
         assert_eq!(params.validate().unwrap(), ("101S", "5m", "today"));
     }
 
     #[test]
     fn rejects_missing_or_invalid_code() {
-        for code in [None, Some("".into()), Some("bad code".into()), Some("A&B".into())] {
-            let params = CandleParams { code, interval: None, date: None };
+        for code in [
+            None,
+            Some("".into()),
+            Some("bad code".into()),
+            Some("A&B".into()),
+        ] {
+            let params = CandleParams {
+                code,
+                interval: None,
+                date: None,
+            };
             assert!(params.validate().is_err());
         }
     }
 
     #[test]
     fn rejects_unsupported_interval_and_date() {
-        let params = CandleParams { code: Some("101S".into()), interval: Some("3m".into()), date: None };
+        let params = CandleParams {
+            code: Some("101S".into()),
+            interval: Some("3m".into()),
+            date: None,
+        };
         assert!(params.validate().is_err());
-        let params = CandleParams { code: Some("101S".into()), interval: None, date: Some("invalid".into()) };
+        let params = CandleParams {
+            code: Some("101S".into()),
+            interval: None,
+            date: Some("invalid".into()),
+        };
         assert!(params.validate().is_err());
     }
 }

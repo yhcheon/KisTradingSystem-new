@@ -13,9 +13,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 /// 로깅 초기화. 반환된 guard는 프로그램 종료 시까지 유지해야 함.
 pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
     // logs 디렉토리 생성
-    let log_dir = PathBuf::from(
-        std::env::var("LOG_DIR").unwrap_or_else(|_| "./logs".to_string()),
-    );
+    let log_dir = PathBuf::from(std::env::var("LOG_DIR").unwrap_or_else(|_| "./logs".to_string()));
     std::fs::create_dir_all(&log_dir).expect("logs 디렉토리 생성 실패");
 
     // 일별 로테이션 파일 appender: logs/2026-11-14.log
