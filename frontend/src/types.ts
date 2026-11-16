@@ -18,10 +18,29 @@ export interface CachedPrice {
   cached_at: number;
 }
 
+export interface SessionQuote {
+  code: string;
+  name: string;
+  price: string;
+  open: string;
+  high: string;
+  low: string;
+  change: string;
+  change_rate: string;
+  volume: string;
+}
+
+export interface SessionPriceResult {
+  ok: boolean;
+  data?: SessionQuote;
+  error?: string;
+}
+
 export interface PriceResult {
   ok: boolean;
   data?: CachedPrice;
   error?: string;
+  night?: SessionPriceResult;
 }
 
 export interface PricesResponse {
@@ -31,6 +50,7 @@ export interface PricesResponse {
 
 export interface RealtimeTick {
   type: 'tick';
+  market_session: 'day' | 'night';
   code: string;
   date: string;
   price: string;
@@ -58,4 +78,3 @@ export interface NoteListItem {
   title: string;
   created_at: string;
 }
-
