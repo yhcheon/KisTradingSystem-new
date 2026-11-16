@@ -37,10 +37,8 @@ export function applyTickToCandles(
   const hour = Number(hhmm.slice(0, 2));
   const minute = Number(hhmm.slice(2, 4));
   const groupKey = Math.floor((hour * 60 + minute) / minutes);
-  const newMinute = groupKey * minutes;
-  const newHour = String(Math.floor(newMinute / 60)).padStart(2, '0');
-  const newMinutePart = String(newMinute % 60).padStart(2, '0');
-  const candleTime = `${newHour}${newMinutePart}00`;
+  // CandleStore도 각 interval 그룹의 첫 체결 분을 봉 시각으로 사용합니다.
+  const candleTime = `${hhmm}00`;
 
   const updated = [...candles];
   if (updated.length === 0) {
