@@ -29,7 +29,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         let message = tick_message(&tick);
                         if socket.send(Message::Text(message.into())).await.is_err() { break; }
                     }
-                    Err(_) => break,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        // 느린 브라우저 연결은 누락된 틱만 건너뛰고 다음 최신 틱 수신을 계속합니다.
+                        tracing::warn!("브라우저 WebSocket 수신 지연: {}개 틱 누락", skipped);
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
             }
             msg = socket.recv() => {
