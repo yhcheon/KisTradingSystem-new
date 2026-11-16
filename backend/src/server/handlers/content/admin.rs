@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 #[derive(Deserialize)]
-struct CreateNoteRequest {
+pub struct CreateNoteRequest {
     title: String,
     content: String,
     #[serde(default = "default_note_category")]
@@ -18,7 +18,7 @@ struct CreateNoteRequest {
 }
 
 #[derive(Deserialize)]
-struct UpdateNoteRequest {
+pub struct UpdateNoteRequest {
     id: String,
     title: String,
     content: String,
@@ -27,7 +27,7 @@ struct UpdateNoteRequest {
 }
 
 #[derive(Deserialize)]
-struct DeleteNoteRequest {
+pub struct DeleteNoteRequest {
     id: String,
 }
 
