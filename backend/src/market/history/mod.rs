@@ -96,7 +96,12 @@ pub fn spawn_night_candle_loader(
 
             // 다음 야간 개장까지 대기합니다. 실시간 H0MFCNT0 체결은 계속 CandleStore에 누적됩니다.
             let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
-            let next_day_start = (after_load.date_naive() + chrono::Duration::days(1))
+            let next_start_date = if chrono::Timelike::hour(&after_load) < 6 {
+                after_load.date_naive()
+            } else {
+                after_load.date_naive() + chrono::Duration::days(1)
+            };
+            let next_day_start = next_start_date
                 .and_hms_opt(18, 0, 0)
                 .expect("valid next night session start");
             let wait = (next_day_start - after_load.naive_local())
@@ -139,7 +144,7 @@ async fn load_night_session(
 
         let mut earliest = String::new();
         for candle in chunk.iter().filter(|c| {
-            c.stck_bsop_date == trade_date && c.stck_cntg_hour >= "180000"
+            c.stck_bsop_date == trade_date && c.stck_cntg_hour.as_str() >= "180000"
         }) {
             if earliest.is_empty() || candle.stck_cntg_hour < earliest {
                 earliest = candle.stck_cntg_hour.clone();
