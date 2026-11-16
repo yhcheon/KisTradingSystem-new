@@ -49,13 +49,15 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
 
     let app = super::router::build(state).layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
+    let bind_addr = std::env::var("BACKEND_BIND_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await
         .map_err(|e| {
-            tracing::error!("백엔드 서버 주소(127.0.0.1:8080) 바인딩 실패: {}", e);
+            tracing::error!("백엔드 서버 주소({}) 바인딩 실패: {}", bind_addr, e);
             e
         })?;
-    tracing::info!("backend listening on http://127.0.0.1:8080");
+    tracing::info!("backend listening on {}", bind_addr);
 
     axum::serve(listener, app).await.map_err(|e| {
         tracing::error!("Axum 서버 실행 중 오류: {}", e);
