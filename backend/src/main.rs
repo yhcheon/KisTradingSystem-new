@@ -23,8 +23,8 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _log_guard = logging::init();
     dotenvy::dotenv().ok();
+    let _log_guard = logging::init();
 
     tracing::info!("============================================================");
     tracing::info!("============================================================");
