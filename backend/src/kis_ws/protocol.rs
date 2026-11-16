@@ -1,4 +1,4 @@
-use crate::core::time::today_yyyymmdd;
+use crate::core::time::{previous_calendar_day_yyyymmdd, today_yyyymmdd};
 use tokio::sync::mpsc;
 
 pub(super) const DAY_TR_ID: &str = "H0IFCNT0";
@@ -21,7 +21,7 @@ fn is_valid_hhmmss(value: &str) -> bool {
     let hour = value[0..2].parse::<u8>().unwrap_or(u8::MAX);
     let minute = value[2..4].parse::<u8>().unwrap_or(u8::MAX);
     let second = value[4..6].parse::<u8>().unwrap_or(u8::MAX);
-    hour <= 23 && minute <= 59 && second <= 59
+    hour <= 29 && minute <= 59 && second <= 59
 }
 
 #[derive(Debug, Clone)]
@@ -63,16 +63,29 @@ pub(super) fn parse_tick(text: &str) -> Option<RealtimeTick> {
     let last_qty = fields[FIELD_LAST_QTY].parse::<u64>().ok()?;
     let cumulative_volume = fields[FIELD_CUMULATIVE_VOLUME].parse::<u64>().ok()?;
 
+    let utc_now = chrono::Utc::now();
+    let is_night = tr_id == NIGHT_TR_ID;
+    let hour = fields[FIELD_TIME][0..2].parse::<u32>().ok()?;
+    let (date, time) = if is_night && hour < 6 {
+        // CM 분봉 API는 자정 이후를 전일 영업일의 24시 이후(예: 25:30)로 표현합니다.
+        (
+            previous_calendar_day_yyyymmdd(utc_now),
+            format!("{:02}{}", hour + 24, &fields[FIELD_TIME][2..]),
+        )
+    } else {
+        (today_yyyymmdd(utc_now), fields[FIELD_TIME].to_string())
+    };
+
     Some(RealtimeTick {
         code: fields[FIELD_CODE].to_string(),
-        date: today_yyyymmdd(chrono::Utc::now()),
-        time: fields[FIELD_TIME].to_string(),
+        date,
+        time,
         change: format!("{}{}", fields[FIELD_CHANGE_SIGN], fields[FIELD_CHANGE]),
         change_rate: fields[FIELD_CHANGE_RATE].to_string(),
         price: fields[FIELD_PRICE].to_string(),
         last_qty: last_qty.to_string(),
         volume: cumulative_volume.to_string(),
-        market_session: if tr_id == NIGHT_TR_ID { "night" } else { "day" }.to_string(),
+        market_session: if is_night { "night" } else { "day" }.to_string(),
     })
 }
 
