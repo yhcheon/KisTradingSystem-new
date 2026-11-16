@@ -126,7 +126,7 @@ pub fn spawn_night_candle_loader(
                 }
             }
 
-            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+            let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let next_start_date = if chrono::Timelike::hour(&after_load) < 6 {
                 after_load.date_naive()
             } else {
