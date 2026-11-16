@@ -9,6 +9,22 @@ use super::{
 };
 use std::collections::{BTreeMap, HashMap};
 
+fn is_valid_tick_time(value: &str) -> bool {
+    if value.len() != 6 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return false;
+    }
+
+    let hour = value[0..2].parse::<u8>().unwrap_or(u8::MAX);
+    let minute = value[2..4].parse::<u8>().unwrap_or(u8::MAX);
+    let second = value[4..6].parse::<u8>().unwrap_or(u8::MAX);
+
+    hour <= 23 && minute <= 59 && second <= 59
+}
+
+fn is_valid_tick_date(value: &str) -> bool {
+    value.len() == 8 && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 pub struct CandleStore {
     // 종목코드 → 날짜("YYYY-MM-DD") → interval → 봉 배열
     data: HashMap<String, BTreeMap<String, HashMap<String, Vec<Candle>>>>,
@@ -89,7 +105,12 @@ impl CandleStore {
     /// - date: "YYYYMMDD" (예: "20261114")
     /// - hhmmss: "HHMMSS" (예: "093015")
     pub fn on_tick(&mut self, code: &str, date: &str, hhmmss: &str, price: f64, qty: u64) {
-        if hhmmss.len() < 4 || price <= 0.0 {
+        if code.trim().is_empty()
+            || !is_valid_tick_date(date)
+            || !is_valid_tick_time(hhmmss)
+            || !price.is_finite()
+            || price <= 0.0
+        {
             return;
         }
         let hhmm = &hhmmss[0..4]; // "HHMM"
@@ -250,13 +271,23 @@ mod tests {
     }
 
     #[test]
-    fn on_tick_ignores_invalid_price_or_short_time() {
+    fn on_tick_ignores_invalid_price_time_date_or_code() {
         let mut store = CandleStore::new();
 
         store.on_tick("101S", "20261116", "090", 100.0, 1);
         store.on_tick("101S", "20261116", "090001", 0.0, 1);
         store.on_tick("101S", "20261116", "090001", -1.0, 1);
+        store.on_tick("101S", "20261116", "090001", f64::NAN, 1);
+        store.on_tick("101S", "20261116", "090001", f64::INFINITY, 1);
+        store.on_tick("101S", "20261116", "246000", 100.0, 1);
+        store.on_tick("101S", "20261116", "096060", 100.0, 1);
+        store.on_tick("101S", "20261116", "09AB01", 100.0, 1);
+        store.on_tick("101S", "20261116", "0900010", 100.0, 1);
+        store.on_tick("1011", "2026111", "090001", 100.0, 1);
+        store.on_tick("", "20261116", "090001", 100.0, 1);
 
         assert!(store.dates("101S").is_empty());
+        assert!(store.dates("1011").is_empty());
+        assert!(store.dates("").is_empty());
     }
 }
