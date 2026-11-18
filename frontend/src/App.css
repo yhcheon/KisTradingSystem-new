@@ -880,3 +880,10 @@ footer {
   min-width: 0;
   min-height: 100%;
 }
+
+/* 차트와 채팅은 동일한 오른쪽 그리드 셀을 공유합니다. */
+.layout > #prices-panel,
+.layout > #chat-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
