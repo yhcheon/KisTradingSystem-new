@@ -393,21 +393,6 @@ export default function ChatPage({ active }: { active: boolean }) {
 
   return (
     <main className="chat-page">
-      <header className="chat-header">
-        <div>
-          <h2>공개 채팅</h2>
-        </div>
-        <div className="chat-identity">
-          <span
-            className={`chat-connection-status ${status}${connectionClosed ? ' closed' : ''}`}
-            role="status"
-          >
-            {statusLabel}
-          </span>
-          {nickname && <span>내 닉네임: {nickname}</span>}
-        </div>
-      </header>
-
       {connectionError && (
         <p className="chat-error" role="alert">
           {connectionError}
