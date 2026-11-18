@@ -32,6 +32,7 @@ pub(super) async fn fetch_one(
             &symbol.code,
         )
         .await
+        .map_err(|error| error.to_string())
         {
             Ok(price) => {
                 let now = std::time::SystemTime::now()
@@ -58,9 +59,7 @@ pub(super) async fn fetch_one(
                 }
                 return Ok(cached);
             }
-            Err(error) => {
-                let error_message = error.to_string();
-                drop(error);
+            Err(error_message) => {
                 last_error = format!("KIS 호출 실패({}): {}", symbol.code, error_message);
                 tracing::warn!(
                     "현재가 조회 실패: code={}, attempt={}/3, error={}",
