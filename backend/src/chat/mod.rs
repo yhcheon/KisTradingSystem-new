@@ -1,6 +1,7 @@
 mod config;
 mod message;
 mod service;
+mod social;
 
 use std::fmt;
 
