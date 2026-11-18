@@ -1,16 +1,23 @@
 // ============================================================
 // 파일명: server/runtime.rs
 // 설명: Axum 서버 실행 및 CORS 설정
+//       - TCP Listener를 초기화보다 먼저 열어 연결 거부 방지
+//       - 초기화 중 /api/health 응답 제공
 // ============================================================
 
-use crate::core::state::AppState;
 use axum::http::{HeaderValue, Method, header};
+use std::future::Future;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
-pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
-    // 운영 환경에서는 CORS_ALLOWED_ORIGINS에 프론트엔드 Origin을
-    // 쉼표로 구분해 지정합니다. 미설정 시 로컬 개발 주소만 허용합니다.
+pub async fn serve_with_startup<F>(
+    initialize: F,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    F: Future<Output = Result<crate::core::state::AppState, Box<dyn std::error::Error>>>
+        + Send
+        + 'static,
+{
     let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
     let allowed_origins = cors_origins
@@ -22,10 +29,7 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
                 tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!(
-                        "CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}",
-                        origin
-                    ),
+                    format!("CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}", origin),
                 )
             })
         })
@@ -48,8 +52,6 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
         ])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
-    let app = super::router::build(state).layer(cors);
-
     let bind_addr =
         std::env::var("BACKEND_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
     let listener = tokio::net::TcpListener::bind(&bind_addr)
@@ -58,7 +60,31 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
             tracing::error!("백엔드 서버 주소({}) 바인딩 실패: {}", bind_addr, e);
             e
         })?;
-    tracing::info!("backend listening on {}", bind_addr);
+
+    let startup = super::startup::StartupShared::new();
+    let app = super::startup::build(startup.clone()).layer(cors);
+
+    tracing::info!(
+        "backend listening on {} (startup health endpoint active)",
+        bind_addr
+    );
+
+    tokio::spawn(async move {
+        match initialize.await {
+            Ok(state) => {
+                let app = super::router::build(state);
+                startup.mark_ready(app).await;
+                tracing::info!("Backend 초기화 완료 - API 요청 처리 준비 완료");
+            }
+            Err(error) => {
+                tracing::error!("Backend 초기화 실패: {}", error);
+                startup.mark_failed().await;
+                tracing::error!(
+                    "Health Check는 유지됩니다. 원인 해결 후 Backend를 재시작해 주세요."
+                );
+            }
+        }
+    });
 
     axum::serve(
         listener,
