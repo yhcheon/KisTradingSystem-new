@@ -19,7 +19,7 @@ pub async fn run(
     session_range: Arc<Mutex<SessionRangeMonitor>>,
 ) {
     loop {
-        match connect_and_listen(
+        let result = connect_and_listen(
             &approval_key,
             &symbols,
             &night_symbols,
@@ -27,8 +27,10 @@ pub async fn run(
             candle_store.clone(),
             session_range.clone(),
         )
-        .await
-        {
+        .await;
+        session_range.lock().await.mark_feed_disconnected();
+
+        match result {
             Ok(_) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
             Err(e) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", e),
         }
