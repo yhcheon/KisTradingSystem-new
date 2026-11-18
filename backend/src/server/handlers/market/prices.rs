@@ -1,6 +1,7 @@
 // ============================================================
 // 파일명: server/handlers/market/prices.rs
 // 설명: 상태 확인 및 주간/야간 선물 현재가 API
+//       - 정규/미니 시세를 병렬 조회해 초기 스냅샷 대기시간 단축
 // ============================================================
 
 use super::price_fetch::fetch_one;
@@ -11,22 +12,37 @@ use axum::{Json, extract::State};
 use serde_json::{Value, json};
 
 pub async fn prices(State(state): State<AppState>) -> Json<Value> {
-    let regular = fetch_one(&state, &state.regular).await;
-    let mini = fetch_one(&state, &state.mini).await;
+    Json(build_prices(&state).await)
+}
 
-    // 정규/미니 KOSPI200 야간선물은 각각 해당 상품의 최근월물 코드를 사용합니다.
-    // 각 야간 기준가는 해당 상품의 당일 주간 정규장 마지막 현재가(종가)를 사용합니다.
+/// HTTP API와 WebSocket 초기 스냅샷이 동일한 시세 구조를 사용하도록 공유합니다.
+pub(super) async fn build_prices(state: &AppState) -> Value {
+    let (regular, mini, night_result, mini_night_result) = tokio::join!(
+        fetch_one(state, &state.regular),
+        fetch_one(state, &state.mini),
+        kis::get_futures_price_for_market(
+            &state.http_client,
+            &state.kis.app_key,
+            &state.kis.app_secret,
+            &state.kis.access_token,
+            "CM",
+            &state.regular.code,
+        ),
+        kis::get_futures_price_for_market(
+            &state.http_client,
+            &state.kis.app_key,
+            &state.kis.app_secret,
+            &state.kis.access_token,
+            "CM",
+            &state.mini.code,
+        )
+    );
+
+    // 각 야간 기준가는 해당 상품의 당일 주간 마지막 가격을 사용합니다.
     let day_close = regular.as_ref().ok().map(|price| price.price.clone());
-    let night = match kis::get_futures_price_for_market(
-        &state.http_client,
-        &state.kis.app_key,
-        &state.kis.app_secret,
-        &state.kis.access_token,
-        "CM",
-        &state.regular.code,
-    )
-    .await
-    {
+    let mini_day_close = mini.as_ref().ok().map(|price| price.price.clone());
+
+    let night = match night_result {
         Ok(price) => json!({
             "ok": true,
             "data": {
@@ -45,18 +61,7 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
         Err(error) => json!({ "ok": false, "error": error.to_string() }),
     };
 
-    // 미니선물 야간 기준가도 해당 미니 종목의 당일 주간 마지막 가격을 사용합니다.
-    let mini_day_close = mini.as_ref().ok().map(|price| price.price.clone());
-    let mini_night = match kis::get_futures_price_for_market(
-        &state.http_client,
-        &state.kis.app_key,
-        &state.kis.app_secret,
-        &state.kis.access_token,
-        "CM",
-        &state.mini.code,
-    )
-    .await
-    {
+    let mini_night = match mini_night_result {
         Ok(price) => json!({
             "ok": true,
             "data": {
@@ -75,14 +80,14 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
         Err(error) => json!({ "ok": false, "error": error.to_string() }),
     };
 
-    Json(json!({
+    json!({
         "regular": match regular {
             Ok(price) => json!({ "ok": true, "data": price, "night": night }),
-            Err(error) => json!({ "ok": false, "error": error }),
+            Err(error) => json!({ "ok": false, "error": error, "night": night }),
         },
         "mini": match mini {
             Ok(price) => json!({ "ok": true, "data": price, "night": mini_night }),
-            Err(error) => json!({ "ok": false, "error": error }),
+            Err(error) => json!({ "ok": false, "error": error, "night": mini_night }),
         },
-    }))
+    })
 }
