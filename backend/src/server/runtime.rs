@@ -14,9 +14,7 @@ pub async fn serve_with_startup<F>(
     initialize: F,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    F: Future<Output = Result<crate::core::state::AppState, Box<dyn std::error::Error>>>
-        + Send
-        + 'static,
+    F: Future<Output = Result<crate::core::state::AppState, Box<dyn std::error::Error>>>,
 {
     let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
@@ -69,29 +67,43 @@ where
         bind_addr
     );
 
-    tokio::spawn(async move {
-        match initialize.await {
-            Ok(state) => {
-                let app = super::router::build(state);
-                startup.mark_ready(app).await;
-                tracing::info!("Backend 초기화 완료 - API 요청 처리 준비 완료");
-            }
-            Err(error) => {
-                tracing::error!("Backend 초기화 실패: {}", error);
-                startup.mark_failed().await;
-                tracing::error!(
-                    "Health Check는 유지됩니다. 원인 해결 후 Backend를 재시작해 주세요."
-                );
-            }
-        }
-    });
-
-    axum::serve(
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .map_err(|e| {
+    );
+    tokio::pin!(server);
+    tokio::pin!(initialize);
+
+    // HTTP 서버와 외부 서비스 초기화를 같은 Tokio task에서 동시에 진행합니다.
+    // initialize Future를 별도 tokio::spawn에 넘기지 않아도 되므로
+    // 기존 Box<dyn Error> 반환 타입을 유지할 수 있습니다.
+    tokio::select! {
+        result = &mut server => {
+            result.map_err(|e| {
+                tracing::error!("Axum 서버 실행 중 오류: {}", e);
+                e
+            })?;
+            return Ok(());
+        }
+        result = &mut initialize => {
+            match result {
+                Ok(state) => {
+                    let app = super::router::build(state);
+                    startup.mark_ready(app).await;
+                    tracing::info!("Backend 초기화 완료 - API 요청 처리 준비 완료");
+                }
+                Err(error) => {
+                    tracing::error!("Backend 초기화 실패: {}", error);
+                    startup.mark_failed().await;
+                    tracing::error!(
+                        "Health Check는 유지됩니다. 원인 해결 후 Backend를 재시작해 주세요."
+                    );
+                }
+            }
+        }
+    }
+
+    server.await.map_err(|e| {
         tracing::error!("Axum 서버 실행 중 오류: {}", e);
         e
     })?;
