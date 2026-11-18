@@ -739,7 +739,7 @@ footer {
 .chat-composer {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
 }
@@ -849,7 +849,7 @@ footer {
   }
 
   .chat-composer {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
     gap: 8px;
   }
 }
@@ -909,4 +909,13 @@ footer {
 
 .header-actions .market-websocket-status.closed {
   color: var(--color-down);
+}
+
+/* 채팅 입력 안내: 입력 영역 바로 아래에 보조 문구로 표시합니다. */
+.chat-composer-hint {
+  margin-top: -10px;
+  padding-left: 2px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
 }
