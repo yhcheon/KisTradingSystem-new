@@ -19,7 +19,8 @@ pub async fn run(
     session_range: Arc<Mutex<SessionRangeMonitor>>,
 ) {
     loop {
-        let result = connect_and_listen(
+        // Box<dyn Error> 값을 별도 블록 안에서 문자열로 바꿔 다음 await 전에 drop합니다.
+        let error_message = match connect_and_listen(
             &approval_key,
             &symbols,
             &night_symbols,
@@ -27,17 +28,16 @@ pub async fn run(
             candle_store.clone(),
             session_range.clone(),
         )
-        .await;
-        // Box<dyn Error>는 Send가 아니므로 await 경계 전에 문자열로 변환합니다.
-        let result = match result {
-            Ok(()) => Ok(()),
-            Err(error) => Err(error.to_string()),
+        .await
+        {
+            Ok(()) => None,
+            Err(error) => Some(error.to_string()),
         };
         session_range.lock().await.mark_feed_disconnected();
 
-        match result {
-            Ok(()) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
-            Err(error) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", error),
+        match error_message {
+            None => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
+            Some(error) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", error),
         }
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
