@@ -1,7 +1,8 @@
 // ============================================================
 // 파일명: core/bootstrap.rs
 // 설명: 외부 서비스 연결 및 애플리케이션 공유 상태 초기화
-//       - Redis, HTTP 클라이언트, KIS 시장 데이터
+//       - Redis 없음, 메모리 PriceCache 사용 (부팅 1회 REST + 체결로 갱신)
+//       - HTTP 클라이언트, KIS 시장 데이터
 //       - Supabase, KIS WebSocket, AppState 구성
 // ============================================================
 
@@ -17,28 +18,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let chat = crate::chat::ChatService::load_from_env()?;
     chat.spawn_cleanup_task();
 
-    // Redis
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    let client = redis::Client::open(redis_url).map_err(|e| {
-        tracing::error!("Redis 클라이언트 생성 실패: {}", e);
-        e
-    })?;
-    let mut conn = client
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|e| {
-            tracing::error!("Redis 연결 실패: {}", e);
-            e
-        })?;
-    let pong: String = redis::cmd("PING")
-        .query_async(&mut conn)
-        .await
-        .map_err(|e| {
-            tracing::error!("Redis PING 실패: {}", e);
-            e
-        })?;
-    tracing::info!("Redis PING → {}", pong);
+    // Redis 사용하지 않음. 메모리 시세 캐시 사용.
+    // 부팅 시 1회 REST로 채우고, 이후 체결이 들어올 때마다 update_by_tick()으로 갱신.
+    let price_cache = crate::cache::price_cache::PriceCache::new();
 
     // HTTP 클라이언트
     let http_client = reqwest::Client::builder()
@@ -135,7 +117,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     // 매일 KST 07:00에 30일 지난 데이터 삭제 (백그라운드)
     core::cleanup::spawn_daily_cleanup(supabase.clone());
 
-    // KIS WebSocket (CandleStore 공유)
+    // KIS WebSocket (CandleStore + PriceCache 공유)
     let approval_key = match kis::get_approval_key(&http_client, &app_key, &app_secret).await {
         Ok(key) => {
             // WebSocket approval key는 인증정보이므로 로그에 남기지 않습니다.
@@ -169,8 +151,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         let key = approval_key;
         let store = candle_store.clone();
         let ws_session_range = session_range.clone();
+        let ws_price_cache = price_cache.clone();
         tokio::spawn(async move {
-            kis_ws::run(key, ws_symbols, night_symbols, tx, store, ws_session_range).await;
+            kis_ws::run(key, ws_symbols, night_symbols, tx, store, ws_session_range, ws_price_cache).await;
         });
     }
     tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
@@ -184,7 +167,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         jwt: JwtConfig {
             legacy_hs256_secret: supabase_jwt_secret,
         },
-        redis: Arc::new(Mutex::new(conn)),
+        price_cache,
         regular,
         mini,
         ws_tx,
@@ -195,3 +178,6 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         chat,
     })
 }
+
+
+

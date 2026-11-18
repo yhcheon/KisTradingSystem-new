@@ -30,7 +30,13 @@ pub struct JwtConfig {
 pub struct AppState {
     pub kis: KisCredentials,
     pub jwt: JwtConfig,
-    pub redis: Arc<Mutex<redis::aio::MultiplexedConnection>>,
+
+
+    // redis 사용하지 않기로
+    //pub redis: Arc<Mutex<redis::aio::MultiplexedConnection>>,
+    pub price_cache: crate::cache::price_cache::PriceCache,
+
+
     pub regular: FuturesSymbol,
     pub mini: FuturesSymbol,
     pub ws_tx: broadcast::Sender<RealtimeTick>,

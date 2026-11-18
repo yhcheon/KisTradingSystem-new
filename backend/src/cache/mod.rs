@@ -4,4 +4,5 @@
 // 작성일: 2026-11-14
 // ============================================================
 
-pub mod redis_cache;
+//pub mod redis_cache;
+pub mod price_cache;
