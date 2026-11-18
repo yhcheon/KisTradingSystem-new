@@ -196,6 +196,7 @@ function usePublicChat(enabled: boolean) {
   const [, setStatus] = useState<ConnectionStatus>('connecting');
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [onlineCount, setOnlineCount] = useState(0);
   const [connectionError, setConnectionError] = useState('');
   const [, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -286,6 +287,19 @@ function usePublicChat(enabled: boolean) {
               throw new Error('채팅 서버에서 지원하지 않는 메시지 형식을 받았습니다.');
             }
             const data: unknown = JSON.parse(event.data);
+            if (
+              typeof data === 'object' &&
+              data !== null &&
+              'type' in data &&
+              data.type === 'presence' &&
+              'online_count' in data &&
+              typeof data.online_count === 'number' &&
+              Number.isInteger(data.online_count) &&
+              data.online_count >= 0
+            ) {
+              setOnlineCount(data.online_count);
+              return;
+            }
             if (isChatMessage(data)) {
               setMessages((current) => [...current, data].slice(-MAX_MESSAGES));
               return;
@@ -318,6 +332,7 @@ function usePublicChat(enabled: boolean) {
           socketRef.current = null;
           socket = null;
           setConnectionClosed(true);
+          setOnlineCount(0);
           scheduleReconnect();
         };
       } catch (error) {
@@ -366,6 +381,7 @@ function usePublicChat(enabled: boolean) {
   return {
     connectionError,
     messages,
+    onlineCount,
     nickname,
     sendError,
     sendMessage,
@@ -499,6 +515,8 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
           {connectionError}
         </p>
       )}
+
+      <p className="chat-online-count" aria-live="polite">현재 접속자 {onlineCount}명</p>
 
       <ol className="chat-messages" aria-live="polite" ref={messageListRef}>
         {messages.length === 0 ? (
