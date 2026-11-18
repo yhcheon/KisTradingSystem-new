@@ -52,23 +52,12 @@ impl SessionState {
             ..Self::default()
         }
     }
-
-    fn snapshot(&self, session: &str) -> SessionRangeSnapshot {
-        SessionRangeSnapshot {
-            session: session.to_string(),
-            date: self.date.clone(),
-            status: self.status.to_string(),
-            high: self.high,
-            low: self.low,
-            high_alerted: self.high_alerted,
-            low_alerted: self.low_alerted,
-        }
-    }
 }
 
 /// 서버에서 정규선물 틱만 받아 주간/야간 시초 레인지를 독립적으로 관리합니다.
 pub struct SessionRangeMonitor {
     regular_code: String,
+    /// 최초 KIS WebSocket 구독 완료 시각. 구독 준비 전에는 경보 자격이 없습니다.
     started_at: Option<DateTime<Utc>>,
     day: SessionState,
     night: SessionState,
@@ -76,15 +65,27 @@ pub struct SessionRangeMonitor {
 
 impl SessionRangeMonitor {
     pub fn new(regular_code: String) -> Self {
-        Self {\n            regular_code,\n            started_at: None,\n            day: SessionState::default(),\n            night: SessionState::default(),\n        }
+        Self {
+            regular_code,
+            started_at: None,
+            day: SessionState::default(),
+            night: SessionState::default(),
+        }
     }
 
     fn new_at(regular_code: String, started_at: DateTime<Utc>) -> Self {
         Self {
             regular_code,
-            started_at,
+            started_at: Some(started_at),
             day: SessionState::default(),
             night: SessionState::default(),
+        }
+    }
+
+    /// KIS WebSocket 구독 요청이 완료된 첫 시각을 기록합니다. 재연결 때는 최초 시각을 유지합니다.
+    pub fn mark_feed_ready(&mut self) {
+        if self.started_at.is_none() {
+            self.started_at = Some(Utc::now());
         }
     }
 
@@ -113,8 +114,7 @@ impl SessionRangeMonitor {
 
         if state.date.as_deref() != Some(date) {
             let eligible = session_start_utc(date, start)
-                .map(|session_start| started_at.is_some_and(|started| started <= session_start))
-                .unwrap_or(false);
+                .is_some_and(|session_start| started_at.is_some_and(|started| started <= session_start));
             *state = SessionState::new(date, eligible);
         }
 
@@ -176,6 +176,7 @@ impl SessionRangeMonitor {
         let day_date = today.format("%Y%m%d").to_string();
         let day_hhmm = format!("{:02}{:02}", now.hour(), now.minute());
 
+        // KIS 야간 체결은 자정 이후 영업일 전날의 24시 이후 시각으로 정규화됩니다.
         let night_date = if now.hour() < 6 {
             (today - Duration::days(1)).format("%Y%m%d").to_string()
         } else {
@@ -265,7 +266,6 @@ fn session_start_utc(date: &str, start: (u32, u32)) -> Option<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
 
     fn monitor(started_at: &str) -> SessionRangeMonitor {
         let started_at = chrono::DateTime::parse_from_rfc3339(started_at)
@@ -327,5 +327,15 @@ mod tests {
         monitor.on_tick("101W9000", "20261120", "084500", "day", 352.0);
         assert_eq!(monitor.snapshot().day.high_alerted, false);
         assert_eq!(monitor.snapshot().day.date.as_deref(), Some("20261120"));
+    }
+
+    #[test]
+    fn night_range_survives_kis_extended_time_after_midnight() {
+        let mut monitor = monitor("2026-11-19T08:00:00Z"); // KST 17:00
+        monitor.on_tick("101W9000", "20261119", "180000", "night", 350.0);
+        monitor.on_tick("101W9000", "20261119", "184459", "night", 349.0);
+        assert!(monitor.on_tick("101W9000", "20261119", "184500", "night", 351.0).is_some());
+        assert!(monitor.on_tick("101W9000", "20261119", "250001", "night", 348.9).is_some());
+        assert_eq!(monitor.snapshot().night.low_alerted, true);
     }
 }
