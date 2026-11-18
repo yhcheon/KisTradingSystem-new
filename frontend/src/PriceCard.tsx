@@ -40,21 +40,29 @@ function formatPrice(value?: string): string {
   return value && value.trim() ? value : '-';
 }
 
-function DiffValue({ value, base, showRate = false }: {
+function DiffValue({ value, base, showRate = false, useCandleColors = false }: {
   value: string;
   base: string;
   showRate?: boolean;
+  useCandleColors?: boolean;
 }) {
   const diff = diffFrom(value, base);
   if (!diff) return null;
   const directionClass = diff.sign === '▲' ? 'up' : diff.sign === '▼' ? 'down' : 'flat';
+  const color = useCandleColors
+    ? directionClass === 'up'
+      ? candleColors.up
+      : directionClass === 'down'
+        ? candleColors.down
+        : undefined
+    : undefined;
   const baseNumber = toNumber(base);
   const rate = Number.isFinite(baseNumber) && baseNumber !== 0
     ? (diff.value / baseNumber) * 100
     : Number.NaN;
   const rateText = rate > 0 ? `+${rate.toFixed(2)}` : rate.toFixed(2);
   return (
-    <span className={`diff ${directionClass}`}>
+    <span className={`diff ${directionClass}`} style={{ color }}>
       {diff.sign} {diff.amount}{showRate && Number.isFinite(rate) ? ` (${rateText}%)` : ''}
     </span>
   );
@@ -75,24 +83,15 @@ function SessionStats({ quote, baseLabel, baseValue }: {
     <div className="session-stats">
       {rows.map((row) => {
         const isComparedValue = !row.isBase && !!baseValue;
-        const rowValue = toNumber(row.value);
-        const base = baseValue ? toNumber(baseValue) : Number.NaN;
-        const direction = Number.isFinite(rowValue) && Number.isFinite(base)
-          ? rowValue > base ? 'up' : rowValue < base ? 'down' : ''
-          : '';
-        const candleColor = direction === 'up'
-          ? candleColors.up
-          : direction === 'down' ? candleColors.down : undefined;
         return (
           <div className="session-stat-row" key={row.label}>
             <span className="label">{row.label}</span>
-            <span
-              className={`value ${direction}`}
-              style={{ color: candleColor }}
-            >
+            <span className="value">
               {formatPrice(row.value)}
             </span>
-            {isComparedValue && <DiffValue value={row.value} base={baseValue!} />}
+            {isComparedValue && (
+              <DiffValue value={row.value} base={baseValue!} useCandleColors />
+            )}
           </div>
         );
       })}
