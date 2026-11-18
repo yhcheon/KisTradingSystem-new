@@ -17,6 +17,11 @@ function toNumber(value: string): number {
   return Number.parseFloat(value.replace(/,/g, '').trim());
 }
 
+function formatSignedAmount(value: number): string {
+  const amount = Math.abs(value).toFixed(2).padStart(6, '0');
+  return value > 0 ? `+${amount}` : value < 0 ? `-${amount}` : amount;
+}
+
 // 기준가 대비 차이를 부호와 함께 계산합니다.
 function diffFrom(value: string, base: string) {
   const v = toNumber(value);
@@ -25,7 +30,7 @@ function diffFrom(value: string, base: string) {
   const diff = v - b;
   return {
     sign: diff > 0 ? '▲' : diff < 0 ? '▼' : '-',
-    amount: diff > 0 ? `+${diff.toFixed(2)}` : diff < 0 ? diff.toFixed(2) : '0.00',
+    amount: formatSignedAmount(diff),
     value: diff,
   };
 }
@@ -169,7 +174,7 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
     : priceDiff < 0 ? candleColors.down : undefined;
   const changeSign = priceDiff > 0 ? '▲' : priceDiff < 0 ? '▼' : '-';
   const changeText = Number.isFinite(priceDiff)
-    ? priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)
+    ? formatSignedAmount(priceDiff)
     : day.change;
   const changeRate =
     Number.isFinite(priceDiff) && Number.isFinite(previousClose) && previousClose !== 0
