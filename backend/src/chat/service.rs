@@ -84,6 +84,14 @@ pub struct ChatCommandDefinition {
     pub response: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChatActionDefinition {
+    pub action_id: String,
+    pub command: String,
+    pub aliases: Vec<String>,
+    pub example: String,
+}
+
 pub struct ChatConnection {
     inner: Weak<ChatServiceInner>,
     id: u64,
@@ -308,6 +316,23 @@ impl ChatService {
             .into_iter()
             .map(|(command, response)| ChatCommandDefinition { command, response })
             .collect()
+    }
+
+    pub fn list_actions(&self) -> Vec<ChatActionDefinition> {
+        let mut actions = self
+            .inner
+            .commands
+            .actions
+            .iter()
+            .map(|(action_id, action)| ChatActionDefinition {
+                action_id: action_id.clone(),
+                command: action.command.clone(),
+                aliases: action.aliases.clone(),
+                example: action.template_no_arg.replace("{nickname}", "누군가"),
+            })
+            .collect::<Vec<_>>();
+        actions.sort_by(|left, right| left.command.cmp(&right.command));
+        actions
     }
 
     pub fn publish_message(
