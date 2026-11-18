@@ -1,5 +1,5 @@
 use crate::{
-    chat::{ChatCommandDefinition, ChatError, ChatService, ChatTicketResponse},
+    chat::{ChatActionDefinition, ChatCommandDefinition, ChatError, ChatService, ChatTicketResponse},
     core::state::AppState,
 };
 use axum::{
@@ -22,6 +22,12 @@ pub(crate) async fn list_commands(
     Extension(chat): Extension<ChatService>,
 ) -> Json<Vec<ChatCommandDefinition>> {
     Json(chat.list_commands())
+}
+
+pub(crate) async fn list_actions(
+    Extension(chat): Extension<ChatService>,
+) -> Json<Vec<ChatActionDefinition>> {
+    Json(chat.list_actions())
 }
 
 pub(crate) async fn issue_ticket(
