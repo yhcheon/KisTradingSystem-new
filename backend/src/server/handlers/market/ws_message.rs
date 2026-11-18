@@ -12,6 +12,7 @@ pub(super) fn tick_message(tick: &RealtimeTick) -> String {
         "type": "tick",
         "market_session": tick.market_session,
         "code": tick.code,
+        "date": tick.date,
         "price": tick.price,
         "change": tick.change,
         "change_rate": tick.change_rate,
@@ -51,6 +52,7 @@ mod tests {
                 "type": "tick",
                 "market_session": "night",
                 "code": "101S",
+                "date": "20261116",
                 "price": "350.25",
                 "change": "+1.25",
                 "change_rate": "0.36",
@@ -59,13 +61,5 @@ mod tests {
                 "time": "091530"
             })
         );
-    }
-
-    #[test]
-    fn does_not_expose_internal_tick_date_in_browser_message() {
-        let result = tick_message(&tick("day"));
-        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
-
-        assert!(value.get("date").is_none());
     }
 }
