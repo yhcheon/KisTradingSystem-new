@@ -84,8 +84,11 @@ export function useMarketWebSocket({
             'regular' in message.data &&
             'mini' in message.data
           ) {
-            // 서버가 연결 직후 보낸 기준 스냅샷을 적용한 뒤 버퍼링된 실시간 체결을 처리합니다.
-            setData(message.data as PricesResponse);
+            // 유효한 가격이 포함된 스냅샷만 적용합니다. 빈 스냅샷이면 REST 재시도를 계속합니다.
+            const snapshot = message.data as PricesResponse;
+            if (snapshot.regular?.ok || snapshot.mini?.ok) {
+              setData(snapshot);
+            }
             return;
           }
 
