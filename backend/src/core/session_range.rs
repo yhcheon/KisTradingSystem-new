@@ -36,7 +36,6 @@ pub struct RangeMonitorSnapshot {
 struct SessionState {
     date: Option<String>,
     eligible: bool,
-    status: &'static str,
     high: Option<f64>,
     low: Option<f64>,
     high_alerted: bool,
@@ -48,7 +47,6 @@ impl SessionState {
         Self {
             date: Some(date.to_string()),
             eligible,
-            status: if eligible { "waiting" } else { "unavailable" },
             ..Self::default()
         }
     }
@@ -119,7 +117,6 @@ impl SessionRangeMonitor {
         }
 
         if !state.eligible {
-            state.status = "unavailable";
             return None;
         }
 
@@ -128,12 +125,10 @@ impl SessionRangeMonitor {
         let end_hhmm = format!("{:02}{:02}", end.0, end.1);
 
         if hhmm < start_hhmm.as_str() {
-            state.status = "waiting";
             return None;
         }
 
         if hhmm < end_hhmm.as_str() {
-            state.status = "collecting";
             state.high = Some(state.high.map_or(price, |high| high.max(price)));
             state.low = Some(state.low.map_or(price, |low| low.min(price)));
             return None;
@@ -143,7 +138,6 @@ impl SessionRangeMonitor {
             state.status = "unavailable";
             return None;
         };
-        state.status = "monitoring";
 
         if price > high && !state.high_alerted {
             state.high_alerted = true;
@@ -302,7 +296,7 @@ mod tests {
         assert_eq!(monitor.snapshot().day.status, "unavailable");
 
         assert!(monitor.on_tick("101W9000", "20261119", "180000", "night", 350.0).is_none());
-        assert_eq!(monitor.snapshot().night.status, "collecting");
+        assert_eq!(monitor.snapshot().night.high, Some(350.0));
     }
 
     #[test]
