@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 
 interface ChatMessage {
   type: 'message';
@@ -15,6 +15,11 @@ interface ChatTicket {
   expires_in_seconds: number;
 }
 
+interface ChatCommandDefinition {
+  command: string;
+  response: string;
+}
+
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 
 const MAX_MESSAGES = 100;
@@ -22,8 +27,51 @@ const MAX_MESSAGE_CHARACTERS = 500;
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
+let cachedChatCommands: ChatCommandDefinition[] | null = null;
+let chatCommandsRequest: Promise<ChatCommandDefinition[]> | null = null;
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+}
+
+function isChatCommandDefinition(value: unknown): value is ChatCommandDefinition {
+  if (typeof value !== 'object' || value === null) return false;
+  const command = value as Record<string, unknown>;
+  return typeof command.command === 'string' && typeof command.response === 'string';
+}
+
+function isChatCommandList(value: unknown): value is ChatCommandDefinition[] {
+  return Array.isArray(value) && value.every(isChatCommandDefinition);
+}
+
+function loadChatCommands(): Promise<ChatCommandDefinition[]> {
+  if (cachedChatCommands) return Promise.resolve(cachedChatCommands);
+  if (chatCommandsRequest) return chatCommandsRequest;
+
+  const request = (async () => {
+    const response = await fetch('/api/chat/commands');
+    if (!response.ok) {
+      throw new Error(`명령어 목록 요청 실패 (HTTP ${response.status})`);
+    }
+
+    const commandData: unknown = await response.json();
+    if (!isChatCommandList(commandData)) {
+      throw new Error('채팅 서버가 올바르지 않은 명령어 목록을 반환했습니다.');
+    }
+
+    cachedChatCommands = commandData;
+    return commandData;
+  })();
+  chatCommandsRequest = request;
+  void request.then(
+    () => {
+      if (chatCommandsRequest === request) chatCommandsRequest = null;
+    },
+    () => {
+      if (chatCommandsRequest === request) chatCommandsRequest = null;
+    },
+  );
+  return request;
 }
 
 function isChatTicket(value: unknown): value is ChatTicket {
@@ -65,6 +113,7 @@ function usePublicChat() {
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState('');
+  const [connectionClosed, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
   // StrictMode replays effects in development; share the pending POST to avoid burning an alias.
@@ -136,6 +185,7 @@ function usePublicChat() {
           }
           connectedBefore = true;
           reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+          setConnectionClosed(false);
           setStatus('connected');
           setConnectionError('');
         };
@@ -175,8 +225,10 @@ function usePublicChat() {
         };
 
         nextSocket.onclose = () => {
-          if (socketRef.current === nextSocket) socketRef.current = null;
-          if (socket === nextSocket) socket = null;
+          if (disposed || socketRef.current !== nextSocket) return;
+          socketRef.current = null;
+          socket = null;
+          setConnectionClosed(true);
           scheduleReconnect();
         };
       } catch (error) {
@@ -224,6 +276,7 @@ function usePublicChat() {
 
   return {
     connectionError,
+    connectionClosed,
     messages,
     nickname,
     sendError,
@@ -236,6 +289,7 @@ function usePublicChat() {
 export default function ChatPage() {
   const {
     connectionError,
+    connectionClosed,
     messages,
     nickname,
     sendError,
@@ -244,23 +298,97 @@ export default function ChatPage() {
     status,
   } = usePublicChat();
   const [text, setText] = useState('');
+  const [commands, setCommands] = useState<ChatCommandDefinition[]>([]);
+  const [commandLoadError, setCommandLoadError] = useState('');
+  const [commandPickerDismissed, setCommandPickerDismissed] = useState(false);
+  const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const messageListRef = useRef<HTMLOListElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
+  const commandOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     const list = messageListRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+    let disposed = false;
+    void loadChatCommands().then(
+      (loadedCommands) => {
+        if (!disposed) setCommands(loadedCommands);
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setCommandLoadError(
+            `명령어 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`,
+          );
+        }
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const commandSuggestions =
+    !commandPickerDismissed && text.startsWith('/')
+      ? commands.filter(({ command }) => command.startsWith(text))
+      : [];
+  const activeSuggestionIndex = Math.min(
+    activeCommandIndex,
+    Math.max(commandSuggestions.length - 1, 0),
+  );
+
+  useEffect(() => {
+    if (!commandSuggestions.length) return;
+    commandOptionRefs.current[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [activeSuggestionIndex, commandSuggestions.length]);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (sendMessage(text)) setText('');
   };
 
-  const statusLabel = {
-    connecting: '연결 중',
-    connected: '연결됨',
-    reconnecting: '재연결 중',
-  }[status];
+  const selectCommand = (command: ChatCommandDefinition) => {
+    const sent = sendMessage(command.command);
+    setText(sent ? '' : command.command);
+    setCommandPickerDismissed(true);
+    setActiveCommandIndex(0);
+    messageInputRef.current?.focus();
+  };
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!commandSuggestions.length) {
+      if (event.key === 'Escape' && text.startsWith('/')) {
+        setCommandPickerDismissed(true);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveCommandIndex((index) => (index + 1) % commandSuggestions.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveCommandIndex(
+        (index) => (index - 1 + commandSuggestions.length) % commandSuggestions.length,
+      );
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      selectCommand(commandSuggestions[activeSuggestionIndex]);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setCommandPickerDismissed(true);
+    }
+  };
+
+  const statusLabel = connectionClosed
+    ? '연결 종료 · 재연결 중'
+    : {
+        connecting: '연결 중',
+        connected: '연결됨',
+        reconnecting: '재연결 중',
+      }[status];
 
   return (
     <main className="chat-page">
@@ -269,7 +397,10 @@ export default function ChatPage() {
           <h2>공개 채팅</h2>
         </div>
         <div className="chat-identity">
-          <span className={`chat-connection-status ${status}`} role="status">
+          <span
+            className={`chat-connection-status ${status}${connectionClosed ? ' closed' : ''}`}
+            role="status"
+          >
             {statusLabel}
           </span>
           {nickname && <span>내 닉네임: {nickname}</span>}
@@ -311,6 +442,34 @@ export default function ChatPage() {
       </ol>
 
       <form className="chat-composer" onSubmit={handleSubmit}>
+        {commandSuggestions.length > 0 && (
+          <div
+            className="chat-command-picker"
+            id="chat-command-picker"
+            role="listbox"
+            aria-label="채팅 명령어"
+          >
+            {commandSuggestions.map((command, index) => (
+              <button
+                aria-selected={index === activeSuggestionIndex}
+                className="chat-command-option"
+                id={`chat-command-option-${index}`}
+                key={command.command}
+                onClick={() => selectCommand(command)}
+                onMouseEnter={() => setActiveCommandIndex(index)}
+                onMouseDown={(event) => event.preventDefault()}
+                ref={(element) => {
+                  commandOptionRefs.current[index] = element;
+                }}
+                role="option"
+                type="button"
+              >
+                <strong>{command.command}</strong>
+                <span>{command.response}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <span className="chat-composer-nickname">
           {nickname || '닉네임 발급 중...'}
         </span>
@@ -318,12 +477,24 @@ export default function ChatPage() {
           메시지
         </label>
         <input
+          aria-activedescendant={
+            commandSuggestions.length
+              ? `chat-command-option-${activeSuggestionIndex}`
+              : undefined
+          }
+          aria-autocomplete="list"
+          aria-controls={commandSuggestions.length ? 'chat-command-picker' : undefined}
+          aria-expanded={commandSuggestions.length > 0}
           id="chat-message-input"
+          onKeyDown={handleComposerKeyDown}
           value={text}
           onChange={(event) => {
             setText(event.target.value);
+            setCommandPickerDismissed(false);
+            setActiveCommandIndex(0);
             setSendError('');
           }}
+          ref={messageInputRef}
           placeholder="메시지를 입력하세요"
           autoComplete="off"
         />
@@ -331,6 +502,11 @@ export default function ChatPage() {
           보내기
         </button>
       </form>
+      {commandLoadError && (
+        <p className="chat-error" role="alert">
+          {commandLoadError}
+        </p>
+      )}
       {sendError && (
         <p className="chat-error" role="alert">
           {sendError}

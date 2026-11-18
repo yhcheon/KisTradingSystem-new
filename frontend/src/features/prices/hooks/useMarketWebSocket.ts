@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { PricesResponse, RealtimeTick } from '../../../types';
 import type { CandleData } from '../types';
@@ -28,7 +28,8 @@ export function useMarketWebSocket({
   selectedCode,
   setData,
   setCandles,
-}: UseMarketWebSocketOptions): void {
+}: UseMarketWebSocketOptions): boolean {
+  const [isConnected, setIsConnected] = useState(false);
   const selectedCodeRef = useRef<string | null>(selectedCode);
   const intervalRef = useRef(interval);
   useLayoutEffect(() => {
@@ -49,13 +50,20 @@ export function useMarketWebSocket({
     const connect = () => {
       if (disposed) return;
 
-      socket = new WebSocket(url);
+      setIsConnected(false);
+      const nextSocket = new WebSocket(url);
+      socket = nextSocket;
 
-      socket.onopen = () => {
+      nextSocket.onopen = () => {
+        if (disposed || socket !== nextSocket) {
+          nextSocket.close();
+          return;
+        }
         reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
+        setIsConnected(true);
       };
 
-      socket.onmessage = (event) => {
+      nextSocket.onmessage = (event) => {
         try {
           const tick: RealtimeTick = JSON.parse(event.data);
           if (tick.type !== 'tick') return;
@@ -121,15 +129,20 @@ export function useMarketWebSocket({
         }
       };
 
-      socket.onclose = () => {
-        if (disposed) return;
+      nextSocket.onclose = () => {
+        if (disposed || socket !== nextSocket) return;
 
+        socket = null;
+        setIsConnected(false);
         reconnectTimer = window.setTimeout(connect, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS);
       };
 
-      socket.onerror = () => {
-        socket?.close();
+      nextSocket.onerror = () => {
+        if (disposed || socket !== nextSocket) return;
+
+        setIsConnected(false);
+        nextSocket.close();
       };
     };
 
@@ -143,4 +156,6 @@ export function useMarketWebSocket({
       socket?.close();
     };
   }, [setData, setCandles]);
+
+  return isConnected;
 }

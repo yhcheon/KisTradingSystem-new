@@ -80,7 +80,7 @@
 
 backend/.env에 KIS 앱 키·시크릿, 계좌 정보, Supabase URL 및 키, JWT Secret 등을 실제 환경에 맞게 입력합니다. 변수 이름과 설명은 backend/.env.example을 기준으로 확인하세요. Service Role Key와 JWT Secret은 백엔드 전용 비밀 값이며 프론트엔드에 넣지 않습니다.
 
-채팅 별칭은 저장소 루트 `config/nicknames.json`에서 읽습니다. 운영 목록을 변경하면 백엔드를 재시작/재배포해야 반영되며, 설정이 없거나 유효하지 않으면 백엔드가 시작되지 않습니다. 신뢰 proxy 뒤에서 운영할 때는 `TRUSTED_PROXY_IPS`를 설정하고 proxy가 `X-Forwarded-For`를 안전하게 덮어쓰도록 구성하세요.
+채팅 별칭은 저장소 루트 `config/nicknames.json`에서 읽습니다. 명령 응답은 `config/chat_commands.json`에서 읽으며, 입력 전체가 명령 키와 일치하면 서버가 `{nickname}`을 연결의 별칭으로 치환해 전달합니다. 두 설정 모두 백엔드 시작 시 한 번 읽으므로 변경하려면 재시작/재배포가 필요하고, 설정이 없거나 유효하지 않으면 백엔드 시작이 실패합니다. 신뢰 proxy 뒤에서 운영할 때는 `TRUSTED_PROXY_IPS`를 설정하고 proxy가 `X-Forwarded-For`를 안전하게 덮어쓰도록 구성하세요.
 
 ### Frontend
 
