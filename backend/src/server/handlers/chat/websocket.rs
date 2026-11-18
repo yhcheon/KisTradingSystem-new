@@ -46,6 +46,11 @@ fn ticket_status(error: ChatError) -> StatusCode {
 
 async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: ChatConnection) {
     let mut messages: broadcast::Receiver<ChatMessage> = chat.subscribe_messages();
+    let mut presence = chat.subscribe_presence();
+    while presence.try_recv().is_ok() {}
+    if send_presence(&mut socket, chat.online_count()).await.is_err() {
+        return;
+    }
     loop {
         tokio::select! {
             incoming = socket.recv() => {
