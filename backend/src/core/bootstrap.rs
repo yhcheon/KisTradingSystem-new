@@ -67,6 +67,10 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let regular = market_data.regular;
     let mini = market_data.mini;
     let candle_store = market_data.candles;
+    // KIS 실시간 구독을 시작하는 시각을 기준으로 세션별 기준 수집 자격을 고정합니다.
+    let session_range = Arc::new(Mutex::new(
+        core::session_range::SessionRangeMonitor::new(regular.code.clone()),
+    ));
 
     // 야간선물은 별도 고정 코드를 쓰지 않고, 선물 마스터에서 선택한 정규/미니 최근월물 코드를 사용합니다.
     // REST는 CM, WebSocket은 H0MFCNT0로 야간 시장을 구분합니다.
@@ -164,8 +168,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         let tx = ws_tx.clone();
         let key = approval_key;
         let store = candle_store.clone();
+        let ws_session_range = session_range.clone();
         tokio::spawn(async move {
-            kis_ws::run(key, ws_symbols, night_symbols, tx, store).await;
+            kis_ws::run(key, ws_symbols, night_symbols, tx, store, ws_session_range).await;
         });
     }
     tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
@@ -185,6 +190,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         ws_tx,
         http_client,
         candles: candle_store,
+        session_range,
         supabase,
         chat,
     })

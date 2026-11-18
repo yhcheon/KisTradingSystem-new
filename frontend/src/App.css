@@ -1021,3 +1021,79 @@ footer {
   font-size: 12px;
   text-align: right;
 }
+
+
+/* ── 주간/야간 시초 레인지 상태 및 돌파 경보 ── */
+.range-session-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.range-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(2 6 23 / 78%);
+}
+
+.range-alert-dialog {
+  width: min(440px, 100%);
+  padding: 22px;
+  background: var(--bg-card);
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 45%);
+}
+
+.range-alert-dialog h2 {
+  margin: 0 0 12px;
+  color: #fbbf24;
+  font-size: 18px;
+}
+
+.range-alert-dialog p {
+  margin: 0 0 18px;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.range-alert-dialog dl {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.range-alert-dialog dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.range-alert-dialog dt {
+  color: var(--text-muted);
+}
+
+.range-alert-dialog dd {
+  margin: 0;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.range-alert-dialog button {
+  width: 100%;
+  padding: 10px 14px;
+  color: white;
+  background: var(--accent-blue);
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}

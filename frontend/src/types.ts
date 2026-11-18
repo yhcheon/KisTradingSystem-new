@@ -49,6 +49,29 @@ export interface PricesResponse {
   mini: PriceResult;
 }
 
+export interface SessionRange {
+  session: 'day' | 'night';
+  date: string | null;
+  status: 'waiting' | 'collecting' | 'monitoring' | 'unavailable';
+  high: number | null;
+  low: number | null;
+  high_alerted: boolean;
+  low_alerted: boolean;
+}
+
+export interface RangeMonitorSnapshot {
+  day: SessionRange;
+  night: SessionRange;
+}
+
+export interface RangeAlert {
+  session: 'day' | 'night';
+  direction: 'high' | 'low';
+  price: number;
+  reference_price: number;
+  message: string;
+}
+
 export interface RealtimeTick {
   type: 'tick';
   market_session: 'day' | 'night';
@@ -60,6 +83,8 @@ export interface RealtimeTick {
   volume: string;
   last_qty: string;
   time: string;
+  range?: RangeMonitorSnapshot;
+  range_alert?: RangeAlert | null;
 }
 
 

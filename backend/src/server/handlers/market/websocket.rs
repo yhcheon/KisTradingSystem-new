@@ -26,9 +26,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let mut rx = state.ws_tx.subscribe();
 
     let snapshot = build_prices(&state).await;
+    let range_snapshot = state.session_range.lock().await.snapshot();
     let snapshot_message = serde_json::to_string(&json!({
         "type": "snapshot",
         "data": snapshot,
+        "range": range_snapshot,
     }))
     .unwrap_or_default();
 
@@ -46,7 +48,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             result = rx.recv() => {
                 match result {
                     Ok(tick) => {
-                        let message = tick_message(&tick);
+                        let range_snapshot = state.session_range.lock().await.snapshot();
+                        let message = tick_message(&tick, &range_snapshot);
                         if socket.send(Message::Text(message.into())).await.is_err() { break; }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
