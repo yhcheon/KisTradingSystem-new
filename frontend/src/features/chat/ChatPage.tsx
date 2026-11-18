@@ -276,7 +276,6 @@ function usePublicChat() {
 
   return {
     connectionError,
-    connectionClosed,
     messages,
     nickname,
     sendError,
@@ -382,14 +381,6 @@ export default function ChatPage({ active }: { active: boolean }) {
       setCommandPickerDismissed(true);
     }
   };
-
-  const statusLabel = connectionClosed
-    ? '연결 종료 · 재연결 중'
-    : {
-        connecting: '연결 중',
-        connected: '연결됨',
-        reconnecting: '재연결 중',
-      }[status];
 
   return (
     <main className="chat-page">
