@@ -2,8 +2,7 @@
 // 파일명: main.rs
 // 설명: 백엔드 진입점
 //       - 환경변수 및 로깅 초기화
-//       - 애플리케이션 상태 초기화
-//       - Axum HTTP 서버 실행
+//       - HTTP 서버를 먼저 열고 외부 서비스 초기화는 백그라운드에서 수행
 // ============================================================
 
 mod auth;
@@ -23,16 +22,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _log_guard = logging::init();
 
     tracing::info!("============================================================");
-    tracing::info!("============================================================");
     tracing::info!(
-        "🚀 백엔드 시작  ({} 실행)",
+        "🚀 백엔드 시작  ({})",
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
     );
     tracing::info!("============================================================");
-    tracing::info!("============================================================");
 
-    let state = core::bootstrap::initialize().await?;
-    server::runtime::serve(state).await?;
+    // Listener를 먼저 열어 초기화 중에도 /api/health가 응답하도록 합니다.
+    server::runtime::serve_with_startup(core::bootstrap::initialize()).await?;
 
     Ok(())
 }

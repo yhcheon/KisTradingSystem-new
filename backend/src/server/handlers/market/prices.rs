@@ -10,10 +10,6 @@ use crate::kis;
 use axum::{Json, extract::State};
 use serde_json::{Value, json};
 
-pub async fn health(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "status": "ok", "regular": state.regular.name, "mini": state.mini.name }))
-}
-
 pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     let regular = fetch_one(&state, &state.regular).await;
     let mini = fetch_one(&state, &state.mini).await;

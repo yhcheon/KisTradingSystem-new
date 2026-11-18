@@ -475,3 +475,28 @@ KOSPI200 선물/미니선물 시세 웹서비스 개발 진행 기록.
   - 초기 데이터 로딩 범위를 최근 거래일 2일치로 확대할지, 실제 거래 데이터가 존재하는 날을 역방향 탐색해 2개 거래일을 채울지 회의에서 결정.
 - **상태**: 문서화만 수행. 차트 API 및 초기 캔들 로딩 코드는 변경하지 않음.
 
+
+
+---
+
+### 2026-11-18
+
+#### [백엔드/프론트엔드] Backend 시작 준비 상태 및 재접속 제어 개선
+
+- **목적**: Backend 초기화 중 Frontend가 API/WebSocket을 먼저 호출하면서 발생하는 Vite 프록시 `ECONNREFUSED`와 재접속 요청을 줄인다.
+- **백엔드 변경**:
+  - TCP Listener를 외부 서비스 초기화보다 먼저 바인딩한다.
+  - `GET /api/health`를 초기화 전용 라우터에서 제공한다.
+  - 초기화 중에는 `503 Service Unavailable` + `Retry-After`와 `status: starting`을 반환한다.
+  - 초기화 성공 후 실제 API/WebSocket Router로 요청을 전달하고 `ready: true`를 반환한다.
+  - 초기화 실패 시 Health Check를 유지하고 `status: failed`를 반환한다. 실제 API 요청은 준비 전까지 차단한다.
+- **프론트엔드 변경**:
+  - `useBackendHealth`가 Health Check를 주기적으로 확인한다.
+  - Backend 준비 전에는 시세/캔들 REST 요청, 채팅 티켓/명령 요청, 두 WebSocket 연결을 시작하지 않는다.
+  - Backend가 재시작되어 Health Check가 실패하면 진행 중인 요청/연결을 정리하고, 준비 완료 후 다시 연결한다.
+- **호환성**:
+  - 기존 `/api/health` 경로를 유지한다.
+  - 준비 완료 응답은 기존 `status: "ok"`를 유지하고 `ready: true`를 추가한다.
+- **검증 상태**:
+  - 소스 정적 검토 완료.
+  - `cargo check`, `cargo test`, `npm run build`, `npm run lint` 및 실제 Backend 재시작 시나리오는 개발 환경에서 실행하지 못했으므로 사용자 테스트가 필요하다.

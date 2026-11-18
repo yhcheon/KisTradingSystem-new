@@ -108,18 +108,23 @@ function formatTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
 
-function usePublicChat() {
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+function usePublicChat(enabled: boolean) {
+  const [, setStatus] = useState<ConnectionStatus>('connecting');
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState('');
-  const [connectionClosed, setConnectionClosed] = useState(false);
+  const [, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
   // StrictMode replays effects in development; share the pending POST to avoid burning an alias.
   const ticketRequestRef = useRef<Promise<ChatTicket> | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus('connecting');
+      return;
+    }
+
     let disposed = false;
     let connectedBefore = false;
     let connecting = false;
@@ -155,7 +160,7 @@ function usePublicChat() {
     };
 
     const scheduleReconnect = () => {
-      if (disposed || reconnectTimer !== null) return;
+      if (disposed || !enabled || reconnectTimer !== null) return;
       setStatus('reconnecting');
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
@@ -165,7 +170,7 @@ function usePublicChat() {
     };
 
     const connect = async () => {
-      if (disposed || connecting) return;
+      if (disposed || !enabled || connecting) return;
       connecting = true;
       if (connectedBefore) setStatus('reconnecting');
 
@@ -248,7 +253,7 @@ function usePublicChat() {
       socketRef.current = null;
       socket?.close();
     };
-  }, []);
+  }, [enabled]);
 
   const sendMessage = useCallback((text: string): boolean => {
     const trimmed = text.trim();
@@ -284,17 +289,15 @@ function usePublicChat() {
   };
 }
 
-export default function ChatPage({ active }: { active: boolean }) {
+export default function ChatPage({ active, backendReady }: { active: boolean; backendReady: boolean }) {
   const {
     connectionError,
-    connectionClosed,
     messages,
     nickname,
     sendError,
     sendMessage,
     setSendError,
-    status,
-  } = usePublicChat();
+  } = usePublicChat(backendReady);
   const [text, setText] = useState('');
   const [commands, setCommands] = useState<ChatCommandDefinition[]>([]);
   const [commandLoadError, setCommandLoadError] = useState('');
@@ -311,6 +314,7 @@ export default function ChatPage({ active }: { active: boolean }) {
   }, [active, messages]);
 
   useEffect(() => {
+    if (!backendReady) return;
     let disposed = false;
     void loadChatCommands().then(
       (loadedCommands) => {
@@ -327,7 +331,7 @@ export default function ChatPage({ active }: { active: boolean }) {
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [backendReady]);
 
   const commandSuggestions =
     !commandPickerDismissed && text.startsWith('/')
