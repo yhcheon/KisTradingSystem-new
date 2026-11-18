@@ -953,4 +953,67 @@ mod tests {
             ip(9)
         );
     }
+
+    #[tokio::test]
+    async fn targets_only_online_nicknames_and_tracks_presence() {
+        const SOCIAL_COMMANDS: &str = r#"{
+            "version": 2,
+            "commands": {"/wave": "{nickname} waves"},
+            "actions": {
+                "laugh": {
+                    "command": "웃",
+                    "aliases": ["웃음"],
+                    "template": "{nickname}님이{argument} 웃습니다. ^^",
+                    "template_no_arg": "{nickname}님이 웃습니다. ^^",
+                    "template_target": "{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^",
+                    "template_target_no_arg": "{nickname}님이 {target}님을 보고 웃습니다. ^^"
+                },
+                "greet": {
+                    "command": "인사",
+                    "aliases": [],
+                    "template": "{nickname}님이{argument} 인사합니다.",
+                    "template_no_arg": "{nickname}님이 인사합니다.",
+                    "template_target": "{nickname}님이 {target}님에게{argument} 인사합니다.",
+                    "template_target_no_arg": "{nickname}님이 {target}님에게 인사합니다."
+                }
+            }
+        }"#;
+        let service = service_with_commands(r#"{"words":["guest"]}"#, SOCIAL_COMMANDS);
+        let mut presence = service.subscribe_presence();
+        let mut messages = service.subscribe_messages();
+        let first_ticket = service.issue_ticket(ip(1), None).unwrap();
+        let first = service.consume_ticket(&first_ticket.ticket).unwrap();
+        assert_eq!(presence.recv().await.unwrap(), 1);
+        let second_ticket = service.issue_ticket(ip(2), None).unwrap();
+        let second = service.consume_ticket(&second_ticket.ticket).unwrap();
+        assert_eq!(presence.recv().await.unwrap(), 2);
+        assert_eq!(service.online_count(), 2);
+
+        service.publish_message(&first, format!("{} 웃", second.nickname())).unwrap();
+        let message = messages.recv().await.unwrap();
+        assert_eq!(
+            message.text,
+            format!("{}님이 {}님을 보고 웃습니다. ^^", first.nickname(), second.nickname())
+        );
+        assert_eq!(message.action_id.as_deref(), Some("laugh"));
+
+        service.publish_message(&first, format!("{} 인사", second.nickname())).unwrap();
+        let greeting = messages.recv().await.unwrap();
+        assert_eq!(
+            greeting.text,
+            format!("{}님이 {}님에게 인사합니다.", first.nickname(), second.nickname())
+        );
+
+        service.publish_message(&first, "offline-999 웃".to_string()).unwrap();
+        let fallback = messages.recv().await.unwrap();
+        assert_eq!(
+            fallback.text,
+            format!("{}님이 offline-999 웃습니다. ^^", first.nickname())
+        );
+
+        drop(second);
+        assert_eq!(presence.recv().await.unwrap(), 1);
+        assert_eq!(service.online_count(), 1);
+    }
+
 }
