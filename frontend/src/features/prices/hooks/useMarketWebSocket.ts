@@ -5,6 +5,7 @@ import type { CandleData } from '../types';
 import { applyTickToCandles } from '../utils/candleUtils';
 
 interface UseMarketWebSocketOptions {
+  enabled: boolean;
   interval: string;
   selectedCode: string | null;
   setData: Dispatch<SetStateAction<PricesResponse | null>>;
@@ -24,6 +25,7 @@ function numeric(value: string): number {
 }
 
 export function useMarketWebSocket({
+  enabled,
   interval,
   selectedCode,
   setData,
@@ -41,6 +43,11 @@ export function useMarketWebSocket({
   }, [selectedCode]);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsConnected(false);
+      return;
+    }
+
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof window.setTimeout> | null = null;
     let reconnectDelay = RECONNECT_INITIAL_DELAY_MS;
@@ -48,7 +55,7 @@ export function useMarketWebSocket({
     const url = getWebSocketUrl();
 
     const connect = () => {
-      if (disposed) return;
+      if (disposed || !enabled) return;
 
       setIsConnected(false);
       const nextSocket = new WebSocket(url);
@@ -130,7 +137,7 @@ export function useMarketWebSocket({
       };
 
       nextSocket.onclose = () => {
-        if (disposed || socket !== nextSocket) return;
+        if (disposed || !enabled || socket !== nextSocket) return;
 
         socket = null;
         setIsConnected(false);
@@ -155,7 +162,7 @@ export function useMarketWebSocket({
       }
       socket?.close();
     };
-  }, [setData, setCandles]);
+  }, [enabled, setData, setCandles]);
 
   return isConnected;
 }
