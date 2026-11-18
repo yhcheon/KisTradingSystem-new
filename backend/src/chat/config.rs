@@ -29,11 +29,11 @@ pub(super) struct ChatCommandConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct SocialActionConfig {
-    command: String,
-    aliases: Vec<String>,
-    template: String,
-    template_no_arg: String,
+pub(super) struct SocialActionConfig {
+    pub(super) command: String,
+    pub(super) aliases: Vec<String>,
+    pub(super) template: String,
+    pub(super) template_no_arg: String,
 }
 
 #[derive(Deserialize)]
@@ -450,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn loads_v2_matching_policy_and_social_actions_without_changing_slash_commands() {
+    fn loads_v2_social_actions_without_changing_slash_commands() {
         let config = ChatCommandConfig::from_json(
             r#"{
                 "version":2,
@@ -477,14 +477,14 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_v2_matching_actions_and_templates() {
+    fn rejects_invalid_v2_actions_and_templates() {
         let cases = [
             r#"{"version":2,"commands":{"/hello":"hello"},"actions":{}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{argument}","template_no_arg":"{nickname}"}}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","aliases":["웃"],"template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{unknown}","template_no_arg":"{nickname}"}}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"즐겁게 웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","aliases":["웃"],"template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{unknown}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"즐겁게 웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
         ];
         for json in cases {
             assert!(ChatCommandConfig::from_json(json).is_err(), "expected invalid config: {json}");
