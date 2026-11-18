@@ -184,15 +184,42 @@ mod tests {
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
         >,
     ) -> ChatMessage {
-        let frame = tokio::time::timeout(Duration::from_secs(2), socket.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        let ClientMessage::Text(text) = frame else {
-            panic!("expected chat text frame");
-        };
-        serde_json::from_str(text.as_ref()).unwrap()
+        loop {
+            let frame = tokio::time::timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let ClientMessage::Text(text) = frame else {
+                panic!("expected chat text frame");
+            };
+            let value: serde_json::Value = serde_json::from_str(text.as_ref()).unwrap();
+            if value.get("type").and_then(serde_json::Value::as_str) == Some("presence") {
+                continue;
+            }
+            return serde_json::from_value(value).unwrap();
+        }
+    }
+
+    async fn receive_presence(
+        socket: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    ) -> usize {
+        loop {
+            let frame = tokio::time::timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let ClientMessage::Text(text) = frame else {
+                panic!("expected presence text frame");
+            };
+            let value: serde_json::Value = serde_json::from_str(text.as_ref()).unwrap();
+            if value.get("type").and_then(serde_json::Value::as_str) == Some("presence") {
+                return value["online_count"].as_u64().unwrap() as usize;
+            }
+        }
     }
 
     async fn assert_socket_closed(
@@ -200,16 +227,16 @@ mod tests {
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
         >,
     ) {
-        let frame = tokio::time::timeout(Duration::from_secs(2), socket.next())
-            .await
-            .unwrap();
-        assert!(
-            matches!(
-                frame,
-                None | Some(Err(_)) | Some(Ok(ClientMessage::Close(_)))
-            ),
-            "expected the server to close the invalid connection"
-        );
+        loop {
+            let frame = tokio::time::timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap();
+            match frame {
+                None | Some(Err(_)) | Some(Ok(ClientMessage::Close(_))) => break,
+                Some(Ok(ClientMessage::Text(_))) => continue,
+                other => panic!("expected server close, received {other:?}"),
+            }
+        }
     }
 
     #[tokio::test]
@@ -249,11 +276,7 @@ mod tests {
             .issue_ticket("192.0.2.3".parse().unwrap(), None)
             .unwrap();
         let (mut third, _) = connect(address, &third_ticket.ticket).await.unwrap();
-        assert!(
-            tokio::time::timeout(Duration::from_millis(100), third.next())
-                .await
-                .is_err()
-        );
+        assert_eq!(receive_presence(&mut third).await, 3);
 
         third.close(None).await.unwrap();
         second
@@ -269,11 +292,7 @@ mod tests {
             .issue_ticket("192.0.2.4".parse().unwrap(), None)
             .unwrap();
         let (mut reconnected, _) = connect(address, &reconnect_ticket.ticket).await.unwrap();
-        assert!(
-            tokio::time::timeout(Duration::from_millis(100), reconnected.next())
-                .await
-                .is_err()
-        );
+        assert_eq!(receive_presence(&mut reconnected).await, 3);
 
         second
             .send(ClientMessage::Text(
