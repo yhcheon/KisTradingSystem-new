@@ -99,7 +99,7 @@ impl SessionRangeMonitor {
             return None;
         }
 
-        let started_at = self.started_at;
+        let started_at = self.started_at.clone();
         let (session, start, end, state) = match market_session {
             "day" => ("day", DAY_START, DAY_END, &mut self.day),
             "night" => ("night", NIGHT_START, NIGHT_END, &mut self.night),
@@ -112,7 +112,7 @@ impl SessionRangeMonitor {
 
         if state.date.as_deref() != Some(date) {
             let eligible = session_start_utc(date, start)
-                .is_some_and(|session_start| started_at.is_some_and(|started| started <= session_start));
+                .is_some_and(|session_start| started_at.as_ref().is_some_and(|started| *started <= session_start));
             *state = SessionState::new(date, eligible);
         }
 
@@ -205,7 +205,7 @@ impl SessionRangeMonitor {
         let eligible = state.eligible
             || (state.date.is_none()
                 && session_start_utc(date, start)
-                    .is_some_and(|session_start| self.started_at.is_some_and(|started| started <= session_start)));
+                    .is_some_and(|session_start| self.started_at.as_ref().is_some_and(|started| *started <= session_start)));
         let start_hhmm = format!("{:02}{:02}", start.0, start.1);
         let end_hhmm = format!("{:02}{:02}", end.0, end.1);
         let status = if !eligible {
