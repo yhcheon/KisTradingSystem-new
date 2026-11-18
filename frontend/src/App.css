@@ -919,3 +919,29 @@ footer {
   font-size: 12px;
   line-height: 1.4;
 }
+
+
+/* Social action messages are visually distinct from ordinary chat. */
+.chat-message-social {
+  margin: 5px 0;
+  padding: 9px 12px;
+  background: rgba(16, 185, 129, 0.08);
+  border-left: 3px solid #10b981;
+  border-radius: 0 8px 8px 0;
+}
+
+.chat-message-social .chat-message-row p {
+  color: #6ee7b7;
+  font-style: italic;
+  line-height: 1.65;
+}
+
+.chat-message-social .chat-message-meta strong {
+  color: #6ee7b7;
+}
+
+.chat-social-emoji {
+  display: inline-block;
+  font-style: normal;
+  font-size: 1.05em;
+}
