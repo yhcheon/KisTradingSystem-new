@@ -1,4 +1,8 @@
-use super::config::SocialActionConfig;
+use super::{
+    ChatError,
+    config::SocialActionConfig,
+    message::MAX_MESSAGE_CHARACTERS,
+};
 use std::collections::HashMap;
 
 /// A successful match against the final whitespace-delimited input token.
@@ -58,6 +62,32 @@ pub(super) fn parse_social_action(
     None
 }
 
+
+/// Renders a matched social action without changing the parser's input semantics.
+/// The argument placeholder receives one separating space when an argument exists.
+pub(super) fn render_social_action(
+    action: &SocialActionConfig,
+    nickname: &str,
+    argument: Option<&str>,
+) -> Result<String, ChatError> {
+    let rendered = match argument {
+        Some(argument) if !argument.is_empty() => action
+            .template
+            .replace("{nickname}", nickname)
+            .replace("{argument}", &format!(" {argument}")),
+        _ => action.template_no_arg.replace("{nickname}", nickname),
+    };
+
+    if rendered.chars().any(char::is_control) {
+        return Err(ChatError::InvalidMessage);
+    }
+    if rendered.chars().count() > MAX_MESSAGE_CHARACTERS {
+        return Err(ChatError::MessageTooLong);
+    }
+
+    Ok(rendered)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,6 +113,66 @@ mod tests {
                 },
             ),
         ])
+    }
+
+    fn laugh_action() -> SocialActionConfig {
+        SocialActionConfig {
+            command: "웃".to_string(),
+            aliases: vec!["웃음".to_string()],
+            template: "{nickname}님이{argument} 웃습니다. ^^".to_string(),
+            template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),
+        }
+    }
+
+    #[test]
+    fn renders_laugh_with_suffix_with_and_without_argument() {
+        let action = laugh_action();
+
+        assert_eq!(
+            render_social_action(&action, "홍길동-1", None).unwrap(),
+            "홍길동-1님이 웃습니다. ^^"
+        );
+        assert_eq!(
+            render_social_action(&action, "홍길동-1", Some("즐겁게")).unwrap(),
+            "홍길동-1님이 즐겁게 웃습니다. ^^"
+        );
+    }
+
+    #[test]
+    fn renders_multiword_and_unicode_arguments_without_losing_spacing() {
+        let action = laugh_action();
+
+        assert_eq!(
+            render_social_action(&action, "손님-2", Some("신나서 크게 ㅋㅋㅋ 😄")).unwrap(),
+            "손님-2님이 신나서 크게 ㅋㅋㅋ 😄 웃습니다. ^^"
+        );
+    }
+
+    #[test]
+    fn rejects_rendered_control_characters_and_oversized_messages() {
+        let action = laugh_action();
+
+        assert_eq!(
+            render_social_action(&action, "손님-2", Some("줄1\\n줄2")),
+            Err(ChatError::InvalidMessage)
+        );
+        let short_action = SocialActionConfig {
+            command: "웃".to_string(),
+            aliases: Vec::new(),
+            template: "{nickname}{argument}".to_string(),
+            template_no_arg: "{nickname}".to_string(),
+        };
+        assert_eq!(
+            render_social_action(&short_action, "n", Some(&"가".repeat(499))),
+            Err(ChatError::MessageTooLong)
+        );
+        assert_eq!(
+            render_social_action(&short_action, "n", Some(&"가".repeat(498)))
+                .unwrap()
+                .chars()
+                .count(),
+            MAX_MESSAGE_CHARACTERS
+        );
     }
 
     #[test]
