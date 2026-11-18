@@ -25,13 +25,61 @@ struct RawNicknameConfig {
 #[derive(Clone, Debug)]
 pub(super) struct ChatCommandConfig {
     commands: HashMap<String, String>,
+    matching: Option<SocialMatchingConfig>,
+    actions: HashMap<String, SocialActionConfig>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SocialMatchingConfig {
+    strategy: MatchingStrategy,
+    position: MatchingPosition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum MatchingStrategy {
+    Token,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum MatchingPosition {
+    Suffix,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SocialActionConfig {
+    command: String,
+    aliases: Vec<String>,
+    template: String,
+    template_no_arg: String,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawChatCommandConfig {
     version: u8,
+    #[serde(default)]
     commands: HashMap<String, String>,
+    #[serde(default)]
+    matching: Option<RawSocialMatchingConfig>,
+    #[serde(default)]
+    actions: HashMap<String, RawSocialActionConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSocialMatchingConfig {
+    strategy: String,
+    position: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSocialActionConfig {
+    command: String,
+    #[serde(default)]
+    aliases: Vec<String>,
+    template: String,
+    template_no_arg: String,
 }
 
 impl NicknameConfig {
@@ -86,6 +134,83 @@ impl NicknameConfig {
     }
 }
 
+
+fn validate_social_token(token: &str) -> Result<(), ChatError> {
+    let length = token.chars().count();
+    if token.trim() != token
+        || length == 0
+        || length > MAX_MESSAGE_CHARACTERS
+        || token.starts_with('/')
+        || token
+            .chars()
+            .any(|character| character.is_whitespace() || character.is_control())
+    {
+        return Err(ChatError::Configuration(
+            "social commands and aliases must be non-empty single tokens without whitespace, control characters or a leading slash"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_social_template(template: &str, requires_argument: bool) -> Result<(), ChatError> {
+    if template.trim().is_empty()
+        || template.chars().count() > MAX_MESSAGE_CHARACTERS
+        || template.chars().any(char::is_control)
+    {
+        return Err(ChatError::Configuration(
+            "social templates must be non-empty, control-character-free and within the message length limit"
+                .to_string(),
+        ));
+    }
+
+    let mut has_nickname = false;
+    let mut has_argument = false;
+    let mut chars = template.chars().peekable();
+    while let Some(character) = chars.next() {
+        match character {
+            '{' => {
+                let mut placeholder = String::new();
+                let mut closed = false;
+                for next in chars.by_ref() {
+                    if next == '}' {
+                        closed = true;
+                        break;
+                    }
+                    placeholder.push(next);
+                }
+                if !closed || !matches!(placeholder.as_str(), "nickname" | "argument") {
+                    return Err(ChatError::Configuration(
+                        "social templates may use only {nickname} and {argument} placeholders"
+                            .to_string(),
+                    ));
+                }
+                match placeholder.as_str() {
+                    "nickname" => has_nickname = true,
+                    "argument" => has_argument = true,
+                    _ => unreachable!(),
+                }
+            }
+            '}' => {
+                return Err(ChatError::Configuration(
+                    "social templates contain an unmatched closing brace".to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    if !has_nickname || has_argument != requires_argument {
+        return Err(ChatError::Configuration(if requires_argument {
+            "social templates must contain both {nickname} and {argument}".to_string()
+        } else {
+            "social no-argument templates must contain {nickname} and must not contain {argument}"
+                .to_string()
+        }));
+    }
+    Ok(())
+}
+
 impl ChatCommandConfig {
     pub fn from_file(path: &Path) -> Result<Self, ChatError> {
         let contents = fs::read_to_string(path).map_err(|error| {
@@ -101,11 +226,105 @@ impl ChatCommandConfig {
         let raw: RawChatCommandConfig = serde_json::from_str(contents).map_err(|error| {
             ChatError::Configuration(format!("chat command config is invalid JSON: {error}"))
         })?;
-        if raw.version != 1 {
-            return Err(ChatError::Configuration(
-                "chat command config version must be 1".to_string(),
-            ));
-        }
+
+        let (matching, actions) = match raw.version {
+            1 => {
+                if raw.matching.is_some() || !raw.actions.is_empty() {
+                    return Err(ChatError::Configuration(
+                        "version 1 chat command config must contain only commands".to_string(),
+                    ));
+                }
+                (None, HashMap::new())
+            }
+            2 => {
+                let matching = raw.matching.ok_or_else(|| {
+                    ChatError::Configuration(
+                        "version 2 chat command config requires matching".to_string(),
+                    )
+                })?;
+                let strategy = match matching.strategy.as_str() {
+                    "token" => MatchingStrategy::Token,
+                    _ => {
+                        return Err(ChatError::Configuration(
+                            "matching.strategy must be token".to_string(),
+                        ));
+                    }
+                };
+                let position = match matching.position.as_str() {
+                    "suffix" => MatchingPosition::Suffix,
+                    _ => {
+                        return Err(ChatError::Configuration(
+                            "matching.position must be suffix".to_string(),
+                        ));
+                    }
+                };
+                if raw.actions.is_empty() {
+                    return Err(ChatError::Configuration(
+                        "version 2 chat command config actions must not be empty".to_string(),
+                    ));
+                }
+                let mut registered_tokens = HashSet::new();
+                let mut actions = HashMap::with_capacity(raw.actions.len());
+                for (action_id, action) in raw.actions {
+                    if action_id.is_empty()
+                        || action_id.len() > 64
+                        || !action_id
+                            .chars()
+                            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+                    {
+                        return Err(ChatError::Configuration(
+                            "social action ids must use 1-64 ASCII letters, digits, '_' or '-'"
+                                .to_string(),
+                        ));
+                    }
+
+                    validate_social_token(&action.command)?;
+                    if !registered_tokens.insert(action.command.clone()) {
+                        return Err(ChatError::Configuration(format!(
+                            "social command or alias is duplicated: {}",
+                            action.command
+                        )));
+                    }
+                    for alias in &action.aliases {
+                        validate_social_token(alias)?;
+                        if !registered_tokens.insert(alias.clone()) {
+                            return Err(ChatError::Configuration(format!(
+                                "social command or alias is duplicated: {alias}"
+                            )));
+                        }
+                    }
+                    validate_social_template(&action.template, true)?;
+                    validate_social_template(&action.template_no_arg, false)?;
+                    let expanded_no_arg = action
+                        .template_no_arg
+                        .replace("{nickname}", &"n".repeat(MAX_NICKNAME_ALIAS_LENGTH));
+                    if expanded_no_arg.chars().count() > MAX_MESSAGE_CHARACTERS {
+                        return Err(ChatError::Configuration(format!(
+                            "social action {action_id} no-argument template exceeds {MAX_MESSAGE_CHARACTERS} characters after nickname expansion"
+                        )));
+                    }
+                    actions.insert(
+                        action_id,
+                        SocialActionConfig {
+                            command: action.command,
+                            aliases: action.aliases,
+                            template: action.template,
+                            template_no_arg: action.template_no_arg,
+                        },
+                    );
+                }
+                (
+                    Some(SocialMatchingConfig { strategy, position }),
+                    actions,
+                )
+            }
+            _ => {
+                return Err(ChatError::Configuration(
+                    "chat command config version must be 1 or 2".to_string(),
+                ));
+            }
+        };
+
         if raw.commands.is_empty() {
             return Err(ChatError::Configuration(
                 "chat command config commands must not be empty".to_string(),
@@ -142,6 +361,8 @@ impl ChatCommandConfig {
 
         Ok(Self {
             commands: raw.commands,
+            matching,
+            actions,
         })
     }
 
@@ -276,6 +497,56 @@ mod tests {
                 "expected invalid config: {json}"
             );
         }
+    }
+
+    #[test]
+    fn loads_v2_matching_policy_and_social_actions_without_changing_slash_commands() {
+        let config = ChatCommandConfig::from_json(
+            r#"{
+                "version":2,
+                "matching":{"strategy":"token","position":"suffix"},
+                "commands":{"/hello":"{nickname} says hello"},
+                "actions":{
+                    "laugh":{
+                        "command":"웃",
+                        "aliases":["웃음"],
+                        "template":"{nickname}님이{argument} 웃습니다.",
+                        "template_no_arg":"{nickname}님이 웃습니다. ^^"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.expand("/hello", "guest-1").as_deref(), Some("guest-1 says hello"));
+        assert_eq!(config.commands.len(), 1);
+        assert_eq!(config.matching, Some(SocialMatchingConfig {
+            strategy: MatchingStrategy::Token,
+            position: MatchingPosition::Suffix,
+        }));
+        let laugh = config.actions.get("laugh").unwrap();
+        assert_eq!(laugh.command, "웃");
+        assert_eq!(laugh.aliases, ["웃음"]);
+        assert!(laugh.template.contains("{argument}"));
+        assert!(laugh.template_no_arg.contains("웃습니다"));
+    }
+
+    #[test]
+    fn rejects_invalid_v2_matching_actions_and_templates() {
+        let valid_action = r#""actions":{"laugh":{"command":"웃","aliases":["웃음"],"template":"{nickname}님이{argument} 웃습니다.","template_no_arg":"{nickname}님이 웃습니다."}}"#;
+        let cases = [
+            r#"{"version":2,"commands":{"/hello":"hello"},"actions":{}}"#,
+            r#"{"version":2,"matching":{"strategy":"substring","position":"suffix"},"commands":{"/hello":"hello"},"actions":{}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"prefix"},"commands":{"/hello":"hello"},"actions":{}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","aliases":["웃"],"template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{unknown}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"즐겁게 웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+        ];
+        for json in cases {
+            assert!(ChatCommandConfig::from_json(json).is_err(), "expected invalid config: {json}");
+        }
+        let _ = valid_action;
     }
 
     #[test]
