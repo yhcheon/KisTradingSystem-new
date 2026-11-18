@@ -276,17 +276,15 @@ function usePublicChat() {
 
   return {
     connectionError,
-    connectionClosed,
     messages,
     nickname,
     sendError,
     sendMessage,
     setSendError,
-    status,
   };
 }
 
-export default function ChatPage() {
+export default function ChatPage({ active }: { active: boolean }) {
   const {
     connectionError,
     connectionClosed,
@@ -307,9 +305,10 @@ export default function ChatPage() {
   const commandOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
+    if (!active) return;
     const list = messageListRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [messages]);
+  }, [active, messages]);
 
   useEffect(() => {
     let disposed = false;
@@ -382,31 +381,8 @@ export default function ChatPage() {
     }
   };
 
-  const statusLabel = connectionClosed
-    ? '연결 종료 · 재연결 중'
-    : {
-        connecting: '연결 중',
-        connected: '연결됨',
-        reconnecting: '재연결 중',
-      }[status];
-
   return (
     <main className="chat-page">
-      <header className="chat-header">
-        <div>
-          <h2>공개 채팅</h2>
-        </div>
-        <div className="chat-identity">
-          <span
-            className={`chat-connection-status ${status}${connectionClosed ? ' closed' : ''}`}
-            role="status"
-          >
-            {statusLabel}
-          </span>
-          {nickname && <span>내 닉네임: {nickname}</span>}
-        </div>
-      </header>
-
       {connectionError && (
         <p className="chat-error" role="alert">
           {connectionError}
@@ -498,10 +474,10 @@ export default function ChatPage() {
           placeholder="메시지를 입력하세요"
           autoComplete="off"
         />
-        <button type="submit" disabled={status !== 'connected' || !text.trim()}>
-          보내기
-        </button>
       </form>
+      <p className="chat-composer-hint">
+        / 슬래쉬 치면 명령을 입력할 수 있습니다.
+      </p>
       {commandLoadError && (
         <p className="chat-error" role="alert">
           {commandLoadError}

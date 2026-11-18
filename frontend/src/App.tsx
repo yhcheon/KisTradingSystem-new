@@ -1,15 +1,14 @@
 // ============================================================
 // 파일명: App.tsx
-// 설명: 인증 상태와 메인 시세 화면의 생명주기를 관리하는 애플리케이션 셸
-//       - 시세 화면은 항상 마운트하여 모달 전환 중에도 상태와 WebSocket 유지
-//       - OAuth 세션 공유 및 로그인 후 모달 전환 처리
+// 설명: 인증 상태와 메인 화면의 생명주기를 관리하는 애플리케이션 셸
+//       - 시세/채팅 패널은 항상 마운트하여 화면 전환 중에도 상태와 연결 유지
+//       - 오른쪽 콘텐츠 영역만 전환
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
 import { useAuthSession } from './features/auth/hooks/useAuthSession';
 import { useAdminRole } from './features/auth/hooks/useAdminRole';
 import PricesTab from './features/prices/PricesTab';
-import ChatPage from './features/chat/ChatPage';
 import AppHeader from './components/AppHeader';
 import AppModal, { type ActiveModal } from './components/AppModal';
 import './App.css';
@@ -18,6 +17,7 @@ export default function App() {
   const { session, authLoading } = useAuthSession();
   const [activePage, setActivePage] = useState<'prices' | 'chat'>('prices');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [isMarketConnected, setMarketConnected] = useState(false);
   const previousSessionRef = useRef(session);
   const isAdmin = useAdminRole(session);
   const selectPage = (page: 'prices' | 'chat') => {
@@ -66,28 +66,15 @@ export default function App() {
         activeModal={activeModal}
         isAdmin={isAdmin}
         session={session}
+        isMarketConnected={isMarketConnected}
         authLoading={authLoading}
         activePage={activePage}
         onSelectPage={selectPage}
         onOpenModal={setActiveModal}
       />
 
-      <div
-        id="prices-panel"
-        role="tabpanel"
-        aria-labelledby="prices-tab"
-        hidden={activePage !== 'prices'}
-      >
-        <PricesTab />
-      </div>
-      <div
-        id="chat-panel"
-        role="tabpanel"
-        aria-labelledby="chat-tab"
-        hidden={activePage !== 'chat'}
-      >
-        <ChatPage />
-      </div>
+      {/* PricesTab 내부에서 왼쪽 시세와 오른쪽 두 패널을 함께 유지합니다. */}
+      <PricesTab activePage={activePage} onMarketConnectionChange={setMarketConnected} />
 
       {!authLoading && (
         <AppModal

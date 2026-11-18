@@ -739,7 +739,7 @@ footer {
 .chat-composer {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
 }
@@ -849,7 +849,73 @@ footer {
   }
 
   .chat-composer {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
     gap: 8px;
   }
+}
+
+
+/* 시세/채팅은 같은 오른쪽 그리드 영역에서 표시만 전환합니다.
+   display 속성을 가진 패널의 기본 스타일보다 hidden 상태가 우선해야 합니다. */
+.layout > [hidden] {
+  display: none !important;
+}
+
+.layout > .chat-page,
+.layout > #chat-panel {
+  min-width: 0;
+}
+
+.layout > #chat-panel {
+  display: flex;
+  min-height: min(720px, calc(100vh - 160px));
+}
+
+.layout > #chat-panel[hidden] {
+  display: none !important;
+}
+
+.layout > #chat-panel > .chat-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 100%;
+}
+
+/* 차트와 채팅은 동일한 오른쪽 그리드 셀을 공유합니다. */
+.layout > #prices-panel,
+.layout > #chat-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@media (max-width: 1024px) {
+  .layout > #prices-panel,
+  .layout > #chat-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+/* 상단 상태는 차트 WebSocket 연결만 반영합니다. */
+.header-actions .market-websocket-status {
+  margin-right: 4px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.header-actions .market-websocket-status.connected {
+  color: var(--color-ok);
+}
+
+.header-actions .market-websocket-status.closed {
+  color: var(--color-down);
+}
+
+/* 채팅 입력 안내: 입력 영역 바로 아래에 보조 문구로 표시합니다. */
+.chat-composer-hint {
+  margin-top: -10px;
+  padding-left: 2px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
 }
