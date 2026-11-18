@@ -94,27 +94,16 @@ pub(super) fn render_target_social_action(
     target: &str,
     argument: Option<&str>,
 ) -> Result<String, ChatError> {
-    let (template, has_argument) = match argument.filter(|value| !value.is_empty()) {
-        Some(_) => (
-            action.template_target.as_deref().ok_or(ChatError::ServiceUnavailable)?,
-            true,
-        ),
-        None => (
-            action.template_target_no_arg.as_deref().ok_or(ChatError::ServiceUnavailable)?,
-            false,
-        ),
+    let argument = argument.filter(|value| !value.is_empty());
+    let template = match argument {
+        Some(_) => action.template_target.as_deref().ok_or(ChatError::ServiceUnavailable)?,
+        None => action.template_target_no_arg.as_deref().ok_or(ChatError::ServiceUnavailable)?,
     };
+    let argument_text = argument.map(|value| format!(" {value}")).unwrap_or_default();
     let rendered = template
         .replace("{nickname}", nickname)
         .replace("{target}", target)
-        .replace(
-            "{argument}",
-            if has_argument {
-                &format!(" {}", argument.unwrap_or_default())
-            } else {
-                ""
-            },
-        );
+        .replace("{argument}", &argument_text);
     if rendered.chars().any(char::is_control) {
         return Err(ChatError::InvalidMessage);
     }
