@@ -22,6 +22,13 @@ interface ChatCommandDefinition {
   response: string;
 }
 
+interface ChatActionDefinition {
+  action_id: string;
+  command: string;
+  aliases: string[];
+  example: string;
+}
+
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 
 const MAX_MESSAGES = 100;
@@ -31,6 +38,8 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 
 let cachedChatCommands: ChatCommandDefinition[] | null = null;
 let chatCommandsRequest: Promise<ChatCommandDefinition[]> | null = null;
+let cachedChatActions: ChatActionDefinition[] | null = null;
+let chatActionsRequest: Promise<ChatActionDefinition[]> | null = null;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
@@ -71,6 +80,50 @@ function loadChatCommands(): Promise<ChatCommandDefinition[]> {
     },
     () => {
       if (chatCommandsRequest === request) chatCommandsRequest = null;
+    },
+  );
+  return request;
+}
+
+function isChatActionDefinition(value: unknown): value is ChatActionDefinition {
+  if (typeof value !== 'object' || value === null) return false;
+  const action = value as Record<string, unknown>;
+  return (
+    typeof action.action_id === 'string' &&
+    typeof action.command === 'string' &&
+    Array.isArray(action.aliases) &&
+    action.aliases.every((alias) => typeof alias === 'string') &&
+    typeof action.example === 'string'
+  );
+}
+
+function isChatActionList(value: unknown): value is ChatActionDefinition[] {
+  return Array.isArray(value) && value.every(isChatActionDefinition);
+}
+
+function loadChatActions(): Promise<ChatActionDefinition[]> {
+  if (cachedChatActions) return Promise.resolve(cachedChatActions);
+  if (chatActionsRequest) return chatActionsRequest;
+
+  const request = (async () => {
+    const response = await fetch('/api/chat/actions');
+    if (!response.ok) {
+      throw new Error(`행동 명령어 목록 요청 실패 (HTTP ${response.status})`);
+    }
+    const actionData: unknown = await response.json();
+    if (!isChatActionList(actionData)) {
+      throw new Error('채팅 서버가 올바르지 않은 행동 명령어 목록을 반환했습니다.');
+    }
+    cachedChatActions = actionData;
+    return actionData;
+  })();
+  chatActionsRequest = request;
+  void request.then(
+    () => {
+      if (chatActionsRequest === request) chatActionsRequest = null;
+    },
+    () => {
+      if (chatActionsRequest === request) chatActionsRequest = null;
     },
   );
   return request;
@@ -331,6 +384,9 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
   } = usePublicChat(backendReady);
   const [text, setText] = useState('');
   const [commands, setCommands] = useState<ChatCommandDefinition[]>([]);
+  const [actions, setActions] = useState<ChatActionDefinition[]>([]);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionLoadError, setActionLoadError] = useState('');
   const [commandLoadError, setCommandLoadError] = useState('');
   const [commandPickerDismissed, setCommandPickerDismissed] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
@@ -355,6 +411,26 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
         if (!disposed) {
           setCommandLoadError(
             `명령어 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`,
+          );
+        }
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [backendReady]);
+
+  useEffect(() => {
+    if (!backendReady) return;
+    let disposed = false;
+    void loadChatActions().then(
+      (loadedActions) => {
+        if (!disposed) setActions(loadedActions);
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setActionLoadError(
+            `행동 명령어 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`,
           );
         }
       },
@@ -520,9 +596,47 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
       <p className="chat-composer-hint">
         / 슬래쉬 치면 명령을 입력할 수 있습니다.
       </p>
+      <div className="chat-action-help">
+        <div className="chat-action-help-heading">
+          <p>문장 마지막에 행동 명령을 붙여 보세요. 예: 즐겁게 웃</p>
+          <button
+            type="button"
+            className="chat-action-help-toggle"
+            aria-expanded={actionsOpen}
+            aria-controls="chat-action-help-list"
+            onClick={() => setActionsOpen((open) => !open)}
+          >
+            {actionsOpen ? '행동 명령 닫기' : '행동 명령 보기'}
+          </button>
+        </div>
+        {actionsOpen && (
+          <div className="chat-action-help-list" id="chat-action-help-list">
+            {actions.length > 0 ? (
+              actions.map((action) => (
+                <div className="chat-action-help-item" key={action.action_id}>
+                  <div className="chat-action-help-tokens">
+                    <strong>{action.command}</strong>
+                    {action.aliases.length > 0 && (
+                      <span>별칭: {action.aliases.join(', ')}</span>
+                    )}
+                  </div>
+                  <p>{action.example}</p>
+                </div>
+              ))
+            ) : (
+              <p className="chat-action-help-empty">등록된 행동 명령어가 없습니다.</p>
+            )}
+          </div>
+        )}
+      </div>
       {commandLoadError && (
         <p className="chat-error" role="alert">
           {commandLoadError}
+        </p>
+      )}
+      {actionLoadError && (
+        <p className="chat-error" role="alert">
+          {actionLoadError}
         </p>
       )}
       {sendError && (
