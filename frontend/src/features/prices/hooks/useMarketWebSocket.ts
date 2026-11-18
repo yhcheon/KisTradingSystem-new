@@ -72,8 +72,33 @@ export function useMarketWebSocket({
 
       nextSocket.onmessage = (event) => {
         try {
-          const tick: RealtimeTick = JSON.parse(event.data);
-          if (tick.type !== 'tick') return;
+          const message: unknown = JSON.parse(event.data);
+          if (
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            message.type === 'snapshot' &&
+            'data' in message &&
+            typeof message.data === 'object' &&
+            message.data !== null &&
+            'regular' in message.data &&
+            'mini' in message.data
+          ) {
+            // 유효한 가격이 포함된 스냅샷만 적용합니다. 빈 스냅샷이면 REST 재시도를 계속합니다.
+            const snapshot = message.data as PricesResponse;
+            if (snapshot.regular?.ok || snapshot.mini?.ok) {
+              setData(snapshot);
+            }
+            return;
+          }
+
+          if (
+            typeof message !== 'object' ||
+            message === null ||
+            !('type' in message) ||
+            message.type !== 'tick'
+          ) return;
+          const tick = message as RealtimeTick;
 
           setData((previous) => {
             if (!previous) return previous;

@@ -25,27 +25,39 @@ export function usePrices(interval: string, selected: SymbolKind, backendReady: 
   });
 
   useEffect(() => {
-    if (!backendReady) return;
+    if (!backendReady || data?.regular?.ok || data?.mini?.ok) return;
     const controller = new AbortController();
 
     const fetchPrices = async () => {
-      try {
-        const response = await fetch('/api/prices', {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const json: PricesResponse = await response.json();
-        if (!controller.signal.aborted) setData(json);
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          console.error('prices fetch 실패:', error);
+      let retryDelay = 1_000;
+
+      while (!controller.signal.aborted) {
+        try {
+          const response = await fetch('/api/prices', {
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const json: PricesResponse = await response.json();
+          const hasQuote = Boolean(json.regular?.ok || json.mini?.ok);
+          if (hasQuote && !controller.signal.aborted) {
+            // WebSocket 스냅샷이 먼저 도착했다면 REST 응답이 실시간 값을 덮어쓰지 않습니다.
+            setData((previous) => previous ?? json);
+            return;
+          }
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          console.error('prices fetch 실패, 재시도합니다:', error);
         }
+
+        await new Promise((resolve) => window.setTimeout(resolve, retryDelay));
+        retryDelay = Math.min(retryDelay * 2, 10_000);
       }
     };
 
     void fetchPrices();
     return () => controller.abort();
-  }, [backendReady]);
+  }, [backendReady, data]);
 
   const selectedResult = selected === 'regular' ? data?.regular : data?.mini;
   const selectedCode =

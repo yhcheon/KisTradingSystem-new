@@ -1,9 +1,11 @@
 // ============================================================
 // 파일명: server/handlers/market/websocket.rs
 // 설명: 브라우저 실시간 시세 WebSocket 핸들러
+//       - 연결 직후 현재 시세 스냅샷 전송
+//       - 스냅샷 생성 중 발생한 체결은 broadcast receiver에서 이어서 전달
 // ============================================================
 
-use super::ws_message::tick_message;
+use super::{prices::build_prices, ws_message::tick_message};
 use crate::core::state::AppState;
 use axum::{
     extract::{
@@ -12,6 +14,7 @@ use axum::{
     },
     response::IntoResponse,
 };
+use serde_json::json;
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
@@ -19,7 +22,24 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     tracing::info!("브라우저 WebSocket 연결됨");
+    // 먼저 구독해 스냅샷 조회 중 발생한 체결도 버퍼에서 이어받습니다.
     let mut rx = state.ws_tx.subscribe();
+
+    let snapshot = build_prices(&state).await;
+    let snapshot_message = serde_json::to_string(&json!({
+        "type": "snapshot",
+        "data": snapshot,
+    }))
+    .unwrap_or_default();
+
+    if socket
+        .send(Message::Text(snapshot_message.into()))
+        .await
+        .is_err()
+    {
+        tracing::warn!("브라우저 WebSocket 초기 시세 스냅샷 전송 실패");
+        return;
+    }
 
     loop {
         tokio::select! {
