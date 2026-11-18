@@ -27,7 +27,7 @@ export function applyTickToCandles(
     Number.isNaN(price) ||
     price <= 0 ||
     tick.time.length < 4 ||
-    !/^\\d{8}$/.test(tick.date)
+    !/^\d{8}$/.test(tick.date)
   ) {
     return candles;
   }
