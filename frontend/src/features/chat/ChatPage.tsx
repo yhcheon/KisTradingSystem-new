@@ -6,6 +6,8 @@ interface ChatMessage {
   id: string;
   nickname: string;
   text: string;
+  message_kind?: 'chat' | 'social';
+  action_id?: string;
   sent_at: string;
 }
 
@@ -92,6 +94,10 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof message.id === 'string' &&
     typeof message.nickname === 'string' &&
     typeof message.text === 'string' &&
+    (message.message_kind === undefined ||
+      message.message_kind === 'chat' ||
+      message.message_kind === 'social') &&
+    (message.action_id === undefined || typeof message.action_id === 'string') &&
     typeof message.sent_at === 'string'
   );
 }
@@ -107,6 +113,31 @@ function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
+
+const SOCIAL_ACTION_EMOJI: Record<string, string> = {
+  go: '🚶',
+  come: '👋',
+  stand: '🧍',
+  sit: '🪑',
+  lie_down: '🛏️',
+  get_up: '🌅',
+  return_go: '↩️',
+  return_come: '🏃',
+  exit: '🚪',
+  enter: '🚪',
+  come_inside: '🏠',
+  run: '🏃',
+  walk: '🚶',
+  laugh: '😄',
+  cry: '😢',
+  eat: '🍽️',
+  drink: '🥤',
+  sleep: '😴',
+  rest: '☕',
+  dance: '💃',
+  sing: '🎵',
+  applause: '👏',
+};
 
 function usePublicChat(enabled: boolean) {
   const [, setStatus] = useState<ConnectionStatus>('connecting');
@@ -403,7 +434,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
 
             return (
               <li
-                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}`}
+                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}${message.message_kind === 'social' ? ' chat-message-social' : ''}`}
                 key={message.id}
               >
                 {!isContinuation && (
@@ -412,7 +443,14 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
                   </div>
                 )}
                 <div className="chat-message-row">
-                  <p>{message.text}</p>
+                  <p>
+                    {message.text}
+                    {message.message_kind === 'social' && message.action_id && (
+                      <span className="chat-social-emoji" aria-hidden="true">
+                        {' '}{SOCIAL_ACTION_EMOJI[message.action_id] ?? '✨'}
+                      </span>
+                    )}
+                  </p>
                   <time dateTime={message.sent_at}>{formatTime(message.sent_at)}</time>
                 </div>
               </li>
