@@ -100,7 +100,7 @@ impl SessionRangeMonitor {
         let date = now.date_naive().format("%Y%m%d").to_string();
         let hhmm = format!("{:02}{:02}", now.hour(), now.minute());
 
-        if hhmm >= "0845" && hhmm < "0930" {
+        if hhmm.as_str() >= "0845" && hhmm.as_str() < "0930" {
             if self.day.date.as_deref() != Some(date.as_str()) {
                 self.day = SessionState::new(&date, true);
             }
@@ -109,7 +109,7 @@ impl SessionRangeMonitor {
             self.day.low = None;
         }
 
-        if hhmm >= "1800" && hhmm < "1845" {
+        if hhmm.as_str() >= "1800" && hhmm.as_str() < "1845" {
             if self.night.date.as_deref() != Some(date.as_str()) {
                 self.night = SessionState::new(&date, true);
             }
