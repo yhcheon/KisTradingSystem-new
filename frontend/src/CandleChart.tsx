@@ -67,6 +67,7 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const chartDataRef = useRef<ReturnType<typeof toChartData> | null>(null);
+  const hasFittedVisibleContentRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -100,12 +101,18 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     chartDataRef.current = null;
+    hasFittedVisibleContentRef.current = false;
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
           chart.applyOptions({ width, height });
+          // The chart may be mounted inside a hidden panel. Fit again when it first becomes visible.
+          if (!hasFittedVisibleContentRef.current && chartDataRef.current?.length) {
+            chart.timeScale().fitContent();
+            hasFittedVisibleContentRef.current = true;
+          }
         }
       }
     });
@@ -129,7 +136,10 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
     const previousData = chartDataRef.current;
     if (!previousData) {
       candleSeries.setData(nextData);
-      chart.timeScale().fitContent();
+      if (containerRef.current && containerRef.current.clientWidth > 0) {
+        chart.timeScale().fitContent();
+        hasFittedVisibleContentRef.current = true;
+      }
       chartDataRef.current = nextData;
       return;
     }
