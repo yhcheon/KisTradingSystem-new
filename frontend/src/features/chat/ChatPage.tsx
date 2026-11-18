@@ -350,10 +350,10 @@ export default function ChatPage() {
   };
 
   const selectCommand = (command: ChatCommandDefinition) => {
-    setText(command.command);
+    const sent = sendMessage(command.command);
+    setText(sent ? '' : command.command);
     setCommandPickerDismissed(true);
     setActiveCommandIndex(0);
-    setSendError('');
     messageInputRef.current?.focus();
   };
 
