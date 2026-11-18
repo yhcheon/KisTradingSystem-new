@@ -28,17 +28,6 @@ export default function AppHeader({
       <h1>KOSPI200 선물 시세</h1>
       <nav className="app-tabs" role="tablist" aria-label="주요 화면">
         <button
-          id="prices-tab"
-          type="button"
-          role="tab"
-          aria-selected={activePage === 'prices'}
-          aria-controls="prices-panel"
-          className={activePage === 'prices' ? 'active' : ''}
-          onClick={() => onSelectPage('prices')}
-        >
-          차트
-        </button>
-        <button
           id="chat-tab"
           type="button"
           role="tab"
@@ -48,6 +37,17 @@ export default function AppHeader({
           onClick={() => onSelectPage('chat')}
         >
           채팅
+        </button>
+        <button
+          id="prices-tab"
+          type="button"
+          role="tab"
+          aria-selected={activePage === 'prices'}
+          aria-controls="prices-panel"
+          className={activePage === 'prices' ? 'active' : ''}
+          onClick={() => onSelectPage('prices')}
+        >
+          차트
         </button>
       </nav>
       <div className="header-actions">
