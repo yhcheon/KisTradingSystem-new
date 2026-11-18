@@ -281,7 +281,6 @@ function usePublicChat() {
     sendError,
     sendMessage,
     setSendError,
-    status,
   };
 }
 
