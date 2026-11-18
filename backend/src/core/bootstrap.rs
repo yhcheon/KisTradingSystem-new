@@ -168,8 +168,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         let tx = ws_tx.clone();
         let key = approval_key;
         let store = candle_store.clone();
+        let ws_session_range = session_range.clone();
         tokio::spawn(async move {
-            kis_ws::run(key, ws_symbols, night_symbols, tx, store, session_range.clone()).await;
+            kis_ws::run(key, ws_symbols, night_symbols, tx, store, ws_session_range).await;
         });
     }
     tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
