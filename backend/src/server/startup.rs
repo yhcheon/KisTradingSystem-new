@@ -28,7 +28,7 @@ pub struct StartupShared {
 #[derive(Clone)]
 enum StartupStatus {
     Starting,
-    Ready,
+    Ready { regular: String, mini: String },
     Failed,
 }
 
@@ -40,9 +40,9 @@ impl StartupShared {
         }
     }
 
-    pub async fn mark_ready(&self, app: Router) {
+    pub async fn mark_ready(&self, app: Router, regular: String, mini: String) {
         *self.app.write().await = Some(app);
-        *self.status.write().await = StartupStatus::Ready;
+        *self.status.write().await = StartupStatus::Ready { regular, mini };
     }
 
     pub async fn mark_failed(&self) {
@@ -63,11 +63,13 @@ async fn health(State(shared): State<StartupShared>) -> Response {
             })),
         )
             .into_response(),
-        StartupStatus::Ready => (
+        StartupStatus::Ready { regular, mini } => (
             StatusCode::OK,
             Json(json!({
                 "status": "ok",
-                "ready": true
+                "ready": true,
+                "regular": regular,
+                "mini": mini
             })),
         )
             .into_response(),
@@ -100,7 +102,7 @@ async fn dispatch(
     let status = shared.status.read().await.clone();
     let message = match status {
         StartupStatus::Starting => "Backend 초기화가 진행 중입니다.",
-        StartupStatus::Ready => "Backend 서비스가 준비 중입니다.",
+        StartupStatus::Ready { .. } => "Backend 서비스가 준비 중입니다.",
         StartupStatus::Failed => {
             "Backend 초기화에 실패했습니다. 백엔드 로그를 확인해 주세요."
         }
