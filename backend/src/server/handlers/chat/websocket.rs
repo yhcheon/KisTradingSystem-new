@@ -38,7 +38,7 @@ fn ticket_status(error: ChatError) -> StatusCode {
         ChatError::InvalidTicket | ChatError::ExpiredTicket => StatusCode::UNAUTHORIZED,
         ChatError::RateLimited
         | ChatError::ConnectionLimitReached
-        | ChatError::AliasPoolExhausted => StatusCode::TOO_MANY_REQUESTS,
+        | ChatError::NicknameSequenceExhausted => StatusCode::TOO_MANY_REQUESTS,
         ChatError::InvalidClientAddress => StatusCode::BAD_REQUEST,
         _ => StatusCode::SERVICE_UNAVAILABLE,
     }
@@ -123,7 +123,7 @@ mod tests {
     use tokio::net::TcpListener;
     use tokio_tungstenite::{connect_async, tungstenite::Message as ClientMessage};
 
-    const TEST_NICKNAMES: &str = r#"{"words":["visitor"],"number_range":{"min":1,"max":100}}"#;
+    const TEST_NICKNAMES: &str = r#"{"words":["visitor"]}"#;
 
     async fn start_server(chat: ChatService) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -346,32 +346,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn releases_alias_after_disconnect() {
-        let chat =
-            ChatService::new_for_test(r#"{"words":["visitor"],"number_range":{"min":1,"max":1}}"#);
+    async fn nickname_sequence_advances_after_websocket_disconnect() {
+        let chat = ChatService::new_for_test(r#"{"words":["visitor"]}"#);
         let (address, server) = start_server(chat.clone()).await;
         let ticket = chat
             .issue_ticket("192.0.2.1".parse().unwrap(), None)
             .unwrap();
+        assert_eq!(ticket.nickname, "visitor-1");
         let (mut socket, _) = connect(address, &ticket.ticket).await.unwrap();
-        assert!(
-            chat.issue_ticket("192.0.2.2".parse().unwrap(), None)
-                .is_err()
-        );
 
         socket.close(None).await.unwrap();
-        tokio::time::timeout(Duration::from_secs(2), async {
-            for attempt in 0..100 {
-                let ip = format!("192.0.2.{}", attempt + 2).parse().unwrap();
-                if chat.issue_ticket(ip, None).is_ok() {
-                    return;
-                }
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-            panic!("disconnected alias was not released");
-        })
-        .await
-        .unwrap();
+        assert_socket_closed(&mut socket).await;
+        let next_ticket = chat
+            .issue_ticket("192.0.2.2".parse().unwrap(), None)
+            .unwrap();
+        assert_eq!(next_ticket.nickname, "visitor-2");
         server.abort();
     }
 }

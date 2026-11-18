@@ -39,9 +39,9 @@ struct ChatServiceInner {
 #[derive(Default)]
 struct ChatState {
     tickets: HashMap<String, TicketRecord>,
-    active_aliases: HashSet<String>,
     connections: HashMap<u64, ConnectionRecord>,
     ip_limits: HashMap<IpAddr, IpLimits>,
+    nickname_sequences: HashMap<String, u64>,
     next_connection_id: u64,
 }
 
@@ -53,7 +53,6 @@ struct TicketRecord {
 
 struct ConnectionRecord {
     client_ip: IpAddr,
-    alias: String,
     message_attempts: VecDeque<Instant>,
 }
 
@@ -143,9 +142,8 @@ impl ChatService {
             limits.ticket_attempts.push_back(now);
         }
 
-        let alias = select_alias(&self.inner.nicknames, &state.active_aliases)?;
+        let alias = select_alias(&self.inner.nicknames, &mut state.nickname_sequences)?;
         let token = generate_ticket(&state.tickets);
-        state.active_aliases.insert(alias.clone());
         state
             .ip_limits
             .entry(client_ip)
@@ -195,14 +193,12 @@ impl ChatService {
             limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
             limits.active_connections += 1;
         } else {
-            release_alias(&mut state, &record.alias);
             return Err(ChatError::ServiceUnavailable);
         }
         state.connections.insert(
             connection_id,
             ConnectionRecord {
                 client_ip: record.client_ip,
-                alias: record.alias.clone(),
                 message_attempts: VecDeque::new(),
             },
         );
@@ -314,7 +310,6 @@ impl Drop for ChatConnection {
             Err(poisoned) => poisoned.into_inner(),
         };
         if let Some(connection) = state.connections.remove(&self.id) {
-            release_alias(&mut state, &connection.alias);
             if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
                 limits.active_connections = limits.active_connections.saturating_sub(1);
             }
@@ -325,27 +320,21 @@ impl Drop for ChatConnection {
 
 fn select_alias(
     config: &NicknameConfig,
-    active_aliases: &HashSet<String>,
+    nickname_sequences: &mut HashMap<String, u64>,
 ) -> Result<String, ChatError> {
-    let alias_count = config.alias_count();
-    if active_aliases.len() as u128 >= alias_count {
-        return Err(ChatError::AliasPoolExhausted);
-    }
+    let word_index = rand::rng().random_range(0..config.words.len());
+    next_alias_for_word(nickname_sequences, &config.words[word_index])
+}
 
-    let mut rng = rand::rng();
-    let start = rng.random_range(0..alias_count);
-    let number_count = config.number_count();
-    for offset in 0..=active_aliases.len() {
-        let index = (start + offset as u128) % alias_count;
-        let word_index = (index / number_count) as usize;
-        let number = config.number_min + (index % number_count) as u32;
-        let alias = format!("{}-{number}", config.words[word_index]);
-        if !active_aliases.contains(&alias) {
-            return Ok(alias);
-        }
-    }
-
-    Err(ChatError::AliasPoolExhausted)
+fn next_alias_for_word(
+    nickname_sequences: &mut HashMap<String, u64>,
+    word: &str,
+) -> Result<String, ChatError> {
+    let sequence = nickname_sequences.entry(word.to_string()).or_default();
+    *sequence = sequence
+        .checked_add(1)
+        .ok_or(ChatError::NicknameSequenceExhausted)?;
+    Ok(format!("{word}-{sequence}"))
 }
 
 fn generate_ticket(existing: &HashMap<String, TicketRecord>) -> String {
@@ -400,11 +389,6 @@ fn release_pending_ticket(state: &mut ChatState, record: &TicketRecord) {
     if let Some(limits) = state.ip_limits.get_mut(&record.client_ip) {
         limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
     }
-    release_alias(state, &record.alias);
-}
-
-fn release_alias(state: &mut ChatState, alias: &str) {
-    state.active_aliases.remove(alias);
 }
 
 fn prune_ip_limits(state: &mut ChatState) {
@@ -420,13 +404,13 @@ mod tests {
     use super::*;
     use std::{net::Ipv4Addr, str::FromStr};
 
-    fn service(words: &[&str], min: u32, max: u32) -> ChatService {
+    fn service(words: &[&str]) -> ChatService {
         let words = words
             .iter()
             .map(|word| format!("\"{word}\""))
             .collect::<Vec<_>>()
             .join(",");
-        let json = format!(r#"{{"words":[{words}],"number_range":{{"min":{min},"max":{max}}}}}"#);
+        let json = format!(r#"{{"words":[{words}]}}"#);
         ChatService::new(NicknameConfig::from_json(&json).unwrap(), HashSet::new())
     }
 
@@ -436,9 +420,11 @@ mod tests {
 
     #[test]
     fn issues_random_alias_and_single_use_ticket() {
-        let service = service(&["one", "two"], 1, 100);
+        let service = service(&["one", "two"]);
         let issued = service.issue_ticket(ip(1), None).unwrap();
-        assert!(issued.nickname.starts_with("one-") || issued.nickname.starts_with("two-"));
+        let (word, sequence) = issued.nickname.rsplit_once('-').unwrap();
+        assert!(["one", "two"].contains(&word));
+        assert_eq!(sequence, "1");
         assert_eq!(issued.ticket.len(), 64);
         assert_eq!(issued.expires_in_seconds, TICKET_TTL.as_secs());
 
@@ -451,10 +437,11 @@ mod tests {
     }
 
     #[test]
-    fn expires_unused_tickets_and_releases_alias_reservations() {
-        let service = service(&["only"], 1, 1);
+    fn increments_the_sequence_when_a_ticket_expires_unused() {
+        let service = service(&["only"]);
         let now = Instant::now();
         let issued = service.issue_ticket_at(ip(1), now).unwrap();
+        assert_eq!(issued.nickname, "only-1");
         assert_eq!(
             service
                 .consume_ticket_at(&issued.ticket, now + TICKET_TTL)
@@ -463,29 +450,45 @@ mod tests {
         );
 
         let replacement = service.issue_ticket_at(ip(1), now + TICKET_TTL).unwrap();
-        assert_eq!(replacement.nickname, issued.nickname);
+        assert_eq!(replacement.nickname, "only-2");
     }
 
     #[test]
-    fn prevents_active_alias_collisions_and_releases_on_disconnect() {
-        let service = service(&["one"], 1, 2);
+    fn continues_the_sequence_after_a_connection_disconnects() {
+        let service = service(&["one"]);
         let first = service.issue_ticket(ip(1), None).unwrap();
+        assert_eq!(first.nickname, "one-1");
         let first_connection = service.consume_ticket(&first.ticket).unwrap();
         let second = service.issue_ticket(ip(2), None).unwrap();
+        assert_eq!(second.nickname, "one-2");
         let second_connection = service.consume_ticket(&second.ticket).unwrap();
-        assert_ne!(first_connection.nickname(), second_connection.nickname());
-        assert_eq!(
-            service.issue_ticket(ip(3), None).err(),
-            Some(ChatError::AliasPoolExhausted)
-        );
+        assert_eq!(second_connection.nickname(), "one-2");
 
         drop(first_connection);
-        assert!(service.issue_ticket(ip(3), None).is_ok());
+        assert_eq!(service.issue_ticket(ip(3), None).unwrap().nickname, "one-3");
+    }
+
+    #[test]
+    fn increments_each_word_sequence_independently_when_interleaved() {
+        let mut sequences = HashMap::new();
+        assert_eq!(next_alias_for_word(&mut sequences, "one").unwrap(), "one-1");
+        assert_eq!(next_alias_for_word(&mut sequences, "two").unwrap(), "two-1");
+        assert_eq!(next_alias_for_word(&mut sequences, "one").unwrap(), "one-2");
+        assert_eq!(next_alias_for_word(&mut sequences, "two").unwrap(), "two-2");
+    }
+
+    #[test]
+    fn reports_sequence_overflow_instead_of_reusing_a_nickname() {
+        let mut sequences = HashMap::from([("one".to_string(), u64::MAX)]);
+        assert_eq!(
+            next_alias_for_word(&mut sequences, "one").err(),
+            Some(ChatError::NicknameSequenceExhausted)
+        );
     }
 
     #[test]
     fn reserves_unique_aliases_for_concurrent_ticket_requests() {
-        let service = service(&["word"], 1, 16);
+        let service = service(&["word"]);
         let barrier = Arc::new(std::sync::Barrier::new(16));
         let threads = (0..16)
             .map(|_| {
@@ -506,7 +509,7 @@ mod tests {
 
     #[test]
     fn enforces_ticket_connection_and_message_limits() {
-        let service = service(&["word"], 1, 100);
+        let service = service(&["word"]);
         let now = Instant::now();
         let mut tickets = Vec::new();
         for _ in 0..MAX_PENDING_AND_ACTIVE_PER_IP {
@@ -548,7 +551,7 @@ mod tests {
 
     #[test]
     fn limits_ticket_requests_per_ip_and_resets_after_window() {
-        let service = service(&["word"], 1, 100);
+        let service = service(&["word"]);
         let now = Instant::now();
         for _ in 0..MAX_TICKETS_PER_IP_PER_WINDOW {
             let ticket = service.issue_ticket_at(ip(1), now).unwrap();
@@ -569,8 +572,7 @@ mod tests {
     fn honors_forwarded_ip_only_for_configured_proxies() {
         let proxy_ip = IpAddr::from_str("127.0.0.1").unwrap();
         let trusted = ChatService::new(
-            NicknameConfig::from_json(r#"{"words":["word"],"number_range":{"min":1,"max":2}}"#)
-                .unwrap(),
+            NicknameConfig::from_json(r#"{"words":["word"]}"#).unwrap(),
             HashSet::from([proxy_ip]),
         );
         assert_eq!(

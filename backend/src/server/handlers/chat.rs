@@ -37,7 +37,7 @@ pub(crate) async fn issue_ticket(
 fn ticket_error_response(error: ChatError) -> (StatusCode, Json<TicketError>) {
     let (status, code) = match error {
         ChatError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
-        ChatError::ConnectionLimitReached | ChatError::AliasPoolExhausted => {
+        ChatError::ConnectionLimitReached | ChatError::NicknameSequenceExhausted => {
             (StatusCode::TOO_MANY_REQUESTS, "chat_capacity_reached")
         }
         ChatError::InvalidClientAddress => (StatusCode::BAD_REQUEST, "invalid_client_address"),

@@ -12,22 +12,12 @@ const MAX_NICKNAME_WORD_LENGTH: usize = 32;
 #[derive(Clone, Debug)]
 pub(super) struct NicknameConfig {
     pub words: Vec<String>,
-    pub number_min: u32,
-    pub number_max: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawNicknameConfig {
     words: Vec<String>,
-    number_range: RawNumberRange,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawNumberRange {
-    min: u32,
-    max: u32,
 }
 
 impl NicknameConfig {
@@ -51,12 +41,6 @@ impl NicknameConfig {
                 "nickname config words must not be empty".to_string(),
             ));
         }
-        if raw.number_range.min > raw.number_range.max {
-            return Err(ChatError::Configuration(
-                "nickname config number_range.min must be <= max".to_string(),
-            ));
-        }
-
         let mut words = Vec::with_capacity(raw.words.len());
         let mut seen = HashSet::with_capacity(raw.words.len());
         for word in raw.words {
@@ -84,19 +68,7 @@ impl NicknameConfig {
             words.push(word.to_string());
         }
 
-        Ok(Self {
-            words,
-            number_min: raw.number_range.min,
-            number_max: raw.number_range.max,
-        })
-    }
-
-    pub fn number_count(&self) -> u128 {
-        u128::from(self.number_max) - u128::from(self.number_min) + 1
-    }
-
-    pub fn alias_count(&self) -> u128 {
-        self.words.len() as u128 * self.number_count()
+        Ok(Self { words })
     }
 }
 
@@ -148,26 +120,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn accepts_operator_managed_words_and_inclusive_number_range() {
-        let config = NicknameConfig::from_json(
-            r#"{"words":["name one","name two"],"number_range":{"min":4,"max":5}}"#,
-        )
-        .unwrap();
+    fn accepts_operator_managed_words() {
+        let config = NicknameConfig::from_json(r#"{"words":["name one","name two"]}"#).unwrap();
 
         assert_eq!(config.words, ["name one", "name two"]);
-        assert_eq!(config.number_count(), 2);
-        assert_eq!(config.alias_count(), 4);
     }
 
     #[test]
-    fn rejects_missing_or_empty_words_and_invalid_ranges() {
+    fn rejects_missing_or_empty_words_and_unrecognized_fields() {
         for json in [
             "",
-            r#"{"words":[],"number_range":{"min":1,"max":2}}"#,
-            r#"{"words":["  "],"number_range":{"min":1,"max":2}}"#,
-            r#"{"words":["same"," same "],"number_range":{"min":1,"max":2}}"#,
-            r#"{"words":["name"],"number_range":{"min":3,"max":2}}"#,
-            r#"{"words":["name"],"number_range":{"min":1,"max":2},"fallback":"no"}"#,
+            r#"{"words":[]}"#,
+            r#"{"words":["  "]}"#,
+            r#"{"words":["same"," same "]}"#,
+            r#"{"words":["name"],"number_range":{"min":1,"max":2}}"#,
+            r#"{"words":["name"],"fallback":"no"}"#,
             r#"not json"#,
         ] {
             assert!(

@@ -15,7 +15,7 @@ pub enum ChatError {
     ExpiredTicket,
     RateLimited,
     ConnectionLimitReached,
-    AliasPoolExhausted,
+    NicknameSequenceExhausted,
     InvalidMessage,
     MessageTooLong,
     FrameTooLarge,
@@ -31,7 +31,9 @@ impl fmt::Display for ChatError {
             Self::ExpiredTicket => write!(formatter, "chat ticket expired"),
             Self::RateLimited => write!(formatter, "chat rate limit exceeded"),
             Self::ConnectionLimitReached => write!(formatter, "chat connection limit reached"),
-            Self::AliasPoolExhausted => write!(formatter, "no unused chat nickname is available"),
+            Self::NicknameSequenceExhausted => {
+                write!(formatter, "chat nickname sequence is exhausted")
+            }
             Self::InvalidMessage => write!(formatter, "invalid chat message"),
             Self::MessageTooLong => write!(formatter, "chat message is too long"),
             Self::FrameTooLarge => write!(formatter, "chat message frame is too large"),
