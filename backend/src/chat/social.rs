@@ -37,22 +37,25 @@ pub(super) fn parse_social_action(
             if token_start == input.len() {
                 return None;
             }
-            let argument = input[..index].trim_end();
+            let argument = input[..index].trim();
             let argument = (!argument.is_empty()).then(|| argument.to_string());
             (argument, &input[token_start..])
         }
         None => (None, input),
     };
 
-    actions.iter().find_map(|(action_id, action)| {
+    for (action_id, action) in actions {
         let is_match = action.command == final_token
             || action.aliases.iter().any(|alias| alias == final_token);
-        is_match.then(|| MatchedSocialAction {
-            action_id: action_id.clone(),
-            matched_token: final_token.to_string(),
-            argument,
-        })
-    })
+        if is_match {
+            return Some(MatchedSocialAction {
+                action_id: action_id.clone(),
+                matched_token: final_token.to_string(),
+                argument,
+            });
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -136,11 +139,11 @@ mod tests {
     #[test]
     fn preserves_internal_whitespace_and_symbols_in_argument() {
         assert_eq!(
-            parse_social_action("  신나게   ㅋㅋㅋ 웃", &actions())
+            parse_social_action("신나게   ㅋㅋㅋ 웃", &actions())
                 .unwrap()
                 .argument
                 .as_deref(),
-            Some("  신나게   ㅋㅋㅋ")
+            Some("신나게   ㅋㅋㅋ")
         );
     }
 
