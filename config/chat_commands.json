@@ -1,7 +1,7 @@
 {
   "version": 2,
   "commands": {
-    "/웃": "{nickname} 님이 깔깔대고 웃습니다. ^^",
+    "/웃": "{nickname} 님이 배꼽을 잡고 웃습니다. ㅋㅋㅋ",
     "/웃음": "{nickname} 님이 깔깔대고 웃습니다. ^^",
     "/눈물": "{nickname} 님이 눈물을 글썽입니다. ㅠㅠ",
     "/울": "{nickname} 님이 꺼이꺼이 통곡을 합니다.  ㅠ.ㅠ",
@@ -40,7 +40,6 @@
     "/짱": "{nickname} 님이 짱이라고 외칩니다!",
     "/멋": "{nickname} 님이 멋지다고 감탄합니다. 와~",
     "/귀": "{nickname} 님이 귀여움에 녹아내립니다. 심쿵!",
-    "/웃": "{nickname} 님이 배꼽을 잡고 웃습니다. ㅋㅋㅋ",
     "/빵": "{nickname} 님이 빵 터졌습니다! ㅋㅋㅋㅋ",
     "/당": "{nickname} 님이 당황해서 말을 잇지 못합니다.",
     "/당황": "{nickname} 님이 당황해서 말을 잇지 못합니다.",
@@ -104,7 +103,6 @@
     "/반가": "{nickname} 님이 반갑게 인사를 건넵니다. 반가워요!",
     "/안녕": "{nickname} 님이 안녕하고 손을 흔듭니다. 안녕~",
     "/잘가": "{nickname} 님이 손을 흔들며 작별 인사를 합니다. 잘 가요~",
-
     "/가즈아": "{nickname} 님이 외칩니다! 가즈아~~~!",
     "/상한가": "{nickname} 님이 상한가를 꿈꿉니다. 딱지 가즈아!",
     "/하한가": "{nickname} 님이 하한가에 절망합니다. 제발... 반등을...",
@@ -163,7 +161,9 @@
         "가다"
       ],
       "template": "{nickname}님이{argument} 갑니다.",
-      "template_no_arg": "{nickname}님이 갑니다."
+      "template_no_arg": "{nickname}님이 갑니다.",
+      "template_target": "{nickname}님이 {target}님 쪽으로{argument} 갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 쪽으로 갑니다."
     },
     "come": {
       "command": "와",
@@ -171,7 +171,9 @@
         "오다"
       ],
       "template": "{nickname}님이{argument} 옵니다.",
-      "template_no_arg": "{nickname}님이 옵니다."
+      "template_no_arg": "{nickname}님이 옵니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 옵니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 옵니다."
     },
     "stand": {
       "command": "서",
@@ -179,7 +181,9 @@
         "서다"
       ],
       "template": "{nickname}님이{argument} 섭니다.",
-      "template_no_arg": "{nickname}님이 섭니다."
+      "template_no_arg": "{nickname}님이 섭니다.",
+      "template_target": "{nickname}님이 {target}님 앞에{argument} 섭니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 앞에 섭니다."
     },
     "sit": {
       "command": "앉",
@@ -187,7 +191,9 @@
         "앉다"
       ],
       "template": "{nickname}님이{argument} 앉습니다.",
-      "template_no_arg": "{nickname}님이 앉습니다."
+      "template_no_arg": "{nickname}님이 앉습니다.",
+      "template_target": "{nickname}님이 {target}님 옆에{argument} 앉습니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 옆에 앉습니다."
     },
     "lie_down": {
       "command": "눕",
@@ -196,7 +202,9 @@
         "누워"
       ],
       "template": "{nickname}님이{argument} 눕습니다.",
-      "template_no_arg": "{nickname}님이 눕습니다."
+      "template_no_arg": "{nickname}님이 눕습니다.",
+      "template_target": "{nickname}님이 {target}님 옆에{argument} 눕습니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 옆에 눕습니다."
     },
     "get_up": {
       "command": "일어나",
@@ -204,7 +212,9 @@
         "일어나다"
       ],
       "template": "{nickname}님이{argument} 일어납니다.",
-      "template_no_arg": "{nickname}님이 일어납니다."
+      "template_no_arg": "{nickname}님이 일어납니다.",
+      "template_target": "{nickname}님이 {target}님 앞에서{argument} 일어납니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 앞에서 일어납니다."
     },
     "return_go": {
       "command": "돌아가",
@@ -212,7 +222,9 @@
         "돌아가다"
       ],
       "template": "{nickname}님이{argument} 돌아갑니다.",
-      "template_no_arg": "{nickname}님이 돌아갑니다."
+      "template_no_arg": "{nickname}님이 돌아갑니다.",
+      "template_target": "{nickname}님이 {target}님에게서{argument} 돌아갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게서 돌아갑니다."
     },
     "return_come": {
       "command": "돌아와",
@@ -220,7 +232,9 @@
         "돌아오다"
       ],
       "template": "{nickname}님이{argument} 돌아옵니다.",
-      "template_no_arg": "{nickname}님이 돌아옵니다."
+      "template_no_arg": "{nickname}님이 돌아옵니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 돌아옵니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 돌아옵니다."
     },
     "exit": {
       "command": "나가",
@@ -228,7 +242,9 @@
         "나가다"
       ],
       "template": "{nickname}님이{argument} 나갑니다.",
-      "template_no_arg": "{nickname}님이 나갑니다."
+      "template_no_arg": "{nickname}님이 나갑니다.",
+      "template_target": "{nickname}님이 {target}님 곁을{argument} 떠납니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 곁을 떠납니다."
     },
     "enter": {
       "command": "들어가",
@@ -236,7 +252,9 @@
         "들어가다"
       ],
       "template": "{nickname}님이{argument} 들어갑니다.",
-      "template_no_arg": "{nickname}님이 들어갑니다."
+      "template_no_arg": "{nickname}님이 들어갑니다.",
+      "template_target": "{nickname}님이 {target}님이 있는 곳으로{argument} 들어갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님이 있는 곳으로 들어갑니다."
     },
     "come_inside": {
       "command": "들어와",
@@ -244,7 +262,9 @@
         "들어오다"
       ],
       "template": "{nickname}님이{argument} 들어옵니다.",
-      "template_no_arg": "{nickname}님이 들어옵니다."
+      "template_no_arg": "{nickname}님이 들어옵니다.",
+      "template_target": "{nickname}님이 {target}님 쪽으로{argument} 들어옵니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 쪽으로 들어옵니다."
     },
     "run": {
       "command": "뛰",
@@ -253,7 +273,9 @@
         "뛰어"
       ],
       "template": "{nickname}님이{argument} 뜁니다.",
-      "template_no_arg": "{nickname}님이 뜁니다."
+      "template_no_arg": "{nickname}님이 뜁니다.",
+      "template_target": "{nickname}님이 {target}님을 향해{argument} 달려갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님을 향해 달려갑니다."
     },
     "walk": {
       "command": "걸",
@@ -261,7 +283,9 @@
         "걷다"
       ],
       "template": "{nickname}님이{argument} 걷습니다.",
-      "template_no_arg": "{nickname}님이 걷습니다."
+      "template_no_arg": "{nickname}님이 걷습니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 걸어갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 걸어갑니다."
     },
     "laugh": {
       "command": "웃",
@@ -275,7 +299,9 @@
         "히죽"
       ],
       "template": "{nickname}님이{argument} 웃습니다. ^^",
-      "template_no_arg": "{nickname}님이 웃습니다. ^^"
+      "template_no_arg": "{nickname}님이 웃습니다. ^^",
+      "template_target": "{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^",
+      "template_target_no_arg": "{nickname}님이 {target}님을 보고 웃습니다. ^^"
     },
     "cry": {
       "command": "울",
@@ -286,7 +312,9 @@
         "훌쩍"
       ],
       "template": "{nickname}님이{argument} 웁니다. ㅠ.ㅠ",
-      "template_no_arg": "{nickname}님이 웁니다. ㅠ.ㅠ"
+      "template_no_arg": "{nickname}님이 웁니다. ㅠ.ㅠ",
+      "template_target": "{nickname}님이 {target}님을 보며{argument} 웁니다. ㅠ.ㅠ",
+      "template_target_no_arg": "{nickname}님이 {target}님을 보며 웁니다. ㅠ.ㅠ"
     },
     "eat": {
       "command": "먹",
@@ -298,7 +326,9 @@
         "후루룩"
       ],
       "template": "{nickname}님이{argument} 먹습니다.",
-      "template_no_arg": "{nickname}님이 먹습니다."
+      "template_no_arg": "{nickname}님이 먹습니다.",
+      "template_target": "{nickname}님이 {target}님과 함께{argument} 먹습니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님과 함께 먹습니다."
     },
     "drink": {
       "command": "마셔",
@@ -308,7 +338,9 @@
         "벌컥"
       ],
       "template": "{nickname}님이{argument} 마십니다.",
-      "template_no_arg": "{nickname}님이 마십니다."
+      "template_no_arg": "{nickname}님이 마십니다.",
+      "template_target": "{nickname}님이 {target}님과 함께{argument} 마십니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님과 함께 마십니다."
     },
     "sleep": {
       "command": "자",
@@ -318,7 +350,9 @@
         "쿨쿨"
       ],
       "template": "{nickname}님이{argument} 잡니다.",
-      "template_no_arg": "{nickname}님이 잡니다."
+      "template_no_arg": "{nickname}님이 잡니다.",
+      "template_target": "{nickname}님이 {target}님 옆에서{argument} 잠듭니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 옆에서 잠듭니다."
     },
     "rest": {
       "command": "쉬",
@@ -326,7 +360,9 @@
         "쉬다"
       ],
       "template": "{nickname}님이{argument} 쉽니다.",
-      "template_no_arg": "{nickname}님이 쉽니다."
+      "template_no_arg": "{nickname}님이 쉽니다.",
+      "template_target": "{nickname}님이 {target}님 옆에서{argument} 쉽니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 옆에서 쉽니다."
     },
     "dance": {
       "command": "춤",
@@ -334,7 +370,9 @@
         "춤추다"
       ],
       "template": "{nickname}님이{argument} 춤춥니다.",
-      "template_no_arg": "{nickname}님이 춤춥니다."
+      "template_no_arg": "{nickname}님이 춤춥니다.",
+      "template_target": "{nickname}님이 {target}님 앞에서{argument} 춤춥니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 앞에서 춤춥니다."
     },
     "sing": {
       "command": "노래",
@@ -342,7 +380,9 @@
         "노래하다"
       ],
       "template": "{nickname}님이{argument} 노래합니다.",
-      "template_no_arg": "{nickname}님이 노래합니다."
+      "template_no_arg": "{nickname}님이 노래합니다.",
+      "template_target": "{nickname}님이 {target}님을 위해{argument} 노래합니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님을 위해 노래합니다."
     },
     "applause": {
       "command": "박수",
@@ -350,9 +390,17 @@
         "박수치다"
       ],
       "template": "{nickname}님이{argument} 박수를 칩니다.",
-      "template_no_arg": "{nickname}님이 박수를 칩니다."
+      "template_no_arg": "{nickname}님이 박수를 칩니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 박수를 보냅니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 박수를 보냅니다."
+    },
+    "greet": {
+      "command": "인사",
+      "aliases": [],
+      "template": "{nickname}님이{argument} 인사합니다.",
+      "template_no_arg": "{nickname}님이 인사합니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 인사합니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 인사합니다."
     }
   }
 }
-
-
