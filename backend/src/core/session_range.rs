@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Duration, NaiveDate, TimeZone, Timelike, Utc};
 use serde::Serialize;
 
 const DAY_START: (u32, u32) = (8, 45);
@@ -69,14 +69,14 @@ impl SessionState {
 /// 서버에서 정규선물 틱만 받아 주간/야간 시초 레인지를 독립적으로 관리합니다.
 pub struct SessionRangeMonitor {
     regular_code: String,
-    started_at: DateTime<Utc>,
+    started_at: Option<DateTime<Utc>>,
     day: SessionState,
     night: SessionState,
 }
 
 impl SessionRangeMonitor {
     pub fn new(regular_code: String) -> Self {
-        Self::new_at(regular_code, Utc::now())
+        Self {\n            regular_code,\n            started_at: None,\n            day: SessionState::default(),\n            night: SessionState::default(),\n        }
     }
 
     fn new_at(regular_code: String, started_at: DateTime<Utc>) -> Self {
@@ -113,7 +113,7 @@ impl SessionRangeMonitor {
 
         if state.date.as_deref() != Some(date) {
             let eligible = session_start_utc(date, start)
-                .map(|session_start| started_at <= session_start)
+                .map(|session_start| started_at.is_some_and(|started| started <= session_start))
                 .unwrap_or(false);
             *state = SessionState::new(date, eligible);
         }
@@ -171,9 +171,68 @@ impl SessionRangeMonitor {
     }
 
     pub fn snapshot(&self) -> RangeMonitorSnapshot {
+        let now = Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
+        let today = now.date_naive();
+        let day_date = today.format("%Y%m%d").to_string();
+        let day_hhmm = format!("{:02}{:02}", now.hour(), now.minute());
+
+        let night_date = if now.hour() < 6 {
+            (today - Duration::days(1)).format("%Y%m%d").to_string()
+        } else {
+            day_date.clone()
+        };
+        let night_hour = if now.hour() < 6 { now.hour() + 24 } else { now.hour() };
+        let night_hhmm = format!("{:02}{:02}", night_hour, now.minute());
+
         RangeMonitorSnapshot {
-            day: self.day.snapshot("day"),
-            night: self.night.snapshot("night"),
+            day: self.snapshot_session(&self.day, "day", &day_date, &day_hhmm, DAY_START, DAY_END),
+            night: self.snapshot_session(
+                &self.night,
+                "night",
+                &night_date,
+                &night_hhmm,
+                NIGHT_START,
+                NIGHT_END,
+            ),
+        }
+    }
+
+    fn snapshot_session(
+        &self,
+        state: &SessionState,
+        session: &str,
+        current_date: &str,
+        current_hhmm: &str,
+        start: (u32, u32),
+        end: (u32, u32),
+    ) -> SessionRangeSnapshot {
+        let date = state.date.as_deref().unwrap_or(current_date);
+        let eligible = state.eligible
+            || (state.date.is_none()
+                && session_start_utc(date, start)
+                    .is_some_and(|session_start| self.started_at.is_some_and(|started| started <= session_start)));
+        let start_hhmm = format!("{:02}{:02}", start.0, start.1);
+        let end_hhmm = format!("{:02}{:02}", end.0, end.1);
+        let status = if !eligible {
+            "unavailable"
+        } else if current_hhmm < start_hhmm.as_str() {
+            "waiting"
+        } else if current_hhmm < end_hhmm.as_str() {
+            "collecting"
+        } else if state.high.is_some() && state.low.is_some() {
+            "monitoring"
+        } else {
+            "unavailable"
+        };
+
+        SessionRangeSnapshot {
+            session: session.to_string(),
+            date: Some(date.to_string()),
+            status: status.to_string(),
+            high: state.high,
+            low: state.low,
+            high_alerted: state.high_alerted,
+            low_alerted: state.low_alerted,
         }
     }
 }
