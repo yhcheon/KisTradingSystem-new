@@ -5,6 +5,7 @@
 
 use crate::chat::ChatService;
 use crate::core::candles::CandleStore;
+use crate::core::session_range::SessionRangeMonitor;
 use crate::core::db::SupabaseClient;
 use crate::kis_ws::RealtimeTick;
 use crate::master::FuturesSymbol;
@@ -35,6 +36,7 @@ pub struct AppState {
     pub ws_tx: broadcast::Sender<RealtimeTick>,
     pub http_client: reqwest::Client,
     pub candles: Arc<Mutex<CandleStore>>,
+    pub session_range: Arc<Mutex<SessionRangeMonitor>>,
     pub supabase: SupabaseClient,
     pub chat: ChatService,
 }
