@@ -161,7 +161,7 @@ fn validate_social_template(template: &str, requires_argument: bool) -> Result<(
                 }
                 if !closed || !matches!(placeholder.as_str(), "nickname" | "argument" | "target") {
                     return Err(ChatError::Configuration(
-                        "social templates may use only {nickname} and {argument} placeholders"
+                        "social templates may use only {nickname}, {target} and {argument} placeholders"
                             .to_string(),
                     ));
                 }
