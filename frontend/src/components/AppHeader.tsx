@@ -8,6 +8,7 @@ interface AppHeaderProps {
   authLoading: boolean;
   isAdmin: boolean;
   session: Session | null;
+  isMarketConnected: boolean;
   onSelectPage: (page: 'prices' | 'chat') => void;
   onOpenModal: (modal: ActiveModal) => void;
 }
@@ -18,6 +19,7 @@ export default function AppHeader({
   authLoading,
   isAdmin,
   session,
+  isMarketConnected,
   onSelectPage,
   onOpenModal,
 }: AppHeaderProps) {
@@ -34,7 +36,7 @@ export default function AppHeader({
           className={activePage === 'prices' ? 'active' : ''}
           onClick={() => onSelectPage('prices')}
         >
-          시세
+          차트
         </button>
         <button
           id="chat-tab"
@@ -49,6 +51,9 @@ export default function AppHeader({
         </button>
       </nav>
       <div className="header-actions">
+        <span className={`market-websocket-status ${isMarketConnected ? 'connected' : 'closed'}`} role="status">
+          {isMarketConnected ? '연결됨' : '연결 종료'}
+        </span>
         {authLoading ? (
           <span role="status">로딩 중...</span>
         ) : (
