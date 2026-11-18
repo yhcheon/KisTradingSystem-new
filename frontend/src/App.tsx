@@ -9,15 +9,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuthSession } from './features/auth/hooks/useAuthSession';
 import { useAdminRole } from './features/auth/hooks/useAdminRole';
 import PricesTab from './features/prices/PricesTab';
+import ChatPage from './features/chat/ChatPage';
 import AppHeader from './components/AppHeader';
 import AppModal, { type ActiveModal } from './components/AppModal';
 import './App.css';
 
 export default function App() {
   const { session, authLoading } = useAuthSession();
+  const [activePage, setActivePage] = useState<'prices' | 'chat'>('prices');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const previousSessionRef = useRef(session);
   const isAdmin = useAdminRole(session);
+  const selectPage = (page: 'prices' | 'chat') => {
+    setActivePage(page);
+    setActiveModal(null);
+  };
 
   // Google OAuth 팝업에서 인증이 완료되면 이 창의 세션도 공유되고, 팝업은 자동으로 닫습니다.
   useEffect(() => {
@@ -49,12 +55,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeModal]);
 
-  if (authLoading) {
-    return <p style={{ padding: 20, color: '#e2e8f0' }}>로딩 중...</p>;
-  }
-
   // OAuth 팝업은 인증 세션을 확인한 뒤 부모 창으로 결과를 전달하고 닫힙니다.
-  if (window.opener && session) {
+  if (!authLoading && window.opener && session) {
     return <p style={{ padding: 20, color: '#e2e8f0' }}>로그인 완료. 창을 닫는 중...</p>;
   }
 
@@ -64,18 +66,37 @@ export default function App() {
         activeModal={activeModal}
         isAdmin={isAdmin}
         session={session}
+        authLoading={authLoading}
+        activePage={activePage}
+        onSelectPage={selectPage}
         onOpenModal={setActiveModal}
       />
 
-      {/* 시세 화면은 항상 마운트하여 모달을 열고 닫아도 상태와 WebSocket을 유지합니다. */}
-      <PricesTab />
+      <div
+        id="prices-panel"
+        role="tabpanel"
+        aria-labelledby="prices-tab"
+        hidden={activePage !== 'prices'}
+      >
+        <PricesTab />
+      </div>
+      <div
+        id="chat-panel"
+        role="tabpanel"
+        aria-labelledby="chat-tab"
+        hidden={activePage !== 'chat'}
+      >
+        <ChatPage />
+      </div>
 
-      <AppModal
-        activeModal={activeModal}
-        session={session}
-        isAdmin={isAdmin}
-        onClose={() => setActiveModal(null)}
-      />
+      {!authLoading && (
+        <AppModal
+          activeModal={activeModal}
+          session={session}
+          isAdmin={isAdmin}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
     </div>
   );
 }

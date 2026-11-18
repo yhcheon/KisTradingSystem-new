@@ -27,6 +27,7 @@
       src/
         auth/       # JWT 검증
         cache/      # Redis 캐시
+        chat/       # 익명 별칭, 연결 티켓 및 메시지 검증
         core/       # bootstrap, AppState, CandleStore, DB, cleanup
         kis/        # KIS 인증, 시세, 분봉 API
         kis_ws/     # KIS WebSocket 프로토콜 및 클라이언트
@@ -34,6 +35,9 @@
         server/     # 라우터, 런타임, HTTP/WS 핸들러
       .env.example
       Cargo.toml
+
+    config/
+      nicknames.json  # 운영자가 관리하는 채팅 별칭 단어 및 번호 범위
 
     frontend/
       src/
@@ -75,6 +79,8 @@
     Copy-Item .env.example .env
 
 backend/.env에 KIS 앱 키·시크릿, 계좌 정보, Supabase URL 및 키, JWT Secret 등을 실제 환경에 맞게 입력합니다. 변수 이름과 설명은 backend/.env.example을 기준으로 확인하세요. Service Role Key와 JWT Secret은 백엔드 전용 비밀 값이며 프론트엔드에 넣지 않습니다.
+
+채팅 별칭은 저장소 루트 `config/nicknames.json`에서 읽습니다. 운영 목록을 변경하면 백엔드를 재시작/재배포해야 반영되며, 설정이 없거나 유효하지 않으면 백엔드가 시작되지 않습니다. 신뢰 proxy 뒤에서 운영할 때는 `TRUSTED_PROXY_IPS`를 설정하고 proxy가 `X-Forwarded-For`를 안전하게 덮어쓰도록 구성하세요.
 
 ### Frontend
 
@@ -136,6 +142,7 @@ Docker Desktop을 실행한 후 Redis 컨테이너를 시작합니다. 최초 �
 ## 8. API 및 운영 참고
 
 - 시세 API와 브라우저 WebSocket 경로는 백엔드 라우터에서 관리합니다.
+- Phase 1에서는 비인증 `POST /api/chat/ticket`으로 임시 채팅 티켓/별칭을 발급합니다. WebSocket fan-out과 채팅 UI는 아직 구현되지 않았습니다.
 - 분석 글·뉴스 API는 인증이 필요하며, 관리자 변경 API는 관리자 권한 검증을 거칩니다.
 - 콘텐츠 보존·삭제 정책, 인증 및 데이터 모델의 상세 설계는 DESIGN.md를 참고하세요.
 - 주말/휴장일의 최근 거래일 차트 표시 정책은 DESIGN.md에 미확정 안건으로 기록되어 있습니다. 합의 전에는 날짜 조회 정책을 임의로 변경하지 않습니다.

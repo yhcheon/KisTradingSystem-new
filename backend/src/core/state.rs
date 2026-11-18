@@ -3,6 +3,7 @@
 // 설명: Axum 핸들러가 공유하는 AppState 및 외부 인증 설정
 // ============================================================
 
+use crate::chat::ChatService;
 use crate::core::candles::CandleStore;
 use crate::core::db::SupabaseClient;
 use crate::kis_ws::RealtimeTick;
@@ -35,4 +36,5 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub candles: Arc<Mutex<CandleStore>>,
     pub supabase: SupabaseClient,
+    pub chat: ChatService,
 }

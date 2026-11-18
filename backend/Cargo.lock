@@ -144,6 +144,7 @@ dependencies = [
  "encoding_rs",
  "futures-util",
  "jsonwebtoken",
+ "rand",
  "redis",
  "reqwest",
  "serde",

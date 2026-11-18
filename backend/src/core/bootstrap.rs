@@ -13,6 +13,10 @@ use crate::core::state::{AppState, JwtConfig, KisCredentials};
 
 /// 외부 의존성을 초기화하고 HTTP 서버에서 공유할 AppState를 구성합니다.
 pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
+    // Chat configuration is validated before connecting to external services.
+    let chat = crate::chat::ChatService::load_from_env()?;
+    chat.spawn_cleanup_task();
+
     // Redis
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
@@ -73,8 +77,15 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
             night_symbol
         );
         match kis::get_futures_price_for_market(
-            &http_client, &app_key, &app_secret, &access_token, "CM", night_symbol
-        ).await {
+            &http_client,
+            &app_key,
+            &app_secret,
+            &access_token,
+            "CM",
+            night_symbol,
+        )
+        .await
+        {
             Ok(price) => tracing::info!(
                 "야간선물 REST 조회 성공: code={}, name={}, price={}, change={}, change_rate={}, volume={}",
                 night_symbol,
@@ -86,7 +97,8 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
             ),
             Err(error) => tracing::warn!(
                 "야간선물 REST 조회 실패: market=CM, code={}, error={}",
-                night_symbol, error
+                night_symbol,
+                error
             ),
         }
     }
@@ -174,5 +186,6 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         http_client,
         candles: candle_store,
         supabase,
+        chat,
     })
 }
