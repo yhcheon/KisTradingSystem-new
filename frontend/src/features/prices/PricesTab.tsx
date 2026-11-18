@@ -111,7 +111,7 @@ export default function PricesTab({ activePage }: PricesTabProps) {
         aria-labelledby="chat-tab"
         hidden={activePage !== 'chat'}
       >
-        <ChatPage />
+        <ChatPage active={activePage === 'chat'} />
       </div>
     </div>
   );
