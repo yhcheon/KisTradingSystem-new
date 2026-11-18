@@ -145,7 +145,9 @@ mod tests {
                     command: "가".to_string(),
                     aliases: vec!["가다".to_string()],
                     template: "{nickname}님이{argument} 갑니다.".to_string(),
-                    template_no_arg: "{nickname}님이 갑니다.".to_string(),\n                    template_target: Some("{nickname}님이 {target}님 쪽으로{argument} 갑니다.".to_string()),\n                    template_target_no_arg: Some("{nickname}님이 {target}님 쪽으로 갑니다.".to_string()),
+                    template_no_arg: "{nickname}님이 갑니다.".to_string(),
+                    template_target: Some("{nickname}님이 {target}님 쪽으로{argument} 갑니다.".to_string()),
+                    template_target_no_arg: Some("{nickname}님이 {target}님 쪽으로 갑니다.".to_string()),
                 },
             ),
         ])
@@ -157,6 +159,8 @@ mod tests {
             aliases: vec!["웃음".to_string()],
             template: "{nickname}님이{argument} 웃습니다. ^^".to_string(),
             template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),
+            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),
+            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),
         }
     }
 
@@ -196,7 +200,9 @@ mod tests {
             command: "웃".to_string(),
             aliases: Vec::new(),
             template: "{nickname}{argument}".to_string(),
-            template_no_arg: "{nickname}".to_string(),\n            template_target: None,\n            template_target_no_arg: None,
+            template_no_arg: "{nickname}".to_string(),
+            template_target: None,
+            template_target_no_arg: None,
         };
         assert_eq!(
             render_social_action(&short_action, "n", Some(&"가".repeat(499))),
