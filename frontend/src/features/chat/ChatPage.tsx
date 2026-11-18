@@ -286,7 +286,7 @@ function usePublicChat() {
   };
 }
 
-export default function ChatPage() {
+export default function ChatPage({ active }: { active: boolean }) {
   const {
     connectionError,
     connectionClosed,
@@ -307,9 +307,10 @@ export default function ChatPage() {
   const commandOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
+    if (!active) return;
     const list = messageListRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [messages]);
+  }, [active, messages]);
 
   useEffect(() => {
     let disposed = false;
