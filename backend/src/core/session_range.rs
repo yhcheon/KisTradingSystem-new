@@ -82,8 +82,40 @@ impl SessionRangeMonitor {
 
     /// KIS WebSocket 구독 요청이 완료된 첫 시각을 기록합니다. 재연결 때는 최초 시각을 유지합니다.
     pub fn mark_feed_ready(&mut self) {
+        let now = Utc::now();
         if self.started_at.is_none() {
-            self.started_at = Some(Utc::now());
+            self.started_at = Some(now);
+        } else {
+            self.invalidate_if_collecting(now);
+        }
+    }
+
+    /// 기준 구간 중 WebSocket이 끊기면 불완전한 레인지를 폐기합니다.
+    pub fn mark_feed_disconnected(&mut self) {
+        self.invalidate_if_collecting(Utc::now());
+    }
+
+    fn invalidate_if_collecting(&mut self, now_utc: DateTime<Utc>) {
+        let now = now_utc.with_timezone(&chrono_tz::Asia::Seoul);
+        let date = now.date_naive().format("%Y%m%d").to_string();
+        let hhmm = format!("{:02}{:02}", now.hour(), now.minute());
+
+        if hhmm >= "0845" && hhmm < "0930" {
+            if self.day.date.as_deref() != Some(date.as_str()) {
+                self.day = SessionState::new(&date, true);
+            }
+            self.day.eligible = false;
+            self.day.high = None;
+            self.day.low = None;
+        }
+
+        if hhmm >= "1800" && hhmm < "1845" {
+            if self.night.date.as_deref() != Some(date.as_str()) {
+                self.night = SessionState::new(&date, true);
+            }
+            self.night.eligible = false;
+            self.night.high = None;
+            self.night.low = None;
         }
     }
 
