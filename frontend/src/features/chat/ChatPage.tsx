@@ -266,20 +266,33 @@ export default function ChatPage() {
         {messages.length === 0 ? (
           <li className="chat-empty">새 메시지를 기다리는 중입니다.</li>
         ) : (
-          messages.map((message) => (
-            <li className="chat-message" key={message.id}>
-              <div className="chat-message-meta">
-                <strong>{message.nickname}</strong>
-                <time dateTime={message.sent_at}>{formatTime(message.sent_at)}</time>
-              </div>
-              <p>{message.text}</p>
-            </li>
-          ))
+          messages.map((message, index) => {
+            const isContinuation =
+              index > 0 && messages[index - 1]?.nickname === message.nickname;
+
+            return (
+              <li
+                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}`}
+                key={message.id}
+              >
+                <div className="chat-message-meta">
+                  {!isContinuation && <strong>{message.nickname}</strong>}
+                  <time dateTime={message.sent_at}>{formatTime(message.sent_at)}</time>
+                </div>
+                <p>{message.text}</p>
+              </li>
+            );
+          })
         )}
       </ol>
 
       <form className="chat-composer" onSubmit={handleSubmit}>
-        <label htmlFor="chat-message-input">메시지</label>
+        <span className="chat-composer-nickname">
+          {nickname || '닉네임 발급 중...'}
+        </span>
+        <label className="chat-visually-hidden" htmlFor="chat-message-input">
+          메시지
+        </label>
         <input
           id="chat-message-input"
           value={text}

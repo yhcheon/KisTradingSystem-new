@@ -649,6 +649,10 @@ footer {
   overflow-wrap: anywhere;
 }
 
+.chat-message-continuation {
+  margin-top: -6px;
+}
+
 .chat-message-meta strong {
   color: #bfdbfe;
 }
@@ -661,13 +665,29 @@ footer {
 
 .chat-composer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
 }
 
-.chat-composer label {
-  color: var(--text-muted);
+.chat-composer-nickname {
+  min-width: 0;
+  max-width: min(35vw, 180px);
+  overflow: hidden;
+  color: #bfdbfe;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .chat-composer input {
@@ -711,10 +731,7 @@ footer {
   }
 
   .chat-composer {
-    grid-template-columns: 1fr auto;
-  }
-
-  .chat-composer label {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    gap: 8px;
   }
 }
