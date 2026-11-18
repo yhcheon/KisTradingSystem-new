@@ -48,7 +48,7 @@ export default function PricesTab({ activePage }: PricesTabProps) {
   })();
 
   return (
-    <main className="layout">
+    <div className="layout">
       <aside className="sidebar">
         <PriceCard
           title="정규선물"
@@ -113,6 +113,6 @@ export default function PricesTab({ activePage }: PricesTabProps) {
       >
         <ChatPage />
       </div>
-    </main>
+    </div>
   );
 }
