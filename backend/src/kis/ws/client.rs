@@ -1,5 +1,5 @@
 // ============================================================
-// 파일명: kis_ws/client.rs
+// 파일명: kis/ws/client.rs
 // 설명: KIS 실시간 WebSocket 클라이언트
 //       - approval_key로 KIS WS 접속, 정규/야간 선물 구독
 //       - 체결 수신 시 3곳에 전달:
@@ -179,5 +179,3 @@ async fn connect_and_listen(
     }
     Ok(())
 }
-
-

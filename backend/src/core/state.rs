@@ -7,7 +7,7 @@ use crate::chat::ChatService;
 use crate::core::candles::CandleStore;
 use crate::core::session_range::SessionRangeMonitor;
 use crate::core::db::SupabaseClient;
-use crate::kis_ws::RealtimeTick;
+use crate::kis::ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::Arc;
 use tokio::sync::{Mutex, broadcast};

@@ -4,7 +4,7 @@
 // ============================================================
 
 use crate::core::session_range::RangeMonitorSnapshot;
-use crate::kis_ws::RealtimeTick;
+use crate::kis::ws::RealtimeTick;
 use serde_json::json;
 
 /// 실시간 체결 데이터와 최신 세션 레인지 상태를 브라우저 메시지로 변환합니다.

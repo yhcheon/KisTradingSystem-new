@@ -6,7 +6,7 @@
 //       - Supabase, KIS WebSocket, AppState 구성
 // ============================================================
 
-use crate::{core, kis, kis_ws, market};
+use crate::{core, kis, market};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -144,7 +144,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         candle_store.clone(),
     );
 
-    let (ws_tx, _) = tokio::sync::broadcast::channel::<kis_ws::RealtimeTick>(256);
+    let (ws_tx, _) = tokio::sync::broadcast::channel::<kis::ws::RealtimeTick>(256);
     let ws_symbols = vec![regular.code.clone(), mini.code.clone()];
     {
         let tx = ws_tx.clone();
@@ -153,7 +153,16 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         let ws_session_range = session_range.clone();
         let ws_price_cache = price_cache.clone();
         tokio::spawn(async move {
-            kis_ws::run(key, ws_symbols, night_symbols, tx, store, ws_session_range, ws_price_cache).await;
+            kis::ws::run(
+                key,
+                ws_symbols,
+                night_symbols,
+                tx,
+                store,
+                ws_session_range,
+                ws_price_cache,
+            )
+            .await;
         });
     }
     tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
