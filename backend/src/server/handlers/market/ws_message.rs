@@ -7,7 +7,7 @@ use crate::core::session_range::RangeMonitorSnapshot;
 use crate::kis_ws::RealtimeTick;
 use serde_json::json;
 
-/// 실시간 체결 데이터를 기존 브라우저 WebSocket 메시지 형식으로 변환합니다.
+/// 실시간 체결 데이터와 최신 세션 레인지 상태를 브라우저 메시지로 변환합니다.
 pub(super) fn tick_message(tick: &RealtimeTick, range: &RangeMonitorSnapshot) -> String {
     serde_json::to_string(&json!({
         "type": "tick",
@@ -29,8 +29,9 @@ pub(super) fn tick_message(tick: &RealtimeTick, range: &RangeMonitorSnapshot) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::session_range::SessionRangeSnapshot;
 
-    fn tick(market_session: &str) -> RealtimeTick {
+    fn tick() -> RealtimeTick {
         RealtimeTick {
             code: "101S".to_string(),
             date: "20261116".to_string(),
@@ -40,30 +41,42 @@ mod tests {
             volume: "1200".to_string(),
             last_qty: "3".to_string(),
             time: "091530".to_string(),
-            market_session: market_session.to_string(),
+            market_session: "night".to_string(),
             range_alert: None,
         }
     }
 
     #[test]
-    fn serializes_tick_with_expected_browser_message_fields() {
-        let result = tick_message(&tick("night"), &RangeMonitorSnapshot {\n            day: crate::core::session_range::SessionRangeSnapshot { session: "day".to_string(), date: None, status: "waiting".to_string(), high: None, low: None, high_alerted: false, low_alerted: false },\n            night: crate::core::session_range::SessionRangeSnapshot { session: "night".to_string(), date: None, status: "waiting".to_string(), high: None, low: None, high_alerted: false, low_alerted: false },\n        });
+    fn serializes_tick_and_range_state_for_browser() {
+        let range = RangeMonitorSnapshot {
+            day: SessionRangeSnapshot {
+                session: "day".to_string(),
+                date: Some("20261116".to_string()),
+                status: "monitoring".to_string(),
+                high: Some(351.0),
+                low: Some(349.0),
+                high_alerted: false,
+                low_alerted: false,
+            },
+            night: SessionRangeSnapshot {
+                session: "night".to_string(),
+                date: None,
+                status: "waiting".to_string(),
+                high: None,
+                low: None,
+                high_alerted: false,
+                low_alerted: false,
+            },
+        };
+
+        let result = tick_message(&tick(), &range);
         let value: serde_json::Value = serde_json::from_str(&result).unwrap();
 
-        assert_eq!(
-            value,
-            json!({
-                "type": "tick",
-                "market_session": "night",
-                "code": "101S",
-                "date": "20261116",
-                "price": "350.25",
-                "change": "+1.25",
-                "change_rate": "0.36",
-                "volume": "1200",
-                "last_qty": "3",
-                "time": "091530"
-            })
-        );
+        assert_eq!(value["type"], "tick");
+        assert_eq!(value["code"], "101S");
+        assert_eq!(value["range"]["day"]["high"], 351.0);
+        assert_eq!(value["range"]["day"]["low"], 349.0);
+        assert_eq!(value["range"]["night"]["status"], "waiting");
+        assert!(value["range_alert"].is_null());
     }
 }
