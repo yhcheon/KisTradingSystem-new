@@ -88,6 +88,42 @@ pub(super) fn render_social_action(
     Ok(rendered)
 }
 
+pub(super) fn render_target_social_action(
+    action: &SocialActionConfig,
+    nickname: &str,
+    target: &str,
+    argument: Option<&str>,
+) -> Result<String, ChatError> {
+    let (template, has_argument) = match argument.filter(|value| !value.is_empty()) {
+        Some(_) => (
+            action.template_target.as_deref().ok_or(ChatError::ServiceUnavailable)?,
+            true,
+        ),
+        None => (
+            action.template_target_no_arg.as_deref().ok_or(ChatError::ServiceUnavailable)?,
+            false,
+        ),
+    };
+    let rendered = template
+        .replace("{nickname}", nickname)
+        .replace("{target}", target)
+        .replace(
+            "{argument}",
+            if has_argument {
+                &format!(" {}", argument.unwrap_or_default())
+            } else {
+                ""
+            },
+        );
+    if rendered.chars().any(char::is_control) {
+        return Err(ChatError::InvalidMessage);
+    }
+    if rendered.chars().count() > MAX_MESSAGE_CHARACTERS {
+        return Err(ChatError::MessageTooLong);
+    }
+    Ok(rendered)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,7 +136,7 @@ mod tests {
                     command: "웃".to_string(),
                     aliases: vec!["웃음".to_string()],
                     template: "{nickname}님이{argument} 웃습니다.".to_string(),
-                    template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),
+                    template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),\n            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),\n            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),\n                    template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),\n                    template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),
                 },
             ),
             (
@@ -109,7 +145,7 @@ mod tests {
                     command: "가".to_string(),
                     aliases: vec!["가다".to_string()],
                     template: "{nickname}님이{argument} 갑니다.".to_string(),
-                    template_no_arg: "{nickname}님이 갑니다.".to_string(),
+                    template_no_arg: "{nickname}님이 갑니다.".to_string(),\n                    template_target: Some("{nickname}님이 {target}님 쪽으로{argument} 갑니다.".to_string()),\n                    template_target_no_arg: Some("{nickname}님이 {target}님 쪽으로 갑니다.".to_string()),
                 },
             ),
         ])
@@ -160,7 +196,7 @@ mod tests {
             command: "웃".to_string(),
             aliases: Vec::new(),
             template: "{nickname}{argument}".to_string(),
-            template_no_arg: "{nickname}".to_string(),
+            template_no_arg: "{nickname}".to_string(),\n            template_target: None,\n            template_target_no_arg: None,
         };
         assert_eq!(
             render_social_action(&short_action, "n", Some(&"가".repeat(499))),
