@@ -282,7 +282,7 @@
       ],
       "template": "{nickname}님이{argument} 응원합니다!",
       "template_no_arg": "{nickname}님이 응원합니다!",
-      "template_target": "{nickname}님이 {target}님을 응원합니다!",
+      "template_target": "{nickname}님이 {target}님을{argument} 응원합니다!",
       "template_target_no_arg": "{nickname}님이 {target}님을 응원합니다!"
     },
     "congratulate": {
