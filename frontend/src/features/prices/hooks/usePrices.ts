@@ -25,7 +25,7 @@ export function usePrices(interval: string, selected: SymbolKind, backendReady: 
   });
 
   useEffect(() => {
-    if (!backendReady) return;
+    if (!backendReady || data?.regular?.ok || data?.mini?.ok) return;
     const controller = new AbortController();
 
     const fetchPrices = async () => {
@@ -57,7 +57,7 @@ export function usePrices(interval: string, selected: SymbolKind, backendReady: 
 
     void fetchPrices();
     return () => controller.abort();
-  }, [backendReady]);
+  }, [backendReady, data]);
 
   const selectedResult = selected === 'regular' ? data?.regular : data?.mini;
   const selectedCode =
