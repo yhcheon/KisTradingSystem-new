@@ -18,7 +18,7 @@ export default function App() {
   const { session, authLoading } = useAuthSession();
   const backendHealth = useBackendHealth();
   const backendReady = backendHealth === 'ready';
-  const [activePage, setActivePage] = useState<'prices' | 'chat'>('prices');
+  const [activePage, setActivePage] = useState<'prices' | 'chat'>('chat');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [isMarketConnected, setMarketConnected] = useState(false);
   const previousSessionRef = useRef(session);
