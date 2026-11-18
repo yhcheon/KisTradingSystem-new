@@ -18,7 +18,8 @@ function toNumber(value: string): number {
 }
 
 function formatSignedAmount(value: number): string {
-  const amount = Math.abs(value).toFixed(2).padStart(6, '0');
+  const [integer, decimal] = Math.abs(value).toFixed(2).split('.');
+  const amount = `${integer.padStart(3, ' ')}.${decimal}`;
   return value > 0 ? `+${amount}` : value < 0 ? `-${amount}` : amount;
 }
 
