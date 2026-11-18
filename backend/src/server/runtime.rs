@@ -88,8 +88,10 @@ where
         result = &mut initialize => {
             match result {
                 Ok(state) => {
+                    let regular = state.regular.name.clone();
+                    let mini = state.mini.name.clone();
                     let app = super::router::build(state);
-                    startup.mark_ready(app).await;
+                    startup.mark_ready(app, regular, mini).await;
                     tracing::info!("Backend 초기화 완료 - API 요청 처리 준비 완료");
                 }
                 Err(error) => {
