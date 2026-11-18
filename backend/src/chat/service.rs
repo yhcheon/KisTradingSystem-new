@@ -1,6 +1,9 @@
 use super::{
     ChatError,
-    config::{NicknameConfig, nickname_config_path, trusted_proxy_ips_from_env},
+    config::{
+        ChatCommandConfig, NicknameConfig, chat_commands_config_path, nickname_config_path,
+        trusted_proxy_ips_from_env,
+    },
     message::{ChatMessage, create_message},
 };
 use chrono::{NaiveDate, Utc};
@@ -32,6 +35,7 @@ pub struct ChatService {
 
 struct ChatServiceInner {
     nicknames: NicknameConfig,
+    commands: ChatCommandConfig,
     trusted_proxies: HashSet<IpAddr>,
     state: Mutex<ChatState>,
     messages: broadcast::Sender<ChatMessage>,
@@ -81,23 +85,35 @@ pub struct ChatConnection {
 
 impl ChatService {
     pub fn load_from_env() -> Result<Self, ChatError> {
-        let path = nickname_config_path()?;
-        let nicknames = NicknameConfig::from_file(&path)?;
+        let nickname_path = nickname_config_path()?;
+        let nicknames = NicknameConfig::from_file(&nickname_path)?;
+        let command_path = chat_commands_config_path()?;
+        let commands = ChatCommandConfig::from_file(&command_path)?;
         let trusted_proxies = trusted_proxy_ips_from_env()?;
         tracing::info!(
-            path = %path.display(),
+            path = %nickname_path.display(),
             nickname_count = nicknames.words.len(),
             "chat nickname config loaded"
         );
+        tracing::info!(
+            path = %command_path.display(),
+            command_count = commands.len(),
+            "chat command config loaded"
+        );
 
-        Ok(Self::new(nicknames, trusted_proxies))
+        Ok(Self::new(nicknames, commands, trusted_proxies))
     }
 
-    fn new(nicknames: NicknameConfig, trusted_proxies: HashSet<IpAddr>) -> Self {
+    fn new(
+        nicknames: NicknameConfig,
+        commands: ChatCommandConfig,
+        trusted_proxies: HashSet<IpAddr>,
+    ) -> Self {
         let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
         Self {
             inner: Arc::new(ChatServiceInner {
                 nicknames,
+                commands,
                 trusted_proxies,
                 state: Mutex::new(ChatState::default()),
                 messages,
@@ -108,7 +124,10 @@ impl ChatService {
     #[cfg(test)]
     pub(crate) fn new_for_test(nickname_json: &str) -> Self {
         let nicknames = NicknameConfig::from_json(nickname_json).unwrap();
-        Self::new(nicknames, HashSet::new())
+        let commands =
+            ChatCommandConfig::from_json(r#"{"version":1,"commands":{"/test":"{nickname} test"}}"#)
+                .unwrap();
+        Self::new(nicknames, commands, HashSet::new())
     }
 
     pub fn issue_ticket(
@@ -281,6 +300,11 @@ impl ChatService {
         text: String,
     ) -> Result<(), ChatError> {
         connection.check_message_rate_limit()?;
+        let text = self
+            .inner
+            .commands
+            .expand(&text, connection.nickname())
+            .unwrap_or(text);
         let message = create_message(connection.nickname(), text);
         self.inner
             .messages
@@ -466,6 +490,9 @@ mod tests {
     use chrono::TimeZone;
     use std::{net::Ipv4Addr, str::FromStr};
 
+    const TEST_COMMANDS: &str =
+        r#"{"version":1,"commands":{"/wave":"{nickname} waves","/hello":"{nickname} says hello"}}"#;
+
     fn service(words: &[&str]) -> ChatService {
         let words = words
             .iter()
@@ -473,7 +500,15 @@ mod tests {
             .collect::<Vec<_>>()
             .join(",");
         let json = format!(r#"{{"words":[{words}]}}"#);
-        ChatService::new(NicknameConfig::from_json(&json).unwrap(), HashSet::new())
+        service_with_commands(&json, TEST_COMMANDS)
+    }
+
+    fn service_with_commands(nickname_json: &str, command_json: &str) -> ChatService {
+        ChatService::new(
+            NicknameConfig::from_json(nickname_json).unwrap(),
+            ChatCommandConfig::from_json(command_json).unwrap(),
+            HashSet::new(),
+        )
     }
 
     fn ip(last: u8) -> IpAddr {
@@ -513,6 +548,51 @@ mod tests {
 
         let replacement = service.issue_ticket_at(ip(1), now + TICKET_TTL).unwrap();
         assert_eq!(replacement.nickname, "only-2");
+    }
+
+    #[test]
+    fn expands_an_exact_command_using_the_server_assigned_nickname() {
+        let service = service(&["guest"]);
+        let mut messages = service.subscribe_messages();
+        let ticket = service.issue_ticket(ip(1), None).unwrap();
+        let connection = service.consume_ticket(&ticket.ticket).unwrap();
+
+        service
+            .publish_message(&connection, "/wave".to_string())
+            .unwrap();
+
+        let message = messages.try_recv().unwrap();
+        assert_eq!(message.nickname, "guest-1");
+        assert_eq!(message.text, "guest-1 waves");
+    }
+
+    #[test]
+    fn does_not_expand_a_command_prefix_or_unknown_command() {
+        let service = service(&["guest"]);
+        let mut messages = service.subscribe_messages();
+        let ticket = service.issue_ticket(ip(1), None).unwrap();
+        let connection = service.consume_ticket(&ticket.ticket).unwrap();
+
+        for text in ["/wave now", "/unknown"] {
+            service
+                .publish_message(&connection, text.to_string())
+                .unwrap();
+            assert_eq!(messages.try_recv().unwrap().text, text);
+        }
+    }
+
+    #[test]
+    fn passes_ordinary_messages_through_unchanged() {
+        let service = service(&["guest"]);
+        let mut messages = service.subscribe_messages();
+        let ticket = service.issue_ticket(ip(1), None).unwrap();
+        let connection = service.consume_ticket(&ticket.ticket).unwrap();
+
+        service
+            .publish_message(&connection, "hello everyone".to_string())
+            .unwrap();
+
+        assert_eq!(messages.try_recv().unwrap().text, "hello everyone");
     }
 
     #[test]
@@ -712,6 +792,7 @@ mod tests {
         let proxy_ip = IpAddr::from_str("127.0.0.1").unwrap();
         let trusted = ChatService::new(
             NicknameConfig::from_json(r#"{"words":["word"]}"#).unwrap(),
+            ChatCommandConfig::from_json(TEST_COMMANDS).unwrap(),
             HashSet::from([proxy_ip]),
         );
         assert_eq!(
