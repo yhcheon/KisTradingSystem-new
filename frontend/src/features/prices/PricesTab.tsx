@@ -18,7 +18,7 @@ export default function PricesTab() {
     selected,
   );
 
-  useMarketWebSocket({
+  const isMarketConnected = useMarketWebSocket({
     interval,
     selectedCode,
     setData,
@@ -60,7 +60,15 @@ export default function PricesTab() {
 
       <section className="chart-area">
         <div className="chart-header">
-          <h2 className="chart-title">{chartTitle}</h2>
+          <div className="chart-heading">
+            <h2 className="chart-title">{chartTitle}</h2>
+            <span
+              className={`market-websocket-status ${isMarketConnected ? 'connected' : 'closed'}`}
+              role="status"
+            >
+              {isMarketConnected ? '연결중' : '연결종료'}
+            </span>
+          </div>
           <div className="interval-buttons">
             {INTERVALS.map((item) => (
               <button
