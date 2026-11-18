@@ -85,9 +85,36 @@ async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: Cha
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
+            },
+            count = presence.recv() => {
+                match count {
+                    Ok(online_count) => {
+                        if send_presence(&mut socket, online_count).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        if send_presence(&mut socket, chat.online_count()).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
             }
         }
     }
+}
+
+async fn send_presence(socket: &mut WebSocket, online_count: usize) -> Result<(), ()> {
+    let payload = serde_json::json!({
+        "type": "presence",
+        "online_count": online_count,
+    });
+    let payload = serde_json::to_string(&payload).map_err(|_| ())?;
+    tokio::time::timeout(SEND_TIMEOUT, socket.send(Message::Text(payload.into())))
+        .await
+        .map_err(|_| ())?
+        .map_err(|_| ())
 }
 
 async fn send_message(socket: &mut WebSocket, message: &ChatMessage) -> Result<(), ()> {
