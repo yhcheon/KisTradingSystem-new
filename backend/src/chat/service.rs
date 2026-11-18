@@ -5,7 +5,7 @@ use super::{
         trusted_proxy_ips_from_env,
     },
     message::{ChatMessage, create_message},
-    social::{parse_social_action, render_social_action},
+    social::{parse_social_action, render_social_action, render_target_social_action},
 };
 use chrono::{NaiveDate, Utc};
 use rand::Rng;
@@ -39,7 +39,7 @@ struct ChatServiceInner {
     commands: ChatCommandConfig,
     trusted_proxies: HashSet<IpAddr>,
     state: Mutex<ChatState>,
-    messages: broadcast::Sender<ChatMessage>,
+    messages: broadcast::Sender<ChatMessage>,\n    presence: broadcast::Sender<usize>,
 }
 
 #[derive(Default)]
@@ -124,7 +124,7 @@ impl ChatService {
         commands: ChatCommandConfig,
         trusted_proxies: HashSet<IpAddr>,
     ) -> Self {
-        let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
+        let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);\n        let (presence, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
         Self {
             inner: Arc::new(ChatServiceInner {
                 nicknames,
@@ -269,9 +269,12 @@ impl ChatService {
             connection_id,
             ConnectionRecord {
                 client_ip: record.client_ip,
+                alias: record.alias.clone(),
                 message_attempts: VecDeque::new(),
             },
         );
+        let online_count = state.connections.len();
+        let _ = self.inner.presence.send(online_count);
 
         Ok(ChatConnection {
             inner: Arc::downgrade(&self.inner),
@@ -356,14 +359,35 @@ impl ChatService {
                 .actions
                 .get(&matched.action_id)
                 .ok_or(ChatError::ServiceUnavailable)?;
-            (
+            let target_match = matched.argument.as_deref().and_then(|argument| {
+                let state = self.inner.state.lock().ok()?;
+                state.connections.values().find_map(|online| {
+                    let remainder = argument.strip_prefix(&online.alias)?;
+                    if remainder.is_empty() {
+                        Some((online.alias.clone(), None))
+                    } else if remainder.chars().next().is_some_and(char::is_whitespace) {
+                        let rest = remainder.trim_start();
+                        Some((online.alias.clone(), (!rest.is_empty()).then(|| rest.to_string())))
+                    } else {
+                        None
+                    }
+                })
+            });
+            let rendered = if let Some((target, argument)) = target_match {
+                render_target_social_action(
+                    action,
+                    connection.nickname(),
+                    &target,
+                    argument.as_deref(),
+                )?
+            } else {
                 render_social_action(
                     action,
                     connection.nickname(),
                     matched.argument.as_deref(),
-                )?,
-                Some(matched.action_id),
-            )
+                )?
+            };
+            (rendered, Some(matched.action_id))
         } else {
             (text, None)
         };
@@ -431,13 +455,21 @@ impl Drop for ChatConnection {
             Ok(state) => state,
             Err(poisoned) => poisoned.into_inner(),
         };
-        if let Some(connection) = state.connections.remove(&self.id) {
+        let removed = if let Some(connection) = state.connections.remove(&self.id) {
             release_alias(&mut state, &self.alias);
             if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
                 limits.active_connections = limits.active_connections.saturating_sub(1);
             }
-        }
+            true
+        } else {
+            false
+        };
         prune_ip_limits(&mut state);
+        let online_count = state.connections.len();
+        drop(state);
+        if removed {
+            let _ = inner.presence.send(online_count);
+        }
     }
 }
 
