@@ -25,7 +25,7 @@ struct RawNicknameConfig {
 #[derive(Clone, Debug)]
 pub(super) struct ChatCommandConfig {
     commands: HashMap<String, String>,
-    actions: HashMap<String, SocialActionConfig>,
+    pub(super) actions: HashMap<String, SocialActionConfig>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
