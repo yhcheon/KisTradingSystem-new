@@ -82,7 +82,7 @@ function SessionStats({ quote, baseLabel, baseValue }: {
         return (
           <div className="session-stat-row" key={row.label}>
             <span className="label">{row.label}</span>
-            <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : direction}`}>
+            <span className={`value ${direction}`}>
               {formatPrice(row.value)}
             </span>
             {isComparedValue && <DiffValue value={row.value} base={baseValue!} />}

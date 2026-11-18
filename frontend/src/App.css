@@ -535,14 +535,6 @@ footer {
   font-variant-numeric: tabular-nums;
 }
 
-.session-stat-row .value.high {
-  color: var(--color-up);
-}
-
-.session-stat-row .value.low {
-  color: var(--color-down);
-}
-
 .session-message {
   color: var(--text-muted);
   font-size: 12px;
