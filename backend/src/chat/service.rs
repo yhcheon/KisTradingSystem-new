@@ -39,7 +39,8 @@ struct ChatServiceInner {
     commands: ChatCommandConfig,
     trusted_proxies: HashSet<IpAddr>,
     state: Mutex<ChatState>,
-    messages: broadcast::Sender<ChatMessage>,\n    presence: broadcast::Sender<usize>,
+    messages: broadcast::Sender<ChatMessage>,
+    presence: broadcast::Sender<usize>,
 }
 
 #[derive(Default)]
@@ -61,6 +62,7 @@ struct TicketRecord {
 
 struct ConnectionRecord {
     client_ip: IpAddr,
+    alias: String,
     message_attempts: VecDeque<Instant>,
 }
 
@@ -124,7 +126,8 @@ impl ChatService {
         commands: ChatCommandConfig,
         trusted_proxies: HashSet<IpAddr>,
     ) -> Self {
-        let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);\n        let (presence, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
+        let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
+        let (presence, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
         Self {
             inner: Arc::new(ChatServiceInner {
                 nicknames,
@@ -132,6 +135,7 @@ impl ChatService {
                 trusted_proxies,
                 state: Mutex::new(ChatState::default()),
                 messages,
+                presence,
             }),
         }
     }
@@ -310,6 +314,14 @@ impl ChatService {
 
     pub fn subscribe_messages(&self) -> broadcast::Receiver<ChatMessage> {
         self.inner.messages.subscribe()
+    }
+
+    pub fn subscribe_presence(&self) -> broadcast::Receiver<usize> {
+        self.inner.presence.subscribe()
+    }
+
+    pub fn online_count(&self) -> usize {
+        self.inner.state.lock().map(|state| state.connections.len()).unwrap_or(0)
     }
 
     pub fn list_commands(&self) -> Vec<ChatCommandDefinition> {
