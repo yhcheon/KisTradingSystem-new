@@ -267,7 +267,6 @@ export default function ChatPage() {
       <header className="chat-header">
         <div>
           <h2>공개 채팅</h2>
-          <p>로그인 없이 누구나 참여할 수 있습니다.</p>
         </div>
         <div className="chat-identity">
           <span className={`chat-connection-status ${status}`} role="status">
