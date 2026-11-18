@@ -74,7 +74,11 @@ export default function PricesTab() {
           </div>
         </div>
         {candles.length > 0 ? (
-          <CandleChart data={candles} interval={interval} />
+          <CandleChart
+            data={candles}
+            interval={interval}
+            symbolKey={selectedCode ?? ''}
+          />
         ) : (
           <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
         )}
