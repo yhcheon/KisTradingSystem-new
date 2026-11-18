@@ -80,12 +80,6 @@ export default function PricesTab({ activePage, onMarketConnectionChange }: Pric
         <div className="chart-header">
           <div className="chart-heading">
             <h2 className="chart-title">{chartTitle}</h2>
-            <span
-              className={`market-websocket-status ${isMarketConnected ? 'connected' : 'closed'}`}
-              role="status"
-            >
-              {isMarketConnected ? '연결됨' : '연결 종료'}
-            </span>
           </div>
           <div className="interval-buttons">
             {INTERVALS.map((item) => (
