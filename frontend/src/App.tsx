@@ -12,9 +12,12 @@ import PricesTab from './features/prices/PricesTab';
 import AppHeader from './components/AppHeader';
 import AppModal, { type ActiveModal } from './components/AppModal';
 import './App.css';
+import { useBackendHealth } from './hooks/useBackendHealth';
 
 export default function App() {
   const { session, authLoading } = useAuthSession();
+  const backendHealth = useBackendHealth();
+  const backendReady = backendHealth === 'ready';
   const [activePage, setActivePage] = useState<'prices' | 'chat'>('prices');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [isMarketConnected, setMarketConnected] = useState(false);
@@ -74,7 +77,7 @@ export default function App() {
       />
 
       {/* PricesTab 내부에서 왼쪽 시세와 오른쪽 두 패널을 함께 유지합니다. */}
-      <PricesTab activePage={activePage} onMarketConnectionChange={setMarketConnected} />
+      <PricesTab activePage={activePage} backendReady={backendReady} onMarketConnectionChange={setMarketConnected} />
 
       {!authLoading && (
         <AppModal
