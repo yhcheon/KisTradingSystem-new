@@ -25,24 +25,7 @@ struct RawNicknameConfig {
 #[derive(Clone, Debug)]
 pub(super) struct ChatCommandConfig {
     commands: HashMap<String, String>,
-    matching: Option<SocialMatchingConfig>,
     actions: HashMap<String, SocialActionConfig>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct SocialMatchingConfig {
-    strategy: MatchingStrategy,
-    position: MatchingPosition,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum MatchingStrategy {
-    Token,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum MatchingPosition {
-    Suffix,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,16 +43,7 @@ struct RawChatCommandConfig {
     #[serde(default)]
     commands: HashMap<String, String>,
     #[serde(default)]
-    matching: Option<RawSocialMatchingConfig>,
-    #[serde(default)]
     actions: HashMap<String, RawSocialActionConfig>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawSocialMatchingConfig {
-    strategy: String,
-    position: String,
 }
 
 #[derive(Deserialize)]
@@ -227,37 +201,16 @@ impl ChatCommandConfig {
             ChatError::Configuration(format!("chat command config is invalid JSON: {error}"))
         })?;
 
-        let (matching, actions) = match raw.version {
+        let actions = match raw.version {
             1 => {
-                if raw.matching.is_some() || !raw.actions.is_empty() {
+                if !raw.actions.is_empty() {
                     return Err(ChatError::Configuration(
                         "version 1 chat command config must contain only commands".to_string(),
                     ));
                 }
-                (None, HashMap::new())
+                HashMap::new()
             }
             2 => {
-                let matching = raw.matching.ok_or_else(|| {
-                    ChatError::Configuration(
-                        "version 2 chat command config requires matching".to_string(),
-                    )
-                })?;
-                let strategy = match matching.strategy.as_str() {
-                    "token" => MatchingStrategy::Token,
-                    _ => {
-                        return Err(ChatError::Configuration(
-                            "matching.strategy must be token".to_string(),
-                        ));
-                    }
-                };
-                let position = match matching.position.as_str() {
-                    "suffix" => MatchingPosition::Suffix,
-                    _ => {
-                        return Err(ChatError::Configuration(
-                            "matching.position must be suffix".to_string(),
-                        ));
-                    }
-                };
                 if raw.actions.is_empty() {
                     return Err(ChatError::Configuration(
                         "version 2 chat command config actions must not be empty".to_string(),
@@ -313,10 +266,7 @@ impl ChatCommandConfig {
                         },
                     );
                 }
-                (
-                    Some(SocialMatchingConfig { strategy, position }),
-                    actions,
-                )
+                actions
             }
             _ => {
                 return Err(ChatError::Configuration(
@@ -361,7 +311,6 @@ impl ChatCommandConfig {
 
         Ok(Self {
             commands: raw.commands,
-            matching,
             actions,
         })
     }
@@ -505,7 +454,6 @@ mod tests {
         let config = ChatCommandConfig::from_json(
             r#"{
                 "version":2,
-                "matching":{"strategy":"token","position":"suffix"},
                 "commands":{"/hello":"{nickname} says hello"},
                 "actions":{
                     "laugh":{
@@ -521,10 +469,6 @@ mod tests {
 
         assert_eq!(config.expand("/hello", "guest-1").as_deref(), Some("guest-1 says hello"));
         assert_eq!(config.commands.len(), 1);
-        assert_eq!(config.matching, Some(SocialMatchingConfig {
-            strategy: MatchingStrategy::Token,
-            position: MatchingPosition::Suffix,
-        }));
         let laugh = config.actions.get("laugh").unwrap();
         assert_eq!(laugh.command, "웃");
         assert_eq!(laugh.aliases, ["웃음"]);
@@ -536,8 +480,7 @@ mod tests {
     fn rejects_invalid_v2_matching_actions_and_templates() {
         let cases = [
             r#"{"version":2,"commands":{"/hello":"hello"},"actions":{}}"#,
-            r#"{"version":2,"matching":{"strategy":"substring","position":"suffix"},"commands":{"/hello":"hello"},"actions":{}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"prefix"},"commands":{"/hello":"hello"},"actions":{}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{argument}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","aliases":["웃"],"template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{unknown}","template_no_arg":"{nickname}"}}}"#,
