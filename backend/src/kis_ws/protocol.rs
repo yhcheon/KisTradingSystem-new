@@ -1,3 +1,4 @@
+use crate::core::session_range::RangeAlert;
 use crate::core::time::{previous_calendar_day_yyyymmdd, today_yyyymmdd};
 use tokio::sync::mpsc;
 
@@ -37,6 +38,7 @@ pub struct RealtimeTick {
     pub time: String,
     /// 주간 체결은 "day", KRX 야간 체결은 "night".
     pub market_session: String,
+    pub range_alert: Option<RangeAlert>,
 }
 
 /// 주간(H0IFCNT0) 및 KRX 야간선물(H0MFCNT0) 체결을 공통 Tick으로 변환합니다.
@@ -86,6 +88,7 @@ pub(super) fn parse_tick(text: &str) -> Option<RealtimeTick> {
         last_qty: last_qty.to_string(),
         volume: cumulative_volume.to_string(),
         market_session: if is_night { "night" } else { "day" }.to_string(),
+        range_alert: None,
     })
 }
 
