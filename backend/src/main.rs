@@ -8,6 +8,7 @@
 
 mod auth;
 mod cache;
+pub mod chat;
 mod core;
 mod kis;
 mod kis_ws;

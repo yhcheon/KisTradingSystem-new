@@ -5,6 +5,7 @@
 
 use crate::core::state::AppState;
 use axum::http::{HeaderValue, Method, header};
+use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
 pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
@@ -59,7 +60,12 @@ pub async fn serve(state: AppState) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     tracing::info!("backend listening on {}", bind_addr);
 
-    axum::serve(listener, app).await.map_err(|e| {
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .map_err(|e| {
         tracing::error!("Axum 서버 실행 중 오류: {}", e);
         e
     })?;
