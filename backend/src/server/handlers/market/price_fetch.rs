@@ -59,12 +59,14 @@ pub(super) async fn fetch_one(
                 return Ok(cached);
             }
             Err(error) => {
-                last_error = format!("KIS 호출 실패({}): {}", symbol.code, error);
+                let error_message = error.to_string();
+                drop(error);
+                last_error = format!("KIS 호출 실패({}): {}", symbol.code, error_message);
                 tracing::warn!(
                     "현재가 조회 실패: code={}, attempt={}/3, error={}",
                     symbol.code,
                     attempt,
-                    error
+                    error_message
                 );
                 if attempt < 3 {
                     tokio::time::sleep(Duration::from_millis(400 * attempt as u64)).await;
