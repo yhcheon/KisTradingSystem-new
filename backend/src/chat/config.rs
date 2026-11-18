@@ -533,7 +533,6 @@ mod tests {
 
     #[test]
     fn rejects_invalid_v2_matching_actions_and_templates() {
-        let valid_action = r#""actions":{"laugh":{"command":"웃","aliases":["웃음"],"template":"{nickname}님이{argument} 웃습니다.","template_no_arg":"{nickname}님이 웃습니다."}}"#;
         let cases = [
             r#"{"version":2,"commands":{"/hello":"hello"},"actions":{}}"#,
             r#"{"version":2,"matching":{"strategy":"substring","position":"suffix"},"commands":{"/hello":"hello"},"actions":{}}"#,
@@ -546,7 +545,6 @@ mod tests {
         for json in cases {
             assert!(ChatCommandConfig::from_json(json).is_err(), "expected invalid config: {json}");
         }
-        let _ = valid_action;
     }
 
     #[test]
