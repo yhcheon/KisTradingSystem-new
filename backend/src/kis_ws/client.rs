@@ -6,6 +6,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::core::candles::CandleStore;
+use crate::core::session_range::SessionRangeMonitor;
 
 use super::protocol::{DAY_TR_ID, NIGHT_TR_ID, RealtimeTick, handle_text, parse_tick};
 
@@ -15,6 +16,7 @@ pub async fn run(
     night_symbols: Vec<String>,
     tx: broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
+    session_range: Arc<Mutex<SessionRangeMonitor>>,
 ) {
     loop {
         match connect_and_listen(
@@ -23,6 +25,7 @@ pub async fn run(
             &night_symbols,
             &tx,
             candle_store.clone(),
+            session_range.clone(),
         )
         .await
         {
@@ -63,6 +66,7 @@ async fn connect_and_listen(
     night_symbols: &[String],
     tx: &broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
+    session_range: Arc<Mutex<SessionRangeMonitor>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ws_url = std::env::var("KIS_WS_DOMAIN")
         .unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
@@ -85,7 +89,7 @@ async fn connect_and_listen(
             msg = ws.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
-                        if let Some(tick) = parse_tick(&text) {
+                        if let Some(mut tick) = parse_tick(&text) {
                             if tick.market_session == "night" {
                                 if night_logged < 10 {
                                     tracing::info!(
@@ -99,6 +103,15 @@ async fn connect_and_listen(
                                     );
                                 }
                                 night_logged += 1;
+                            }
+
+                            // 정규선물 틱만 주간/야간 시초 레인지 감시기에 전달합니다.
+                            {
+                                let mut monitor = session_range.lock().await;
+                                let price = tick.price.parse::<f64>().unwrap_or_default();
+                                tick.range_alert = monitor.on_tick(
+                                    &tick.code, &tick.date, &tick.time, &tick.market_session, price,
+                                );
                             }
 
                             // 주간/야간 모두 동일한 CandleStore에 영업일 기준으로 누적합니다.
