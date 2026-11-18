@@ -13,5 +13,5 @@ mod websocket;
 mod ws_message;
 
 pub use candles::candles;
-pub use prices::{health, prices};
+pub use prices::prices;
 pub use websocket::ws_handler;
