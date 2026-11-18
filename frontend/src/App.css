@@ -895,3 +895,18 @@ footer {
     grid-row: 2;
   }
 }
+
+/* 상단 상태는 차트 WebSocket 연결만 반영합니다. */
+.header-actions .market-websocket-status {
+  margin-right: 4px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.header-actions .market-websocket-status.connected {
+  color: var(--color-ok);
+}
+
+.header-actions .market-websocket-status.closed {
+  color: var(--color-down);
+}
