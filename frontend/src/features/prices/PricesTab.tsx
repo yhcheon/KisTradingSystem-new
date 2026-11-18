@@ -3,7 +3,7 @@
 // 설명: 왼쪽 시세 영역과 오른쪽 차트/채팅 패널을 함께 유지하는 메인 화면
 // ============================================================
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PriceCard from '../../PriceCard';
 import CandleChart from '../../CandleChart';
 import ChatPage from '../chat/ChatPage';
@@ -13,9 +13,10 @@ import { INTERVALS, type SymbolKind } from './types';
 
 interface PricesTabProps {
   activePage: 'prices' | 'chat';
+  onMarketConnectionChange: (connected: boolean) => void;
 }
 
-export default function PricesTab({ activePage }: PricesTabProps) {
+export default function PricesTab({ activePage, onMarketConnectionChange }: PricesTabProps) {
   const [interval, setInterval] = useState<string>('1m');
   const [selected, setSelected] = useState<SymbolKind>('regular');
   const { data, setData, candles, setCandles, selectedCode } = usePrices(
@@ -30,6 +31,10 @@ export default function PricesTab({ activePage }: PricesTabProps) {
     setData,
     setCandles,
   });
+
+  useEffect(() => {
+    onMarketConnectionChange(isMarketConnected);
+  }, [isMarketConnected, onMarketConnectionChange]);
 
   const chartTitle = (() => {
     const target = selected === 'regular' ? data?.regular : data?.mini;
@@ -79,7 +84,7 @@ export default function PricesTab({ activePage }: PricesTabProps) {
               className={`market-websocket-status ${isMarketConnected ? 'connected' : 'closed'}`}
               role="status"
             >
-              {isMarketConnected ? '연결중' : '연결종료'}
+              {isMarketConnected ? '연결됨' : '연결 종료'}
             </span>
           </div>
           <div className="interval-buttons">
