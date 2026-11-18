@@ -45,7 +45,7 @@ pub async fn initialize(
 
     // 마스터
     tracing::info!("마스터 파일 다운로드 중");
-    let symbols = match master::download_master_text(http_client).await {
+    let symbols = match kis::master::download_master_text(http_client).await {
         Ok(text) => master::parse_master(&text),
         Err(e) => {
             tracing::error!("마스터 다운로드 실패: {}", e);

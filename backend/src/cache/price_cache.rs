@@ -1,7 +1,7 @@
 // 파일명: cache/price_cache.rs
 // 설명: Redis 없는 메모리 시세 캐시 (TTL 없음 - 부팅 1회 + 체결로 갱신)
 
-use crate::kis_ws::RealtimeTick;
+use crate::kis::ws::RealtimeTick;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

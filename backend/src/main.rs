@@ -10,7 +10,6 @@ mod cache;
 pub mod chat;
 mod core;
 mod kis;
-mod kis_ws;
 mod logging;
 mod market;
 mod master;

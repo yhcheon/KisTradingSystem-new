@@ -29,8 +29,7 @@
         cache/      # Redis 캐시
         chat/       # 익명 별칭, 연결 티켓 및 메시지 검증
         core/       # bootstrap, AppState, CandleStore, DB, cleanup
-        kis/        # KIS 인증, 시세, 분봉 API
-        kis_ws/     # KIS WebSocket 프로토콜 및 클라이언트
+        kis/        # KIS REST/WebSocket API와 선물 마스터 다운로드
         market/     # 과거 시세 로딩 및 변환
         server/     # 라우터, 런타임, HTTP/WS 핸들러
       .env.example

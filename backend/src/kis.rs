@@ -6,7 +6,9 @@
 
 pub mod auth;
 pub mod candles;
+pub mod master;
 pub mod quotes;
+pub mod ws;
 
 #[allow(unused_imports)]
 pub use auth::{ApprovalResponse, TokenResponse, get_approval_key, get_or_issue_token};
