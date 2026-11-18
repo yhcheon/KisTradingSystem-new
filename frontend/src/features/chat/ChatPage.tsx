@@ -475,10 +475,10 @@ export default function ChatPage({ active }: { active: boolean }) {
           placeholder="메시지를 입력하세요"
           autoComplete="off"
         />
-        <button type="submit" disabled={status !== 'connected' || !text.trim()}>
-          보내기
-        </button>
       </form>
+      <p className="chat-composer-hint">
+        / 슬래쉬 치면 명령을 입력할 수 있습니다.
+      </p>
       {commandLoadError && (
         <p className="chat-error" role="alert">
           {commandLoadError}
