@@ -28,11 +28,16 @@ pub async fn run(
             session_range.clone(),
         )
         .await;
+        // Box<dyn Error>는 Send가 아니므로 await 경계 전에 문자열로 변환합니다.
+        let result = match result {
+            Ok(()) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        };
         session_range.lock().await.mark_feed_disconnected();
 
         match result {
-            Ok(_) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
-            Err(e) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", e),
+            Ok(()) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
+            Err(error) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", error),
         }
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
