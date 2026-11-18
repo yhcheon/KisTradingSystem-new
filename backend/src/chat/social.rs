@@ -153,7 +153,7 @@ mod tests {
         let action = laugh_action();
 
         assert_eq!(
-            render_social_action(&action, "손님-2", Some("줄1\\n줄2")),
+            render_social_action(&action, "손님-2", Some("줄1\n줄2")),
             Err(ChatError::InvalidMessage)
         );
         let short_action = SocialActionConfig {
