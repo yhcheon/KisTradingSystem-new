@@ -1,6 +1,6 @@
 // ============================================================
 // 파일명: server/router.rs
-// 설명: Axum 라우터 (HTTP + WebSocket)
+// 설명: 준비 완료된 Axum 애플리케이션 라우터 (HTTP + WebSocket)
 // ============================================================
 
 use crate::core::state::AppState;
@@ -13,7 +13,6 @@ use axum::{
 pub fn build(state: AppState) -> Router {
     Router::new()
         .route("/", get(|| async { "backend ok" }))
-        .route("/api/health", get(market::health))
         .route("/api/prices", get(market::prices))
         .route("/api/candles", get(market::candles))
         .route(
@@ -27,7 +26,6 @@ pub fn build(state: AppState) -> Router {
         .route("/ws", get(market::ws_handler))
         .route("/ws/chat", get(crate::server::handlers::chat::ws_handler))
         .layer(axum::Extension(state.chat.clone()))
-        // ── 콘텐츠 API ──
         .route("/api/notes", get(content::notes))
         .route("/api/news", get(content::news))
         .route("/api/notes/{id}", get(content::note_detail))
