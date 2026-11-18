@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
 import {
   createChart,
   CandlestickSeries,
+  LineStyle,
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
@@ -27,10 +28,17 @@ interface Candle {
   volume: number;
 }
 
+interface RangeLine {
+  label: string;
+  price: number;
+  color: string;
+}
+
 interface Props {
   data: Candle[];
   interval: string;
   symbolKey: string;
+  rangeLines: RangeLine[];
 }
 
 function toChartData(data: Candle[]) {
@@ -62,10 +70,11 @@ function sameCandle(
     && left.close === right.close;
 }
 
-export default function CandleChart({ data, interval, symbolKey }: Props) {
+export default function CandleChart({ data, interval, symbolKey, rangeLines }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const priceLinesRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']>[]>([]);
   const chartDataRef = useRef<ReturnType<typeof toChartData> | null>(null);
   const hasFittedVisibleContentRef = useRef(false);
 
@@ -123,6 +132,7 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      priceLinesRef.current = [];
       chartDataRef.current = null;
     };
   }, [interval, symbolKey]);
@@ -173,6 +183,34 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
 
     chartDataRef.current = nextData;
   }, [data]);
+
+  useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    if (!candleSeries) return;
+
+    for (const line of priceLinesRef.current) {
+      candleSeries.removePriceLine(line);
+    }
+    priceLinesRef.current = rangeLines.map((line) =>
+      candleSeries.createPriceLine({
+        price: line.price,
+        color: line.color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: line.label,
+      }),
+    );
+
+    return () => {
+      const currentSeries = candleSeriesRef.current;
+      if (!currentSeries) return;
+      for (const line of priceLinesRef.current) {
+        currentSeries.removePriceLine(line);
+      }
+      priceLinesRef.current = [];
+    };
+  }, [rangeLines, interval, symbolKey]);
 
   return <div ref={containerRef} style={{ width: '100%', flex: 1, minHeight: 0 }} />;
 }
