@@ -371,6 +371,14 @@
       "template_no_arg": "{nickname}님이 지쳐 있습니다. 휴~",
       "template_target": "{nickname}님이 {target}님과 함께{argument} 지쳐 있습니다. 휴~",
       "template_target_no_arg": "{nickname}님이 {target}님과 함께 지쳐 있습니다. 휴~"
+    },
+    "greet": {
+      "command": "인사",
+      "aliases": [],
+      "template": "{nickname}님이{argument} 인사합니다.",
+      "template_no_arg": "{nickname}님이 인사합니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 인사합니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 인사합니다."
     }
   }
 }
