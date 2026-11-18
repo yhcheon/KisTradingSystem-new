@@ -1,15 +1,16 @@
 // ============================================================
 // 파일명: PricesTab.tsx
-// 설명: 왼쪽 시세 영역과 오른쪽 차트/채팅 패널을 함께 유지하는 메인 화면
+// 설명: 시세 카드, 차트 및 세션별 시초 레인지 돌파 경보
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import PriceCard from '../../PriceCard';
 import CandleChart from '../../CandleChart';
 import ChatPage from '../chat/ChatPage';
 import { usePrices } from './hooks/usePrices';
 import { useMarketWebSocket } from './hooks/useMarketWebSocket';
 import { INTERVALS, type SymbolKind } from './types';
+import type { RangeAlert, RangeMonitorSnapshot } from '../../types';
 
 interface PricesTabProps {
   activePage: 'prices' | 'chat';
@@ -17,14 +18,51 @@ interface PricesTabProps {
   onMarketConnectionChange: (connected: boolean) => void;
 }
 
+interface ChartRangeLine {
+  label: string;
+  price: number;
+  color: string;
+}
+
+function rangeStatusLabel(status: string): string {
+  switch (status) {
+    case 'waiting':
+      return '수집 대기';
+    case 'collecting':
+      return '기준 가격 수집 중';
+    case 'monitoring':
+      return '돌파 감시 중';
+    default:
+      return '오늘 감시 미제공';
+  }
+}
+
 export default function PricesTab({ activePage, backendReady, onMarketConnectionChange }: PricesTabProps) {
   const [interval, setInterval] = useState<string>('1m');
   const [selected, setSelected] = useState<SymbolKind>('regular');
+  const [rangeSnapshot, setRangeSnapshot] = useState<RangeMonitorSnapshot | null>(null);
+  const [activeAlert, setActiveAlert] = useState<RangeAlert | null>(null);
   const { data, setData, candles, setCandles, selectedCode } = usePrices(
     interval,
     selected,
     backendReady,
   );
+
+  const handleRangeUpdate = useCallback((next: RangeMonitorSnapshot) => {
+    setRangeSnapshot((previous) =>
+      previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
+    );
+  }, []);
+
+  const handleRangeAlert = useCallback((alert: RangeAlert) => {
+    setActiveAlert(alert);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(alert.message);
+      utterance.lang = 'ko-KR';
+      window.speechSynthesis.speak(utterance);
+    }
+  }, []);
 
   // 이 WebSocket은 패널 표시 여부와 무관하게 계속 실행됩니다.
   const isMarketConnected = useMarketWebSocket({
@@ -33,6 +71,8 @@ export default function PricesTab({ activePage, backendReady, onMarketConnection
     selectedCode,
     setData,
     setCandles,
+    onRangeUpdate: handleRangeUpdate,
+    onRangeAlert: handleRangeAlert,
   });
 
   useEffect(() => {
@@ -54,6 +94,37 @@ export default function PricesTab({ activePage, backendReady, onMarketConnection
     }
     return label;
   })();
+
+  const rangeLines = useMemo<ChartRangeLine[]>(() => {
+    if (selected !== 'regular' || !rangeSnapshot) return [];
+    const currentDate = candles[candles.length - 1]?.date;
+    if (!currentDate) return [];
+
+    const lines: ChartRangeLine[] = [];
+    for (const session of [rangeSnapshot.day, rangeSnapshot.night]) {
+      if (session.date !== currentDate || session.status === 'unavailable') continue;
+      const prefix = session.session === 'day' ? '주간' : '야간';
+      if (session.high !== null) {
+        lines.push({
+          label: `${prefix} 고가`,
+          price: session.high,
+          color: '#f59e0b',
+        });
+      }
+      if (session.low !== null) {
+        lines.push({
+          label: `${prefix} 저가`,
+          price: session.low,
+          color: '#38bdf8',
+        });
+      }
+    }
+    return lines;
+  }, [selected, rangeSnapshot, candles]);
+
+  const alertTitle = activeAlert
+    ? `${activeAlert.session === 'day' ? '주간장' : '야간장'} ${activeAlert.direction === 'high' ? '고가 돌파' : '저가 이탈'}`
+    : '';
 
   return (
     <div className="layout">
@@ -96,11 +167,20 @@ export default function PricesTab({ activePage, backendReady, onMarketConnection
             ))}
           </div>
         </div>
+
+        {selected === 'regular' && (
+          <div className="range-session-status" aria-live="polite">
+            <span>주간장: {rangeSnapshot ? rangeStatusLabel(rangeSnapshot.day.status) : '상태 확인 중'}</span>
+            <span>야간장: {rangeSnapshot ? rangeStatusLabel(rangeSnapshot.night.status) : '상태 확인 중'}</span>
+          </div>
+        )}
+
         {candles.length > 0 ? (
           <CandleChart
             data={candles}
             interval={interval}
             symbolKey={selectedCode ?? ''}
+            rangeLines={rangeLines}
           />
         ) : (
           <p style={{ color: '#94a3b8' }}>분봉 데이터를 불러오는 중...</p>
@@ -115,6 +195,20 @@ export default function PricesTab({ activePage, backendReady, onMarketConnection
       >
         <ChatPage active={activePage === 'chat'} backendReady={backendReady} />
       </div>
+
+      {activeAlert && (
+        <div className="range-alert-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="range-alert-title">
+          <div className="range-alert-dialog">
+            <h2 id="range-alert-title">{alertTitle}</h2>
+            <p>{activeAlert.message}</p>
+            <dl>
+              <div><dt>기준 가격</dt><dd>{activeAlert.reference_price.toFixed(2)}</dd></div>
+              <div><dt>현재 체결가</dt><dd>{activeAlert.price.toFixed(2)}</dd></div>
+            </dl>
+            <button type="button" onClick={() => setActiveAlert(null)}>확인</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
