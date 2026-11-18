@@ -13,19 +13,22 @@ import { INTERVALS, type SymbolKind } from './types';
 
 interface PricesTabProps {
   activePage: 'prices' | 'chat';
+  backendReady: boolean;
   onMarketConnectionChange: (connected: boolean) => void;
 }
 
-export default function PricesTab({ activePage, onMarketConnectionChange }: PricesTabProps) {
+export default function PricesTab({ activePage, backendReady, onMarketConnectionChange }: PricesTabProps) {
   const [interval, setInterval] = useState<string>('1m');
   const [selected, setSelected] = useState<SymbolKind>('regular');
   const { data, setData, candles, setCandles, selectedCode } = usePrices(
     interval,
     selected,
+    backendReady,
   );
 
   // 이 WebSocket은 패널 표시 여부와 무관하게 계속 실행됩니다.
   const isMarketConnected = useMarketWebSocket({
+    enabled: backendReady,
     interval,
     selectedCode,
     setData,
@@ -110,7 +113,7 @@ export default function PricesTab({ activePage, onMarketConnectionChange }: Pric
         aria-labelledby="chat-tab"
         hidden={activePage !== 'chat'}
       >
-        <ChatPage active={activePage === 'chat'} />
+        <ChatPage active={activePage === 'chat'} backendReady={backendReady} />
       </div>
     </div>
   );
