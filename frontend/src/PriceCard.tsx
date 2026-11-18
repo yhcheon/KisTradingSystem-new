@@ -17,10 +17,17 @@ function toNumber(value: string): number {
   return Number.parseFloat(value.replace(/,/g, '').trim());
 }
 
-function formatSignedAmount(value: number): string {
-  const [integer, decimal] = Math.abs(value).toFixed(2).split('.');
-  const amount = `${integer.padStart(3, ' ')}.${decimal}`;
-  return value > 0 ? `+${amount}` : value < 0 ? `-${amount}` : amount;
+function SignedAmount({ value }: { value: number }) {
+  const [integer, fraction] = Math.abs(value).toFixed(2).split('.');
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return (
+    <span className="delta-amount">
+      <span className="delta-amount-sign">{sign}</span>
+      <span className="delta-amount-integer">{integer}</span>
+      <span className="delta-amount-decimal">.</span>
+      <span className="delta-amount-fraction">{fraction}</span>
+    </span>
+  );
 }
 
 // 기준가 대비 차이를 부호와 함께 계산합니다.
@@ -31,7 +38,6 @@ function diffFrom(value: string, base: string) {
   const diff = v - b;
   return {
     sign: diff > 0 ? '▲' : diff < 0 ? '▼' : '-',
-    amount: formatSignedAmount(diff),
     value: diff,
   };
 }
@@ -69,7 +75,11 @@ function DiffValue({ value, base, showRate = false, useCandleColors = false }: {
   const rateText = rate > 0 ? `+${rate.toFixed(2)}` : rate.toFixed(2);
   return (
     <span className={`diff ${directionClass}`} style={{ color }}>
-      {diff.sign} {diff.amount}{showRate && Number.isFinite(rate) ? ` (${rateText}%)` : ''}
+      <span className="delta-direction">{diff.sign}</span>
+      <SignedAmount value={diff.value} />
+      {showRate && Number.isFinite(rate) && (
+        <span className="delta-rate">({rateText}%)</span>
+      )}
     </span>
   );
 }
@@ -174,9 +184,6 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
     ? candleColors.up
     : priceDiff < 0 ? candleColors.down : undefined;
   const changeSign = priceDiff > 0 ? '▲' : priceDiff < 0 ? '▼' : '-';
-  const changeText = Number.isFinite(priceDiff)
-    ? formatSignedAmount(priceDiff)
-    : day.change;
   const changeRate =
     Number.isFinite(priceDiff) && Number.isFinite(previousClose) && previousClose !== 0
       ? ((priceDiff / previousClose) * 100).toFixed(2)
@@ -200,7 +207,9 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
         <div className="session-price-row">
           <span className="session-price">{day.price}</span>
           <span className={`session-change ${colorClass}`} style={{ color: changeColor }}>
-            {changeSign} {changeText} ({changeRateText}%)
+            <span className="delta-direction">{changeSign}</span>
+            {Number.isFinite(priceDiff) ? <SignedAmount value={priceDiff} /> : day.change}
+            <span className="delta-rate">({changeRateText}%)</span>
           </span>
         </div>
         <SessionStats
