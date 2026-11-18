@@ -5,6 +5,7 @@ use super::{
         trusted_proxy_ips_from_env,
     },
     message::{ChatMessage, create_message},
+    social::{parse_social_action, render_social_action},
 };
 use chrono::{NaiveDate, Utc};
 use rand::Rng;
@@ -315,11 +316,29 @@ impl ChatService {
         text: String,
     ) -> Result<(), ChatError> {
         connection.check_message_rate_limit()?;
-        let text = self
+        let text = if let Some(expanded) = self
             .inner
             .commands
             .expand(&text, connection.nickname())
-            .unwrap_or(text);
+        {
+            expanded
+        } else if let Some(matched) =
+            parse_social_action(&text, &self.inner.commands.actions)
+        {
+            let action = self
+                .inner
+                .commands
+                .actions
+                .get(&matched.action_id)
+                .ok_or(ChatError::ServiceUnavailable)?;
+            render_social_action(
+                action,
+                connection.nickname(),
+                matched.argument.as_deref(),
+            )?
+        } else {
+            text
+        };
         let message = create_message(connection.nickname(), text);
         self.inner
             .messages
@@ -608,6 +627,42 @@ mod tests {
             .unwrap();
 
         assert_eq!(messages.try_recv().unwrap().text, "hello everyone");
+    }
+
+    #[test]
+    fn publishes_social_actions_and_preserves_unmatched_messages() {
+        const SOCIAL_COMMANDS: &str = r#"{
+            "version": 2,
+            "commands": {
+                "/wave": "{nickname} waves"
+            },
+            "actions": {
+                "laugh": {
+                    "command": "웃",
+                    "aliases": ["웃음"],
+                    "template": "{nickname}님이{argument} 웃습니다. ^^",
+                    "template_no_arg": "{nickname}님이 웃습니다. ^^"
+                }
+            }
+        }"#;
+        let service = service_with_commands(r#"{"words":["guest"]}"#, SOCIAL_COMMANDS);
+        let mut messages = service.subscribe_messages();
+        let ticket = service.issue_ticket(ip(1), None).unwrap();
+        let connection = service.consume_ticket(&ticket.ticket).unwrap();
+
+        for (input, expected) in [
+            ("즐겁게 신나서 웃", "guest-1님이 즐겁게 신나서 웃습니다. ^^"),
+            ("웃", "guest-1님이 웃습니다. ^^"),
+            ("신나서 웃음", "guest-1님이 신나서 웃습니다. ^^"),
+            ("즐겁게 웃는다", "즐겁게 웃는다"),
+            ("웃 뒤에", "웃 뒤에"),
+            ("/wave", "guest-1 waves"),
+        ] {
+            service.publish_message(&connection, input.to_string()).unwrap();
+            let message = messages.try_recv().unwrap();
+            assert_eq!(message.nickname, "guest-1");
+            assert_eq!(message.text, expected, "input: {input}");
+        }
     }
 
     #[test]
