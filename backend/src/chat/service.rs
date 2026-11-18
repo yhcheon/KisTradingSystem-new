@@ -3,6 +3,7 @@ use super::{
     config::{NicknameConfig, nickname_config_path, trusted_proxy_ips_from_env},
     message::{ChatMessage, create_message},
 };
+use chrono::{NaiveDate, Utc};
 use rand::Rng;
 use serde::Serialize;
 use std::{
@@ -39,9 +40,11 @@ struct ChatServiceInner {
 #[derive(Default)]
 struct ChatState {
     tickets: HashMap<String, TicketRecord>,
+    active_aliases: HashSet<String>,
     connections: HashMap<u64, ConnectionRecord>,
     ip_limits: HashMap<IpAddr, IpLimits>,
     nickname_sequences: HashMap<String, u64>,
+    nickname_sequence_date: Option<NaiveDate>,
     next_connection_id: u64,
 }
 
@@ -122,6 +125,24 @@ impl ChatService {
         client_ip: IpAddr,
         now: Instant,
     ) -> Result<ChatTicketResponse, ChatError> {
+        self.issue_ticket_at_with_date(client_ip, now, None)
+    }
+
+    fn issue_ticket_at_kst_date(
+        &self,
+        client_ip: IpAddr,
+        now: Instant,
+        kst_date: NaiveDate,
+    ) -> Result<ChatTicketResponse, ChatError> {
+        self.issue_ticket_at_with_date(client_ip, now, Some(kst_date))
+    }
+
+    fn issue_ticket_at_with_date(
+        &self,
+        client_ip: IpAddr,
+        now: Instant,
+        kst_date: Option<NaiveDate>,
+    ) -> Result<ChatTicketResponse, ChatError> {
         let mut state = self.lock_state()?;
         prune_expired(&mut state, now);
         if !state.ip_limits.contains_key(&client_ip)
@@ -142,8 +163,22 @@ impl ChatService {
             limits.ticket_attempts.push_back(now);
         }
 
-        let alias = select_alias(&self.inner.nicknames, &mut state.nickname_sequences)?;
+        let kst_date = kst_date.unwrap_or_else(current_kst_date);
+        if state.nickname_sequence_date != Some(kst_date) {
+            state.nickname_sequences.clear();
+            state.nickname_sequence_date = Some(kst_date);
+        }
+
+        let alias = {
+            let ChatState {
+                nickname_sequences,
+                active_aliases,
+                ..
+            } = &mut *state;
+            select_alias(&self.inner.nicknames, nickname_sequences, active_aliases)?
+        };
         let token = generate_ticket(&state.tickets);
+        state.active_aliases.insert(alias.clone());
         state
             .ip_limits
             .entry(client_ip)
@@ -193,6 +228,7 @@ impl ChatService {
             limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
             limits.active_connections += 1;
         } else {
+            release_alias(&mut state, &record.alias);
             return Err(ChatError::ServiceUnavailable);
         }
         state.connections.insert(
@@ -310,6 +346,7 @@ impl Drop for ChatConnection {
             Err(poisoned) => poisoned.into_inner(),
         };
         if let Some(connection) = state.connections.remove(&self.id) {
+            release_alias(&mut state, &self.alias);
             if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
                 limits.active_connections = limits.active_connections.saturating_sub(1);
             }
@@ -321,20 +358,39 @@ impl Drop for ChatConnection {
 fn select_alias(
     config: &NicknameConfig,
     nickname_sequences: &mut HashMap<String, u64>,
+    active_aliases: &HashSet<String>,
 ) -> Result<String, ChatError> {
     let word_index = rand::rng().random_range(0..config.words.len());
-    next_alias_for_word(nickname_sequences, &config.words[word_index])
+    next_alias_for_word(
+        nickname_sequences,
+        active_aliases,
+        &config.words[word_index],
+    )
 }
 
 fn next_alias_for_word(
     nickname_sequences: &mut HashMap<String, u64>,
+    active_aliases: &HashSet<String>,
     word: &str,
 ) -> Result<String, ChatError> {
     let sequence = nickname_sequences.entry(word.to_string()).or_default();
-    *sequence = sequence
-        .checked_add(1)
-        .ok_or(ChatError::NicknameSequenceExhausted)?;
-    Ok(format!("{word}-{sequence}"))
+    loop {
+        *sequence = sequence
+            .checked_add(1)
+            .ok_or(ChatError::NicknameSequenceExhausted)?;
+        let alias = format!("{word}-{sequence}");
+        if !active_aliases.contains(&alias) {
+            return Ok(alias);
+        }
+    }
+}
+
+fn current_kst_date() -> NaiveDate {
+    kst_date_at(Utc::now())
+}
+
+fn kst_date_at(utc_time: chrono::DateTime<Utc>) -> NaiveDate {
+    (utc_time + chrono::Duration::hours(9)).date_naive()
 }
 
 fn generate_ticket(existing: &HashMap<String, TicketRecord>) -> String {
@@ -389,6 +445,11 @@ fn release_pending_ticket(state: &mut ChatState, record: &TicketRecord) {
     if let Some(limits) = state.ip_limits.get_mut(&record.client_ip) {
         limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
     }
+    release_alias(state, &record.alias);
+}
+
+fn release_alias(state: &mut ChatState, alias: &str) {
+    state.active_aliases.remove(alias);
 }
 
 fn prune_ip_limits(state: &mut ChatState) {
@@ -402,6 +463,7 @@ fn prune_ip_limits(state: &mut ChatState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use std::{net::Ipv4Addr, str::FromStr};
 
     fn service(words: &[&str]) -> ChatService {
@@ -471,17 +533,94 @@ mod tests {
     #[test]
     fn increments_each_word_sequence_independently_when_interleaved() {
         let mut sequences = HashMap::new();
-        assert_eq!(next_alias_for_word(&mut sequences, "one").unwrap(), "one-1");
-        assert_eq!(next_alias_for_word(&mut sequences, "two").unwrap(), "two-1");
-        assert_eq!(next_alias_for_word(&mut sequences, "one").unwrap(), "one-2");
-        assert_eq!(next_alias_for_word(&mut sequences, "two").unwrap(), "two-2");
+        let active_aliases = HashSet::new();
+        assert_eq!(
+            next_alias_for_word(&mut sequences, &active_aliases, "one").unwrap(),
+            "one-1"
+        );
+        assert_eq!(
+            next_alias_for_word(&mut sequences, &active_aliases, "two").unwrap(),
+            "two-1"
+        );
+        assert_eq!(
+            next_alias_for_word(&mut sequences, &active_aliases, "one").unwrap(),
+            "one-2"
+        );
+        assert_eq!(
+            next_alias_for_word(&mut sequences, &active_aliases, "two").unwrap(),
+            "two-2"
+        );
+    }
+
+    #[test]
+    fn resets_sequences_at_kst_midnight() {
+        let before_midnight_utc = Utc
+            .with_ymd_and_hms(2026, 11, 18, 14, 59, 59)
+            .single()
+            .unwrap();
+        let after_midnight_utc = Utc
+            .with_ymd_and_hms(2026, 11, 18, 15, 0, 0)
+            .single()
+            .unwrap();
+        let before_midnight = kst_date_at(before_midnight_utc);
+        let after_midnight = kst_date_at(after_midnight_utc);
+        assert_eq!(
+            before_midnight,
+            NaiveDate::from_ymd_opt(2026, 11, 18).unwrap()
+        );
+        assert_eq!(
+            after_midnight,
+            NaiveDate::from_ymd_opt(2026, 11, 19).unwrap()
+        );
+
+        let service = service(&["one"]);
+        let now = Instant::now();
+        let first = service
+            .issue_ticket_at_kst_date(ip(1), now, before_midnight)
+            .unwrap();
+        assert_eq!(first.nickname, "one-1");
+        drop(service.consume_ticket_at(&first.ticket, now).unwrap());
+
+        let second = service
+            .issue_ticket_at_kst_date(ip(2), now, before_midnight)
+            .unwrap();
+        assert_eq!(second.nickname, "one-2");
+        drop(service.consume_ticket_at(&second.ticket, now).unwrap());
+
+        let next_day = service
+            .issue_ticket_at_kst_date(ip(3), now, after_midnight)
+            .unwrap();
+        assert_eq!(next_day.nickname, "one-1");
+    }
+
+    #[test]
+    fn skips_previous_day_aliases_that_are_still_active() {
+        let service = service(&["one"]);
+        let now = Instant::now();
+        let yesterday = NaiveDate::from_ymd_opt(2026, 11, 18).unwrap();
+        let today = NaiveDate::from_ymd_opt(2026, 11, 19).unwrap();
+        let yesterday_ticket = service
+            .issue_ticket_at_kst_date(ip(1), now, yesterday)
+            .unwrap();
+        assert_eq!(yesterday_ticket.nickname, "one-1");
+        let active_connection = service
+            .consume_ticket_at(&yesterday_ticket.ticket, now)
+            .unwrap();
+
+        let first_today = service.issue_ticket_at_kst_date(ip(2), now, today).unwrap();
+        assert_eq!(first_today.nickname, "one-2");
+        let second_today = service.issue_ticket_at_kst_date(ip(3), now, today).unwrap();
+        assert_eq!(second_today.nickname, "one-3");
+
+        drop(active_connection);
     }
 
     #[test]
     fn reports_sequence_overflow_instead_of_reusing_a_nickname() {
         let mut sequences = HashMap::from([("one".to_string(), u64::MAX)]);
+        let active_aliases = HashSet::new();
         assert_eq!(
-            next_alias_for_word(&mut sequences, "one").err(),
+            next_alias_for_word(&mut sequences, &active_aliases, "one").err(),
             Some(ChatError::NicknameSequenceExhausted)
         );
     }
