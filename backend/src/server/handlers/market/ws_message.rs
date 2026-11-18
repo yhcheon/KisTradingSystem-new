@@ -3,11 +3,12 @@
 // 설명: 브라우저 WebSocket 시세 메시지 직렬화
 // ============================================================
 
+use crate::core::session_range::RangeMonitorSnapshot;
 use crate::kis_ws::RealtimeTick;
 use serde_json::json;
 
 /// 실시간 체결 데이터를 기존 브라우저 WebSocket 메시지 형식으로 변환합니다.
-pub(super) fn tick_message(tick: &RealtimeTick) -> String {
+pub(super) fn tick_message(tick: &RealtimeTick, range: &RangeMonitorSnapshot) -> String {
     serde_json::to_string(&json!({
         "type": "tick",
         "market_session": tick.market_session,
@@ -19,6 +20,8 @@ pub(super) fn tick_message(tick: &RealtimeTick) -> String {
         "volume": tick.volume,
         "last_qty": tick.last_qty,
         "time": tick.time,
+        "range": range,
+        "range_alert": tick.range_alert,
     }))
     .unwrap_or_default()
 }
@@ -38,12 +41,13 @@ mod tests {
             last_qty: "3".to_string(),
             time: "091530".to_string(),
             market_session: market_session.to_string(),
+            range_alert: None,
         }
     }
 
     #[test]
     fn serializes_tick_with_expected_browser_message_fields() {
-        let result = tick_message(&tick("night"));
+        let result = tick_message(&tick("night"), &RangeMonitorSnapshot {\n            day: crate::core::session_range::SessionRangeSnapshot { session: "day".to_string(), date: None, status: "waiting".to_string(), high: None, low: None, high_alerted: false, low_alerted: false },\n            night: crate::core::session_range::SessionRangeSnapshot { session: "night".to_string(), date: None, status: "waiting".to_string(), high: None, low: None, high_alerted: false, low_alerted: false },\n        });
         let value: serde_json::Value = serde_json::from_str(&result).unwrap();
 
         assert_eq!(
