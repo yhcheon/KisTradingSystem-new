@@ -228,6 +228,7 @@ function usePublicChat() {
 
   return {
     connectionError,
+    connectionClosed,
     messages,
     nickname,
     sendError,
@@ -240,6 +241,7 @@ function usePublicChat() {
 export default function ChatPage() {
   const {
     connectionError,
+    connectionClosed,
     messages,
     nickname,
     sendError,
