@@ -147,7 +147,8 @@ mod tests {
     #[test]
     fn rejects_invalid_quantities() {
         assert!(parse_tick(&frame(NIGHT_TR_ID, "350.25", "201530", "x")).is_none());
-        let invalid_volume = format!("0|{NIGHT_TR_ID}|001|101W9000^201530^1.25^+^0.36^350.25^0^0^0^3^x");
+        let invalid_volume =
+            format!("0|{NIGHT_TR_ID}|001|101W9000^201530^1.25^+^0.36^350.25^0^0^0^3^x");
         assert!(parse_tick(&invalid_volume).is_none());
     }
 

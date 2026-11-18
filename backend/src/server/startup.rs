@@ -86,10 +86,7 @@ async fn health(State(shared): State<StartupShared>) -> Response {
     }
 }
 
-async fn dispatch(
-    State(shared): State<StartupShared>,
-    request: Request<Body>,
-) -> Response {
+async fn dispatch(State(shared): State<StartupShared>, request: Request<Body>) -> Response {
     let app = shared.app.read().await.clone();
 
     if let Some(app) = app {
@@ -103,9 +100,7 @@ async fn dispatch(
     let message = match status {
         StartupStatus::Starting => "Backend 초기화가 진행 중입니다.",
         StartupStatus::Ready { .. } => "Backend 서비스가 준비 중입니다.",
-        StartupStatus::Failed => {
-            "Backend 초기화에 실패했습니다. 백엔드 로그를 확인해 주세요."
-        }
+        StartupStatus::Failed => "Backend 초기화에 실패했습니다. 백엔드 로그를 확인해 주세요.",
     };
 
     (

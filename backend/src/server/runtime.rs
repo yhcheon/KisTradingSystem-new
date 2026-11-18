@@ -10,9 +10,7 @@ use std::future::{Future, IntoFuture};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
-pub async fn serve_with_startup<F>(
-    initialize: F,
-) -> Result<(), Box<dyn std::error::Error>>
+pub async fn serve_with_startup<F>(initialize: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: Future<Output = Result<crate::core::state::AppState, Box<dyn std::error::Error>>>,
 {
@@ -27,7 +25,10 @@ where
                 tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}", origin),
+                    format!(
+                        "CORS_ALLOWED_ORIGINS에 잘못된 Origin이 있습니다: {}",
+                        origin
+                    ),
                 )
             })
         })

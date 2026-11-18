@@ -113,7 +113,8 @@ mod tests {
                 "acml_vol": "1200"
             },
             "output2": { "some_extra_field": "retained" }
-        })).unwrap()
+        }))
+        .unwrap()
     }
 
     #[test]
@@ -139,7 +140,8 @@ mod tests {
                 "futs_lwpr": "", "futs_prdy_clpr": "", "acml_vol": ""
             },
             "output2": {}
-        })).unwrap();
+        }))
+        .unwrap();
         let error = ensure_success(&response).unwrap_err();
         assert!(error.contains("EGW00123"));
         assert!(error.contains("시세 조회 오류"));

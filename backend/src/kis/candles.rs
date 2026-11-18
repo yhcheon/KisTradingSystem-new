@@ -59,7 +59,14 @@ pub async fn get_minute_chart(
     hour: &str,
 ) -> Result<Vec<MinuteCandle>, Box<dyn std::error::Error + Send + Sync>> {
     get_minute_chart_for_market(
-        client, app_key, app_secret, access_token, "F", symbol, date, hour,
+        client,
+        app_key,
+        app_secret,
+        access_token,
+        "F",
+        symbol,
+        date,
+        hour,
     )
     .await
 }
@@ -124,7 +131,8 @@ pub async fn get_minute_chart_for_market(
         return Err(std::io::Error::other(format!(
             "KIS minute chart HTTP {} (market={}, symbol={}, date={}, cursor={}): {}",
             status, market_div_code, symbol, date, hour, body_text
-        )).into());
+        ))
+        .into());
     }
 
     tracing::info!(
@@ -168,8 +176,14 @@ pub async fn get_minute_chart_for_market(
         (a.stck_bsop_date.clone(), a.stck_cntg_hour.clone())
             .cmp(&(b.stck_bsop_date.clone(), b.stck_cntg_hour.clone()))
     });
-    let first = candles.first().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
-    let last = candles.last().map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour)).unwrap_or_else(|| "none".to_string());
+    let first = candles
+        .first()
+        .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
+        .unwrap_or_else(|| "none".to_string());
+    let last = candles
+        .last()
+        .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
+        .unwrap_or_else(|| "none".to_string());
     tracing::info!(
         target: "kis::night_candles",
         "[MINUTE-PARSED] market={} symbol={} date={} cursor={} candles={} first={} last={}",

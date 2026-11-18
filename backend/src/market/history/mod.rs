@@ -15,7 +15,6 @@ use convert::to_candle;
 use pagination::load_trade_date;
 use time::subtract_one_minute;
 
-
 /// 18시 이전에는 대기하고, 야간 세션 중 서버가 시작되면 현재 시각부터 18시까지 CM 분봉을 로드합니다.
 /// 야간 체결 WebSocket 구독은 별도로 서버 시작 시 신청되어 있으므로 이후 봉은 실시간으로 누적됩니다.
 pub fn spawn_night_candle_loader(
@@ -207,13 +206,10 @@ async fn load_night_session(
                     let error_message = error.to_string();
                     // 명시적으로 원본 Box<dyn Error>를 await 이전에 해제해야 Send 조건을 만족합니다.
                     drop(error);
-                    if error_message.contains("EGW00201")
-                        && retry < MAX_RATE_LIMIT_RETRIES
-                    {
+                    if error_message.contains("EGW00201") && retry < MAX_RATE_LIMIT_RETRIES {
                         retry += 1;
-                        let backoff_ms = request_delay_ms.max(
-                            1000u64.saturating_mul(2u64.pow(retry as u32 - 1)),
-                        );
+                        let backoff_ms = request_delay_ms
+                            .max(1000u64.saturating_mul(2u64.pow(retry as u32 - 1)));
                         tracing::warn!(
                             target: "kis::night_candles",
                             "[NIGHT-RATE-LIMIT-RETRY] symbol={} date={} page={} cursor={} retry={}/{} wait_ms={} error={}",
@@ -224,15 +220,17 @@ async fn load_night_session(
                     } else {
                         return Err(std::io::Error::other(error_message).into());
                     }
-                },
+                }
             }
         };
 
         let chunk_count = chunk.len();
-        let response_first = chunk.first()
+        let response_first = chunk
+            .first()
             .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
             .unwrap_or_else(|| "none".to_string());
-        let response_last = chunk.last()
+        let response_last = chunk
+            .last()
             .map(|c| format!("{} {}", c.stck_bsop_date, c.stck_cntg_hour))
             .unwrap_or_else(|| "none".to_string());
 
@@ -311,8 +309,14 @@ async fn load_night_session(
     result.sort_by(|a, b| a.time.cmp(&b.time));
     let before_dedup = result.len();
     result.dedup_by(|a, b| a.time == b.time);
-    let first = result.first().map(|c| c.time.clone()).unwrap_or_else(|| "none".to_string());
-    let last = result.last().map(|c| c.time.clone()).unwrap_or_else(|| "none".to_string());
+    let first = result
+        .first()
+        .map(|c| c.time.clone())
+        .unwrap_or_else(|| "none".to_string());
+    let last = result
+        .last()
+        .map(|c| c.time.clone())
+        .unwrap_or_else(|| "none".to_string());
     tracing::info!(
         target: "kis::night_candles",
         "[NIGHT-PAGINATION-DONE] symbol={} date={} raw_accumulated={} deduplicated={} duplicates_removed={} first_time={} last_time={}",

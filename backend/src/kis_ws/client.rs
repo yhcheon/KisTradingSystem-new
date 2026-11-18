@@ -7,9 +7,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::core::candles::CandleStore;
 
-use super::protocol::{
-    DAY_TR_ID, NIGHT_TR_ID, RealtimeTick, handle_text, parse_tick,
-};
+use super::protocol::{DAY_TR_ID, NIGHT_TR_ID, RealtimeTick, handle_text, parse_tick};
 
 pub async fn run(
     approval_key: String,
@@ -20,8 +18,14 @@ pub async fn run(
 ) {
     loop {
         match connect_and_listen(
-            &approval_key, &symbols, &night_symbols, &tx, candle_store.clone()
-        ).await {
+            &approval_key,
+            &symbols,
+            &night_symbols,
+            &tx,
+            candle_store.clone(),
+        )
+        .await
+        {
             Ok(_) => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
             Err(e) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", e),
         }

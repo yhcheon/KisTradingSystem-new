@@ -11,7 +11,10 @@ pub mod quotes;
 #[allow(unused_imports)]
 pub use auth::{ApprovalResponse, TokenResponse, get_approval_key, get_or_issue_token};
 #[allow(unused_imports)]
-pub use candles::{MinuteCandle, MinuteChartOutput2, MinuteChartResponse, get_minute_chart, get_minute_chart_for_market};
+pub use candles::{
+    MinuteCandle, MinuteChartOutput2, MinuteChartResponse, get_minute_chart,
+    get_minute_chart_for_market,
+};
 #[allow(unused_imports)]
 pub use quotes::{
     FuturesPriceOutput1, FuturesPriceOutput2, FuturesPriceResponse, get_futures_price,

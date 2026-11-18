@@ -253,7 +253,10 @@ mod tests {
             ChatCommandConfig::from_json(include_str!("../../../config/chat_commands.json"))
                 .unwrap();
 
-        assert!(config.len() > 0, "the supplied chat command config must not be empty");
+        assert!(
+            config.len() > 0,
+            "the supplied chat command config must not be empty"
+        );
     }
 
     #[test]

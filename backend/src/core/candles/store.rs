@@ -291,11 +291,7 @@ mod tests {
     #[test]
     fn load_1m_merges_day_and_night_candles_for_the_same_business_date() {
         let mut store = CandleStore::new();
-        store.load_1m(
-            "101S",
-            "20261116",
-            vec![candle("1545", 100.0, 1)],
-        );
+        store.load_1m("101S", "20261116", vec![candle("1545", 100.0, 1)]);
         store.load_1m(
             "101S",
             "20261116",
