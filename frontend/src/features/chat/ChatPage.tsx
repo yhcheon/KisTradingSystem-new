@@ -65,6 +65,7 @@ function usePublicChat() {
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState('');
+  const [connectionClosed, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
   // StrictMode replays effects in development; share the pending POST to avoid burning an alias.
@@ -136,6 +137,7 @@ function usePublicChat() {
           }
           connectedBefore = true;
           reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+          setConnectionClosed(false);
           setStatus('connected');
           setConnectionError('');
         };
@@ -175,8 +177,10 @@ function usePublicChat() {
         };
 
         nextSocket.onclose = () => {
-          if (socketRef.current === nextSocket) socketRef.current = null;
-          if (socket === nextSocket) socket = null;
+          if (disposed || socketRef.current !== nextSocket) return;
+          socketRef.current = null;
+          socket = null;
+          setConnectionClosed(true);
           scheduleReconnect();
         };
       } catch (error) {
@@ -256,11 +260,13 @@ export default function ChatPage() {
     if (sendMessage(text)) setText('');
   };
 
-  const statusLabel = {
-    connecting: '연결 중',
-    connected: '연결됨',
-    reconnecting: '재연결 중',
-  }[status];
+  const statusLabel = connectionClosed
+    ? '연결 종료 · 재연결 중'
+    : {
+        connecting: '연결 중',
+        connected: '연결됨',
+        reconnecting: '재연결 중',
+      }[status];
 
   return (
     <main className="chat-page">
@@ -269,7 +275,10 @@ export default function ChatPage() {
           <h2>공개 채팅</h2>
         </div>
         <div className="chat-identity">
-          <span className={`chat-connection-status ${status}`} role="status">
+          <span
+            className={`chat-connection-status ${status}${connectionClosed ? ' closed' : ''}`}
+            role="status"
+          >
             {statusLabel}
           </span>
           {nickname && <span>내 닉네임: {nickname}</span>}

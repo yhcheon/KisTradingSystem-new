@@ -660,6 +660,10 @@ footer {
   color: #fbbf24;
 }
 
+.chat-connection-status.closed {
+  color: var(--color-up);
+}
+
 .chat-messages {
   display: flex;
   flex: 1;
