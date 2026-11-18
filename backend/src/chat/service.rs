@@ -316,12 +316,12 @@ impl ChatService {
         text: String,
     ) -> Result<(), ChatError> {
         connection.check_message_rate_limit()?;
-        let text = if let Some(expanded) = self
+        let (text, action_id) = if let Some(expanded) = self
             .inner
             .commands
             .expand(&text, connection.nickname())
         {
-            expanded
+            (expanded, None)
         } else if let Some(matched) =
             parse_social_action(&text, &self.inner.commands.actions)
         {
@@ -331,15 +331,18 @@ impl ChatService {
                 .actions
                 .get(&matched.action_id)
                 .ok_or(ChatError::ServiceUnavailable)?;
-            render_social_action(
-                action,
-                connection.nickname(),
-                matched.argument.as_deref(),
-            )?
+            (
+                render_social_action(
+                    action,
+                    connection.nickname(),
+                    matched.argument.as_deref(),
+                )?,
+                Some(matched.action_id),
+            )
         } else {
-            text
+            (text, None)
         };
-        let message = create_message(connection.nickname(), text);
+        let message = create_message(connection.nickname(), text, action_id);
         self.inner
             .messages
             .send(message)
