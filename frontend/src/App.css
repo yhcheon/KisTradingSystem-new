@@ -1014,3 +1014,10 @@ footer {
   color: var(--text-main);
   font-size: 12px;
 }
+
+.chat-online-count {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+}
