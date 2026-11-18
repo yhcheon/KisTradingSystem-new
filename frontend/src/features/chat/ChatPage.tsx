@@ -109,11 +109,11 @@ function formatTime(value: string): string {
 }
 
 function usePublicChat(enabled: boolean) {
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [, setStatus] = useState<ConnectionStatus>('connecting');
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState('');
-  const [connectionClosed, setConnectionClosed] = useState(false);
+  const [, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
   // StrictMode replays effects in development; share the pending POST to avoid burning an alias.
