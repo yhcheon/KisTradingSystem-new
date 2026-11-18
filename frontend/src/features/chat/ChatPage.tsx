@@ -189,7 +189,7 @@ const SOCIAL_ACTION_EMOJI: Record<string, string> = {
   rest: '☕',
   dance: '💃',
   sing: '🎵',
-  applause: '👏',
+  applause: '👏',\n  greet: '👋',
 };
 
 function usePublicChat(enabled: boolean) {
@@ -393,6 +393,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
   const {
     connectionError,
     messages,
+    onlineCount,
     nickname,
     sendError,
     sendMessage,
@@ -616,7 +617,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
       </p>
       <div className="chat-action-help">
         <div className="chat-action-help-heading">
-          <p>문장 마지막에 행동 명령을 붙여 보세요. 예: 즐겁게 웃</p>
+          <p>문장 마지막에 행동 명령을 붙여 보세요. 예: 즐겁게 웃 · 홍길동 웃 · 홍길동 인사</p>
           <button
             type="button"
             className="chat-action-help-toggle"
