@@ -106,6 +106,8 @@ body {
 
 /* 차트 영역의 배경, 테두리, 모서리 둥글기, 내부 여백 등을 설정합니다. */
 .chart-area {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-chart);
   border: 1px solid var(--border-color);
   border-radius: 12px;

@@ -72,7 +72,7 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
-      height: 560,
+      height: containerRef.current.clientHeight,
       layout: {
         background: { color: '#000000' },
         textColor: '#e2e8f0',
@@ -102,9 +102,9 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const { width } = entry.contentRect;
-        if (width > 0) {
-          chart.applyOptions({ width });
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          chart.applyOptions({ width, height });
         }
       }
     });
@@ -163,6 +163,6 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
     chartDataRef.current = nextData;
   }, [data]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: 560 }} />;
+  return <div ref={containerRef} style={{ width: '100%', flex: 1, minHeight: 0 }} />;
 }
 
