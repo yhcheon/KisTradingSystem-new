@@ -82,6 +82,7 @@ async fn connect_and_listen(
     for symbol in night_symbols {
         subscribe(&mut ws, approval_key, NIGHT_TR_ID, symbol).await?;
     }
+    session_range.lock().await.mark_feed_ready();
 
     let mut night_logged = 0usize;
     loop {
