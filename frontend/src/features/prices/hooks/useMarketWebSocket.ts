@@ -38,6 +38,7 @@ export function useMarketWebSocket({
   const [isConnected, setIsConnected] = useState(false);
   const selectedCodeRef = useRef<string | null>(selectedCode);
   const intervalRef = useRef(interval);
+  const alertedRangeKeysRef = useRef(new Set<string>());
   useLayoutEffect(() => {
     intervalRef.current = interval;
   }, [interval]);
@@ -89,7 +90,13 @@ export function useMarketWebSocket({
             'mini' in message.data
           ) {
             if ('range' in message && typeof message.range === 'object' && message.range !== null) {
-              onRangeUpdate(message.range as RangeMonitorSnapshot);
+              const range = message.range as RangeMonitorSnapshot;
+              onRangeUpdate(range);
+              for (const session of [range.day, range.night]) {
+                if (!session.date) continue;
+                if (session.high_alerted) alertedRangeKeysRef.current.add(`${session.date}:${session.session}:high`);
+                if (session.low_alerted) alertedRangeKeysRef.current.add(`${session.date}:${session.session}:low`);
+              }
             }
             // 유효한 가격이 포함된 스냅샷만 적용합니다. 빈 스냅샷이면 REST 재시도를 계속합니다.
             const snapshot = message.data as PricesResponse;
@@ -107,7 +114,13 @@ export function useMarketWebSocket({
           ) return;
           const tick = message as RealtimeTick;
           if (tick.range) onRangeUpdate(tick.range);
-          if (tick.range_alert) onRangeAlert(tick.range_alert);
+          if (tick.range_alert) {
+            const alertKey = `${tick.date}:${tick.range_alert.session}:${tick.range_alert.direction}`;
+            if (!alertedRangeKeysRef.current.has(alertKey)) {
+              alertedRangeKeysRef.current.add(alertKey);
+              onRangeAlert(tick.range_alert);
+            }
+          }
 
           setData((previous) => {
             if (!previous) return previous;
