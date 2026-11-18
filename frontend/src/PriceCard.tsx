@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { PriceResult, SessionQuote } from './types';
+import { candleColors } from './candleColors';
 
 interface Props {
   title: string;
@@ -79,10 +80,16 @@ function SessionStats({ quote, baseLabel, baseValue }: {
         const direction = Number.isFinite(rowValue) && Number.isFinite(base)
           ? rowValue > base ? 'up' : rowValue < base ? 'down' : ''
           : '';
+        const candleColor = direction === 'up'
+          ? candleColors.up
+          : direction === 'down' ? candleColors.down : undefined;
         return (
           <div className="session-stat-row" key={row.label}>
             <span className="label">{row.label}</span>
-            <span className={`value ${direction}`}>
+            <span
+              className={`value ${direction}`}
+              style={{ color: candleColor }}
+            >
               {formatPrice(row.value)}
             </span>
             {isComparedValue && <DiffValue value={row.value} base={baseValue!} />}
