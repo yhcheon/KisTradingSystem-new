@@ -301,6 +301,11 @@ impl ChatCommandConfig {
                     "chat command config responses must not be empty".to_string(),
                 ));
             }
+            if response.chars().any(char::is_control) {
+                return Err(ChatError::Configuration(
+                    "chat command config responses must not contain control characters".to_string(),
+                ));
+            }
             let max_expanded_response = response.replace("{nickname}", &max_nickname);
             if max_expanded_response.chars().count() > MAX_MESSAGE_CHARACTERS {
                 return Err(ChatError::Configuration(format!(
@@ -439,6 +444,7 @@ mod tests {
             r#"{"version":1,"commands":{"hello":"hello"}}"#,
             r#"{"version":1,"commands":{"/":"hello"}}"#,
             r#"{"version":1,"commands":{"/hello":"  "}}"#,
+            r#"{"version":1,"commands":{"/hello":"hello\nworld"}}"#,
             r#"{"version":1,"commands":{"/hello":"hello"},"fallback":"no"}"#,
             r#"not json"#,
         ] {
