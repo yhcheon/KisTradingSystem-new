@@ -34,6 +34,8 @@ pub(super) struct SocialActionConfig {
     pub(super) aliases: Vec<String>,
     pub(super) template: String,
     pub(super) template_no_arg: String,
+    pub(super) template_target: Option<String>,
+    pub(super) template_target_no_arg: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -54,6 +56,10 @@ struct RawSocialActionConfig {
     aliases: Vec<String>,
     template: String,
     template_no_arg: String,
+    #[serde(default)]
+    template_target: Option<String>,
+    #[serde(default)]
+    template_target_no_arg: Option<String>,
 }
 
 impl NicknameConfig {
@@ -153,7 +159,7 @@ fn validate_social_template(template: &str, requires_argument: bool) -> Result<(
                     }
                     placeholder.push(next);
                 }
-                if !closed || !matches!(placeholder.as_str(), "nickname" | "argument") {
+                if !closed || !matches!(placeholder.as_str(), "nickname" | "argument" | "target") {
                     return Err(ChatError::Configuration(
                         "social templates may use only {nickname} and {argument} placeholders"
                             .to_string(),
@@ -162,6 +168,7 @@ fn validate_social_template(template: &str, requires_argument: bool) -> Result<(
                 match placeholder.as_str() {
                     "nickname" => has_nickname = true,
                     "argument" => has_argument = true,
+                    "target" => {},
                     _ => unreachable!(),
                 }
             }
@@ -248,6 +255,29 @@ impl ChatCommandConfig {
                     }
                     validate_social_template(&action.template, true)?;
                     validate_social_template(&action.template_no_arg, false)?;
+                    match (&action.template_target, &action.template_target_no_arg) {
+                        (Some(with_argument), Some(without_argument)) => {
+                            validate_social_template(with_argument, true)?;
+                            validate_social_template(without_argument, false)?;
+                            if !with_argument.contains("{target}") || !without_argument.contains("{target}") {
+                                return Err(ChatError::Configuration(
+                                    "target Social templates must contain {target}".to_string(),
+                                ));
+                            }
+                            let expanded = without_argument
+                                .replace("{nickname}", &"n".repeat(MAX_NICKNAME_ALIAS_LENGTH))
+                                .replace("{target}", &"n".repeat(MAX_NICKNAME_ALIAS_LENGTH));
+                            if expanded.chars().count() > MAX_MESSAGE_CHARACTERS {
+                                return Err(ChatError::Configuration(format!(
+                                    "social action {action_id} target template exceeds {MAX_MESSAGE_CHARACTERS} characters after nickname expansion"
+                                )));
+                            }
+                        }
+                        (None, None) => {},
+                        _ => return Err(ChatError::Configuration(
+                            "target Social templates must provide both argument and no-argument forms".to_string()
+                        )),
+                    }
                     let expanded_no_arg = action
                         .template_no_arg
                         .replace("{nickname}", &"n".repeat(MAX_NICKNAME_ALIAS_LENGTH));
@@ -263,6 +293,8 @@ impl ChatCommandConfig {
                             aliases: action.aliases,
                             template: action.template,
                             template_no_arg: action.template_no_arg,
+                            template_target: action.template_target,
+                            template_target_no_arg: action.template_target_no_arg,
                         },
                     );
                 }
