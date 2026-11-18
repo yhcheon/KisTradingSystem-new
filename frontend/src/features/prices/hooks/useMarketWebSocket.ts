@@ -39,6 +39,7 @@ export function useMarketWebSocket({
   const selectedCodeRef = useRef<string | null>(selectedCode);
   const intervalRef = useRef(interval);
   const alertedRangeKeysRef = useRef(new Set<string>());
+  const rangeSnapshotRef = useRef<RangeMonitorSnapshot | null>(null);
   useLayoutEffect(() => {
     intervalRef.current = interval;
   }, [interval]);
@@ -92,6 +93,7 @@ export function useMarketWebSocket({
             if ('range' in message && typeof message.range === 'object' && message.range !== null) {
               const range = message.range as RangeMonitorSnapshot;
               onRangeUpdate(range);
+              rangeSnapshotRef.current = range;
               for (const session of [range.day, range.night]) {
                 if (!session.date) continue;
                 if (session.high_alerted) alertedRangeKeysRef.current.add(`${session.date}:${session.session}:high`);
@@ -113,8 +115,42 @@ export function useMarketWebSocket({
             message.type !== 'tick'
           ) return;
           const tick = message as RealtimeTick;
-          if (tick.range) onRangeUpdate(tick.range);
-          if (tick.range_alert) {
+          if (tick.range) {
+            const previousRange = rangeSnapshotRef.current;
+            for (const session of [tick.range.day, tick.range.night]) {
+              const previousSession = previousRange?.[session.session];
+              for (const direction of ['high', 'low'] as const) {
+                const isAlerted = direction === 'high' ? session.high_alerted : session.low_alerted;
+                const wasAlerted = direction === 'high'
+                  ? previousSession?.high_alerted
+                  : previousSession?.low_alerted;
+                if (!isAlerted || wasAlerted) continue;
+
+                const alertKey = `${session.date ?? tick.date}:${session.session}:${direction}`;
+                if (alertedRangeKeysRef.current.has(alertKey)) continue;
+                alertedRangeKeysRef.current.add(alertKey);
+
+                const matchingEvent = tick.range_alert
+                  && tick.range_alert.session === session.session
+                  && tick.range_alert.direction === direction
+                  ? tick.range_alert
+                  : null;
+                const referencePrice = direction === 'high' ? session.high : session.low;
+                const fallbackAlert: RangeAlert = {
+                  session: session.session,
+                  direction,
+                  price: numeric(tick.price),
+                  reference_price: referencePrice ?? numeric(tick.price),
+                  message: direction === 'high'
+                    ? '시세가 고가 돌파 했습니다. 숏 포지션은 위험 관리 하세요.'
+                    : '시세가 저가를 깼습니다. 롱 포지션은 위험 관리 하세요.',
+                };
+                onRangeAlert(matchingEvent ?? fallbackAlert);
+              }
+            }
+            rangeSnapshotRef.current = tick.range;
+            onRangeUpdate(tick.range);
+          } else if (tick.range_alert) {
             const alertKey = `${tick.date}:${tick.range_alert.session}:${tick.range_alert.direction}`;
             if (!alertedRangeKeysRef.current.has(alertKey)) {
               alertedRangeKeysRef.current.add(alertKey);
