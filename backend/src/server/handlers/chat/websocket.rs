@@ -222,6 +222,27 @@ mod tests {
         }
     }
 
+    async fn assert_no_chat_message(
+        socket: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    ) {
+        loop {
+            match tokio::time::timeout(Duration::from_millis(100), socket.next()).await {
+                Err(_) => break,
+                Ok(Some(Ok(ClientMessage::Text(text)))) => {
+                    let value: serde_json::Value = serde_json::from_str(text.as_ref()).unwrap();
+                    assert_eq!(
+                        value.get("type").and_then(serde_json::Value::as_str),
+                        Some("presence"),
+                        "unexpected extra chat message: {value}"
+                    );
+                }
+                Ok(other) => panic!("unexpected extra WebSocket frame: {other:?}"),
+            }
+        }
+    }
+
     async fn assert_socket_closed(
         socket: &mut tokio_tungstenite::WebSocketStream<
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -266,11 +287,7 @@ mod tests {
         assert_eq!(echoed.text, "hello");
         assert!(!echoed.id.is_empty());
         assert!(!echoed.sent_at.is_empty());
-        assert!(
-            tokio::time::timeout(Duration::from_millis(100), first.next())
-                .await
-                .is_err()
-        );
+        assert_no_chat_message(&mut first).await;
 
         let third_ticket = chat
             .issue_ticket("192.0.2.3".parse().unwrap(), None)
