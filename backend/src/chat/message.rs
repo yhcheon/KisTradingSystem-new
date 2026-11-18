@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn rejects_control_characters_in_messages() {
-        for text in ["line1\\nline2", "tab\\there", "nul\\0byte"] {
+        for text in ["line1\nline2", "tab\there", "nul\0byte"] {
             assert_eq!(
                 validate_message_frame(&frame(text)),
                 Err(ChatError::InvalidMessage),
