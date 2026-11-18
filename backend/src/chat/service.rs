@@ -371,20 +371,26 @@ impl ChatService {
                 .actions
                 .get(&matched.action_id)
                 .ok_or(ChatError::ServiceUnavailable)?;
-            let target_match = matched.argument.as_deref().and_then(|argument| {
-                let state = self.inner.state.lock().ok()?;
-                state.connections.values().find_map(|online| {
-                    let remainder = argument.strip_prefix(&online.alias)?;
-                    if remainder.is_empty() {
-                        Some((online.alias.clone(), None))
-                    } else if remainder.chars().next().is_some_and(char::is_whitespace) {
-                        let rest = remainder.trim_start();
-                        Some((online.alias.clone(), (!rest.is_empty()).then(|| rest.to_string())))
-                    } else {
-                        None
-                    }
+            let target_match = if action.template_target.is_some()
+                && action.template_target_no_arg.is_some()
+            {
+                matched.argument.as_deref().and_then(|argument| {
+                    let state = self.inner.state.lock().ok()?;
+                    state.connections.values().find_map(|online| {
+                        let remainder = argument.strip_prefix(&online.alias)?;
+                        if remainder.is_empty() {
+                            Some((online.alias.clone(), None))
+                        } else if remainder.chars().next().is_some_and(char::is_whitespace) {
+                            let rest = remainder.trim_start();
+                            Some((online.alias.clone(), (!rest.is_empty()).then(|| rest.to_string())))
+                        } else {
+                            None
+                        }
+                    })
                 })
-            });
+            } else {
+                None
+            };
             let rendered = if let Some((target, argument)) = target_match {
                 render_target_social_action(
                     action,
