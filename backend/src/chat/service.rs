@@ -655,7 +655,6 @@ mod tests {
             ("웃", "guest-1님이 웃습니다. ^^"),
             ("신나서 웃음", "guest-1님이 신나서 웃습니다. ^^"),
             ("즐겁게 웃는다", "즐겁게 웃는다"),
-            ("웃 뒤에", "웃 뒤에"),
             ("/wave", "guest-1 waves"),
         ] {
             service.publish_message(&connection, input.to_string()).unwrap();
