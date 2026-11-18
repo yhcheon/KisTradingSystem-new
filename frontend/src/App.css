@@ -503,13 +503,56 @@ footer {
   white-space: nowrap;
 }
 
+.diff,
+.session-change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
 .session-change,
 .session-price-row .diff {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+}
+
+.delta-direction {
+  flex: 0 0 1.2em;
+  text-align: center;
+}
+
+.delta-amount {
+  display: inline-flex;
+  align-items: baseline;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta-amount-sign {
+  flex: 0 0 1ch;
+  text-align: center;
+}
+
+.delta-amount-integer {
+  flex: 0 0 3ch;
+  text-align: right;
+}
+
+.delta-amount-decimal {
+  flex: 0 0 1ch;
+  text-align: center;
+}
+
+.delta-amount-fraction {
+  flex: 0 0 2ch;
+  text-align: right;
+}
+
+.delta-rate {
+  margin-left: 2px;
 }
 
 .session-stats {
@@ -533,14 +576,6 @@ footer {
 .session-stat-row .value {
   color: #cbd5e1;
   font-variant-numeric: tabular-nums;
-}
-
-.session-stat-row .value.high {
-  color: var(--color-up);
-}
-
-.session-stat-row .value.low {
-  color: var(--color-down);
 }
 
 .session-message {

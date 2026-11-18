@@ -15,6 +15,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
+import { candleColors } from './candleColors';
 
 interface Candle {
   date: string;   // "YYYYMMDD" (예: "20261113")
@@ -89,11 +90,11 @@ export default function CandleChart({ data, interval, symbolKey }: Props) {
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#66bb6a',       // 양봉(상승) 초록
-      downColor: '#b71c1c',     // 음봉(하락) 빨강
+      upColor: candleColors.up,
+      downColor: candleColors.down,
       borderVisible: false,
-      wickUpColor: '#66bb6a',
-      wickDownColor: '#b71c1c',
+      wickUpColor: candleColors.up,
+      wickDownColor: candleColors.down,
     });
 
     chartRef.current = chart;

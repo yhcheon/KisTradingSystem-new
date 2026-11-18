@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { PriceResult, SessionQuote } from './types';
+import { candleColors } from './candleColors';
 
 interface Props {
   title: string;
@@ -16,6 +17,19 @@ function toNumber(value: string): number {
   return Number.parseFloat(value.replace(/,/g, '').trim());
 }
 
+function SignedAmount({ value }: { value: number }) {
+  const [integer, fraction] = Math.abs(value).toFixed(2).split('.');
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return (
+    <span className="delta-amount">
+      <span className="delta-amount-sign">{sign}</span>
+      <span className="delta-amount-integer">{integer}</span>
+      <span className="delta-amount-decimal">.</span>
+      <span className="delta-amount-fraction">{fraction}</span>
+    </span>
+  );
+}
+
 // 기준가 대비 차이를 부호와 함께 계산합니다.
 function diffFrom(value: string, base: string) {
   const v = toNumber(value);
@@ -24,7 +38,6 @@ function diffFrom(value: string, base: string) {
   const diff = v - b;
   return {
     sign: diff > 0 ? '▲' : diff < 0 ? '▼' : '-',
-    amount: diff > 0 ? `+${diff.toFixed(2)}` : diff < 0 ? diff.toFixed(2) : '0.00',
     value: diff,
   };
 }
@@ -39,22 +52,34 @@ function formatPrice(value?: string): string {
   return value && value.trim() ? value : '-';
 }
 
-function DiffValue({ value, base, showRate = false }: {
+function DiffValue({ value, base, showRate = false, useCandleColors = false }: {
   value: string;
   base: string;
   showRate?: boolean;
+  useCandleColors?: boolean;
 }) {
   const diff = diffFrom(value, base);
   if (!diff) return null;
   const directionClass = diff.sign === '▲' ? 'up' : diff.sign === '▼' ? 'down' : 'flat';
+  const color = useCandleColors
+    ? directionClass === 'up'
+      ? candleColors.up
+      : directionClass === 'down'
+        ? candleColors.down
+        : undefined
+    : undefined;
   const baseNumber = toNumber(base);
   const rate = Number.isFinite(baseNumber) && baseNumber !== 0
     ? (diff.value / baseNumber) * 100
     : Number.NaN;
   const rateText = rate > 0 ? `+${rate.toFixed(2)}` : rate.toFixed(2);
   return (
-    <span className={`diff ${directionClass}`}>
-      {diff.sign} {diff.amount}{showRate && Number.isFinite(rate) ? ` (${rateText}%)` : ''}
+    <span className={`diff ${directionClass}`} style={{ color }}>
+      <span className="delta-direction">{diff.sign}</span>
+      <SignedAmount value={diff.value} />
+      {showRate && Number.isFinite(rate) && (
+        <span className="delta-rate">({rateText}%)</span>
+      )}
     </span>
   );
 }
@@ -74,18 +99,15 @@ function SessionStats({ quote, baseLabel, baseValue }: {
     <div className="session-stats">
       {rows.map((row) => {
         const isComparedValue = !row.isBase && !!baseValue;
-        const rowValue = toNumber(row.value);
-        const base = baseValue ? toNumber(baseValue) : Number.NaN;
-        const direction = Number.isFinite(rowValue) && Number.isFinite(base)
-          ? rowValue > base ? 'up' : rowValue < base ? 'down' : ''
-          : '';
         return (
           <div className="session-stat-row" key={row.label}>
             <span className="label">{row.label}</span>
-            <span className={`value ${row.label === '고가' ? 'high' : row.label === '저가' ? 'low' : direction}`}>
+            <span className="value">
               {formatPrice(row.value)}
             </span>
-            {isComparedValue && <DiffValue value={row.value} base={baseValue!} />}
+            {isComparedValue && (
+              <DiffValue value={row.value} base={baseValue!} useCandleColors />
+            )}
           </div>
         );
       })}
@@ -116,7 +138,12 @@ function NightSession({ night }: { night: NonNullable<PriceResult['night']> }) {
       <div className="session-price-row">
         <span className="session-price">{formatPrice(quote.price)}</span>
         {quote.reference_price && (
-          <DiffValue value={quote.price} base={quote.reference_price} showRate />
+          <DiffValue
+            value={quote.price}
+            base={quote.reference_price}
+            showRate
+            useCandleColors
+          />
         )}
       </div>
       <SessionStats quote={quote} baseLabel="기준가" baseValue={quote.reference_price} />
@@ -153,10 +180,10 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
       ? currentPrice - previousClose
       : toNumber(day.change);
   const colorClass = priceDiff > 0 ? 'up' : priceDiff < 0 ? 'down' : 'flat';
+  const changeColor = priceDiff > 0
+    ? candleColors.up
+    : priceDiff < 0 ? candleColors.down : undefined;
   const changeSign = priceDiff > 0 ? '▲' : priceDiff < 0 ? '▼' : '-';
-  const changeText = Number.isFinite(priceDiff)
-    ? priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)
-    : day.change;
   const changeRate =
     Number.isFinite(priceDiff) && Number.isFinite(previousClose) && previousClose !== 0
       ? ((priceDiff / previousClose) * 100).toFixed(2)
@@ -178,9 +205,11 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
           <span className="session-status">정규장</span>
         </div>
         <div className="session-price-row">
-          <span className={`session-price ${colorClass}`}>{day.price}</span>
-          <span className={`session-change ${colorClass}`}>
-            {changeSign} {changeText} ({changeRateText}%)
+          <span className="session-price">{day.price}</span>
+          <span className={`session-change ${colorClass}`} style={{ color: changeColor }}>
+            <span className="delta-direction">{changeSign}</span>
+            {Number.isFinite(priceDiff) ? <SignedAmount value={priceDiff} /> : day.change}
+            <span className="delta-rate">({changeRateText}%)</span>
           </span>
         </div>
         <SessionStats
