@@ -135,7 +135,6 @@ impl SessionRangeMonitor {
         }
 
         let (Some(high), Some(low)) = (state.high, state.low) else {
-            state.status = "unavailable";
             return None;
         };
 
