@@ -4,54 +4,84 @@ import type { ActiveModal } from './AppModal';
 
 interface AppHeaderProps {
   activeModal: ActiveModal;
+  activePage: 'prices' | 'chat';
+  authLoading: boolean;
   isAdmin: boolean;
   session: Session | null;
+  onSelectPage: (page: 'prices' | 'chat') => void;
   onOpenModal: (modal: ActiveModal) => void;
 }
 
 export default function AppHeader({
   activeModal,
+  activePage,
+  authLoading,
   isAdmin,
   session,
+  onSelectPage,
   onOpenModal,
 }: AppHeaderProps) {
   return (
     <header className="top-bar">
       <h1>KOSPI200 선물 시세</h1>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <nav className="app-tabs" role="tablist" aria-label="주요 화면">
         <button
-          onClick={() => onOpenModal(null)}
-          className={!activeModal ? 'active' : ''}
+          id="prices-tab"
+          type="button"
+          role="tab"
+          aria-selected={activePage === 'prices'}
+          aria-controls="prices-panel"
+          className={activePage === 'prices' ? 'active' : ''}
+          onClick={() => onSelectPage('prices')}
         >
           시세
         </button>
         <button
-          onClick={() => onOpenModal('analysis')}
-          className={activeModal === 'analysis' ? 'active' : ''}
-          aria-haspopup="dialog"
-          aria-expanded={activeModal === 'analysis'}
+          id="chat-tab"
+          type="button"
+          role="tab"
+          aria-selected={activePage === 'chat'}
+          aria-controls="chat-panel"
+          className={activePage === 'chat' ? 'active' : ''}
+          onClick={() => onSelectPage('chat')}
         >
-          분석
+          채팅
         </button>
-        {isAdmin && (
-          <button
-            onClick={() => onOpenModal('admin')}
-            className={activeModal === 'admin' ? 'active' : ''}
-            aria-haspopup="dialog"
-            aria-expanded={activeModal === 'admin'}
-          >
-            관리자
-          </button>
-        )}
-        {session ? (
-          <button onClick={() => void supabase.auth.signOut()}>로그아웃</button>
+      </nav>
+      <div className="header-actions">
+        {authLoading ? (
+          <span role="status">로딩 중...</span>
         ) : (
-          <button
-            onClick={() => onOpenModal('login')}
-            className={activeModal === 'login' ? 'active' : ''}
-          >
-            로그인
-          </button>
+          <>
+            <button
+              onClick={() => onOpenModal('analysis')}
+              className={activeModal === 'analysis' ? 'active' : ''}
+              aria-haspopup="dialog"
+              aria-expanded={activeModal === 'analysis'}
+            >
+              분석
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => onOpenModal('admin')}
+                className={activeModal === 'admin' ? 'active' : ''}
+                aria-haspopup="dialog"
+                aria-expanded={activeModal === 'admin'}
+              >
+                관리자
+              </button>
+            )}
+            {session ? (
+              <button onClick={() => void supabase.auth.signOut()}>로그아웃</button>
+            ) : (
+              <button
+                onClick={() => onOpenModal('login')}
+                className={activeModal === 'login' ? 'active' : ''}
+              >
+                로그인
+              </button>
+            )}
+          </>
         )}
       </div>
     </header>
