@@ -122,7 +122,12 @@ function NightSession({ night }: { night: NonNullable<PriceResult['night']> }) {
       <div className="session-price-row">
         <span className="session-price">{formatPrice(quote.price)}</span>
         {quote.reference_price && (
-          <DiffValue value={quote.price} base={quote.reference_price} showRate />
+          <DiffValue
+            value={quote.price}
+            base={quote.reference_price}
+            showRate
+            useCandleColors
+          />
         )}
       </div>
       <SessionStats quote={quote} baseLabel="기준가" baseValue={quote.reference_price} />
@@ -159,6 +164,9 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
       ? currentPrice - previousClose
       : toNumber(day.change);
   const colorClass = priceDiff > 0 ? 'up' : priceDiff < 0 ? 'down' : 'flat';
+  const changeColor = priceDiff > 0
+    ? candleColors.up
+    : priceDiff < 0 ? candleColors.down : undefined;
   const changeSign = priceDiff > 0 ? '▲' : priceDiff < 0 ? '▼' : '-';
   const changeText = Number.isFinite(priceDiff)
     ? priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)
@@ -184,8 +192,8 @@ export default function PriceCard({ title, result, selected, onClick }: Props) {
           <span className="session-status">정규장</span>
         </div>
         <div className="session-price-row">
-          <span className={`session-price ${colorClass}`}>{day.price}</span>
-          <span className={`session-change ${colorClass}`}>
+          <span className="session-price">{day.price}</span>
+          <span className={`session-change ${colorClass}`} style={{ color: changeColor }}>
             {changeSign} {changeText} ({changeRateText}%)
           </span>
         </div>
