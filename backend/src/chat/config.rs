@@ -538,7 +538,7 @@ mod tests {
             r#"{"version":2,"commands":{"/hello":"hello"},"actions":{}}"#,
             r#"{"version":2,"matching":{"strategy":"substring","position":"suffix"},"commands":{"/hello":"hello"},"actions":{}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"prefix"},"commands":{"/hello":"hello"},"actions":{}}"#,
-            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
+            r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{argument}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","aliases":["웃"],"template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"웃","template":"{nickname}{unknown}","template_no_arg":"{nickname}"}}}"#,
             r#"{"version":2,"matching":{"strategy":"token","position":"suffix"},"commands":{"/hello":"hello"},"actions":{"a":{"command":"즐겁게 웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
