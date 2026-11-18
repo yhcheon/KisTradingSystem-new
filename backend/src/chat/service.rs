@@ -77,6 +77,12 @@ pub struct ChatTicketResponse {
     pub expires_in_seconds: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChatCommandDefinition {
+    pub command: String,
+    pub response: String,
+}
+
 pub struct ChatConnection {
     inner: Weak<ChatServiceInner>,
     id: u64,
@@ -292,6 +298,15 @@ impl ChatService {
 
     pub fn subscribe_messages(&self) -> broadcast::Receiver<ChatMessage> {
         self.inner.messages.subscribe()
+    }
+
+    pub fn list_commands(&self) -> Vec<ChatCommandDefinition> {
+        self.inner
+            .commands
+            .entries()
+            .into_iter()
+            .map(|(command, response)| ChatCommandDefinition { command, response })
+            .collect()
     }
 
     pub fn publish_message(

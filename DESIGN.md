@@ -410,6 +410,8 @@ WebSocket 브라우저 API는 임의의 `Authorization` 헤더 설정을 지원�
 
 **Phase 1 API와 Phase 2 연결**: 비인증 `POST /api/chat/ticket`은 `{ ticket, nickname, expires_in_seconds }`를 반환하며, `/ws/chat?ticket=...`는 Phase 1에서 발급한 티켓을 소비해 연결 중인 클라이언트 사이에서만 메시지를 전달합니다.
 
+비인증 `GET /api/chat/commands`는 백엔드가 시작 시 로드한 명령 목록을 `{ command, response }` 객체 배열로 반환합니다. 프론트엔드는 이 목록을 한 번 불러와 메모리에 캐시하고, 입력창에 `/`를 입력하면 최대 높이가 제한된 스크롤 목록에서 명령과 응답 문구를 미리 보여줍니다. 화살표 키로 항목을 이동하고 Enter 또는 포인터/터치로 선택할 수 있으며, 선택은 입력창만 채우고 메시지는 자동 전송하지 않습니다. Escape는 목록을 닫습니다.
+
 #### 방문자 별칭 설정 파일 및 운영
 
 운영자가 배포 설정으로 관리할 파일 위치는 저장소 루트의 `config/nicknames.json`입니다. `CHAT_NICKNAMES_CONFIG` 환경 변수로 경로를 덮어쓸 수 있으며, 상대 경로는 `backend` 디렉터리를 기준으로 합니다. 아래는 형식 예시이며, 세 단어는 사용자가 제시한 샘플 값일 뿐 운영 목록을 세 단어로 제한하지 않습니다. 실제 운영자는 원하는 개수의 단어를 이 파일에 관리합니다.

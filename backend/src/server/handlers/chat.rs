@@ -1,10 +1,10 @@
 use crate::{
-    chat::{ChatError, ChatTicketResponse},
+    chat::{ChatCommandDefinition, ChatError, ChatService, ChatTicketResponse},
     core::state::AppState,
 };
 use axum::{
     Json,
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Extension, State},
     http::{HeaderMap, StatusCode},
 };
 use serde::Serialize;
@@ -16,6 +16,12 @@ pub(crate) use websocket::ws_handler;
 #[derive(Serialize)]
 pub(crate) struct TicketError {
     code: &'static str,
+}
+
+pub(crate) async fn list_commands(
+    Extension(chat): Extension<ChatService>,
+) -> Json<Vec<ChatCommandDefinition>> {
+    Json(chat.list_commands())
 }
 
 pub(crate) async fn issue_ticket(
@@ -44,4 +50,25 @@ fn ticket_error_response(error: ChatError) -> (StatusCode, Json<TicketError>) {
         _ => (StatusCode::SERVICE_UNAVAILABLE, "chat_unavailable"),
     };
     (status, Json(TicketError { code }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn lists_commands_from_the_loaded_chat_config() {
+        let chat = ChatService::new_for_test(r#"{"words":["guest"]}"#);
+
+        let Json(commands) = list_commands(Extension(chat)).await;
+        let response = serde_json::to_value(commands).unwrap();
+
+        assert_eq!(
+            response,
+            serde_json::json!([{
+                "command": "/test",
+                "response": "{nickname} test",
+            }])
+        );
+    }
 }

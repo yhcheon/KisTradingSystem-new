@@ -20,6 +20,10 @@ pub fn build(state: AppState) -> Router {
             "/api/chat/ticket",
             post(crate::server::handlers::chat::issue_ticket),
         )
+        .route(
+            "/api/chat/commands",
+            get(crate::server::handlers::chat::list_commands),
+        )
         .route("/ws", get(market::ws_handler))
         .route("/ws/chat", get(crate::server::handlers::chat::ws_handler))
         .layer(axum::Extension(state.chat.clone()))

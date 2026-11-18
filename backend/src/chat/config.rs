@@ -154,6 +154,16 @@ impl ChatCommandConfig {
     pub fn len(&self) -> usize {
         self.commands.len()
     }
+
+    pub fn entries(&self) -> Vec<(String, String)> {
+        let mut entries = self
+            .commands
+            .iter()
+            .map(|(command, response)| (command.clone(), response.clone()))
+            .collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
+        entries
+    }
 }
 
 pub(super) fn nickname_config_path() -> Result<PathBuf, ChatError> {
