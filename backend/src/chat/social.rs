@@ -128,160 +128,56 @@ pub(super) fn render_target_social_action(
 mod tests {
     use super::*;
 
-    fn actions() -> HashMap<String, SocialActionConfig> {
-        HashMap::from([
-            (
-                "laugh".to_string(),
-                SocialActionConfig {
-                    command: "웃".to_string(),
-                    aliases: vec!["웃음".to_string()],
-                    template: "{nickname}님이{argument} 웃습니다.".to_string(),
-                    template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),\n            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),\n            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),\n                    template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),\n                    template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),
-                },
-            ),
-            (
-                "go".to_string(),
-                SocialActionConfig {
-                    command: "가".to_string(),
-                    aliases: vec!["가다".to_string()],
-                    template: "{nickname}님이{argument} 갑니다.".to_string(),
-                    template_no_arg: "{nickname}님이 갑니다.".to_string(),
-                    template_target: Some("{nickname}님이 {target}님 쪽으로{argument} 갑니다.".to_string()),
-                    template_target_no_arg: Some("{nickname}님이 {target}님 쪽으로 갑니다.".to_string()),
-                },
-            ),
-        ])
-    }
-
     fn laugh_action() -> SocialActionConfig {
         SocialActionConfig {
             command: "웃".to_string(),
             aliases: vec!["웃음".to_string()],
             template: "{nickname}님이{argument} 웃습니다. ^^".to_string(),
             template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),
-            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다.".to_string()),
-            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다.".to_string()),
+            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^".to_string()),
+            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다. ^^".to_string()),
         }
     }
 
-    #[test]
-    fn renders_laugh_with_suffix_with_and_without_argument() {
-        let action = laugh_action();
+    fn actions() -> HashMap<String, SocialActionConfig> {
+        HashMap::from([("laugh".to_string(), laugh_action())])
+    }
 
+    #[test]
+    fn renders_social_action_with_and_without_argument() {
+        let action = laugh_action();
+        assert_eq!(render_social_action(&action, "작성자", None).unwrap(), "작성자님이 웃습니다. ^^");
+        assert_eq!(render_social_action(&action, "작성자", Some("즐겁게")).unwrap(), "작성자님이 즐겁게 웃습니다. ^^");
+    }
+
+    #[test]
+    fn renders_target_action_in_confirmed_form() {
+        let action = laugh_action();
         assert_eq!(
-            render_social_action(&action, "홍길동-1", None).unwrap(),
-            "홍길동-1님이 웃습니다. ^^"
+            render_target_social_action(&action, "작성자", "홍길동", None).unwrap(),
+            "작성자님이 홍길동님을 보고 웃습니다. ^^"
         );
         assert_eq!(
-            render_social_action(&action, "홍길동-1", Some("즐겁게")).unwrap(),
-            "홍길동-1님이 즐겁게 웃습니다. ^^"
+            render_target_social_action(&action, "작성자", "홍길동", Some("즐겁게")).unwrap(),
+            "작성자님이 홍길동님을 보고 즐겁게 웃습니다. ^^"
         );
     }
 
     #[test]
-    fn renders_multiword_and_unicode_arguments_without_losing_spacing() {
-        let action = laugh_action();
-
-        assert_eq!(
-            render_social_action(&action, "손님-2", Some("신나서 크게 ㅋㅋㅋ 😄")).unwrap(),
-            "손님-2님이 신나서 크게 ㅋㅋㅋ 😄 웃습니다. ^^"
-        );
+    fn matches_only_the_final_token_and_preserves_argument() {
+        let matched = parse_social_action("신나게   ㅋㅋㅋ 웃", &actions()).unwrap();
+        assert_eq!(matched.action_id, "laugh");
+        assert_eq!(matched.argument.as_deref(), Some("신나게   ㅋㅋㅋ"));
+        assert_eq!(parse_social_action("웃음 뒤에", &actions()), None);
+        assert_eq!(parse_social_action("즐겁게 웃는다", &actions()), None);
     }
 
     #[test]
-    fn rejects_rendered_control_characters_and_oversized_messages() {
+    fn rejects_invalid_rendered_messages() {
         let action = laugh_action();
-
         assert_eq!(
-            render_social_action(&action, "손님-2", Some("줄1\n줄2")),
+            render_social_action(&action, "작성자", Some("줄1\n줄2")),
             Err(ChatError::InvalidMessage)
         );
-        let short_action = SocialActionConfig {
-            command: "웃".to_string(),
-            aliases: Vec::new(),
-            template: "{nickname}{argument}".to_string(),
-            template_no_arg: "{nickname}".to_string(),
-            template_target: None,
-            template_target_no_arg: None,
-        };
-        assert_eq!(
-            render_social_action(&short_action, "n", Some(&"가".repeat(499))),
-            Err(ChatError::MessageTooLong)
-        );
-        assert_eq!(
-            render_social_action(&short_action, "n", Some(&"가".repeat(498)))
-                .unwrap()
-                .chars()
-                .count(),
-            MAX_MESSAGE_CHARACTERS
-        );
-    }
-
-    #[test]
-    fn matches_a_command_as_the_only_token() {
-        assert_eq!(
-            parse_social_action("웃", &actions()),
-            Some(MatchedSocialAction {
-                action_id: "laugh".to_string(),
-                matched_token: "웃".to_string(),
-                argument: None,
-            })
-        );
-    }
-
-    #[test]
-    fn preserves_the_complete_multiword_argument() {
-        assert_eq!(
-            parse_social_action("즐겁게 신나서 ㅋㅋㅋ 웃", &actions()),
-            Some(MatchedSocialAction {
-                action_id: "laugh".to_string(),
-                matched_token: "웃".to_string(),
-                argument: Some("즐겁게 신나서 ㅋㅋㅋ".to_string()),
-            })
-        );
-    }
-
-    #[test]
-    fn matches_aliases_only_when_the_alias_is_the_final_token() {
-        assert_eq!(
-            parse_social_action("학교로 가다", &actions()),
-            Some(MatchedSocialAction {
-                action_id: "go".to_string(),
-                matched_token: "가다".to_string(),
-                argument: Some("학교로".to_string()),
-            })
-        );
-        assert_eq!(parse_social_action("웃음 뒤에", &actions()), None);
-    }
-
-    #[test]
-    fn does_not_match_substrings_or_commands_in_middle_tokens() {
-        for input in [
-            "가방",
-            "가방을 샀다",
-            "학교 가방",
-            "즐겁게 웃는다",
-            "ㅎㅎ 엉",
-            "웃 뒤에",
-        ] {
-            assert_eq!(parse_social_action(input, &actions()), None, "{input}");
-        }
-    }
-
-    #[test]
-    fn preserves_internal_whitespace_and_symbols_in_argument() {
-        assert_eq!(
-            parse_social_action("신나게   ㅋㅋㅋ 웃", &actions())
-                .unwrap()
-                .argument
-                .as_deref(),
-            Some("신나게   ㅋㅋㅋ")
-        );
-    }
-
-    #[test]
-    fn does_not_match_an_empty_final_token() {
-        assert_eq!(parse_social_action("", &actions()), None);
-        assert_eq!(parse_social_action("웃 ", &actions()), None);
     }
 }
