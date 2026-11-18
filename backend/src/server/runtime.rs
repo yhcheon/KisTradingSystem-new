@@ -6,7 +6,7 @@
 // ============================================================
 
 use axum::http::{HeaderValue, Method, header};
-use std::future::Future;
+use std::future::{Future, IntoFuture};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
@@ -67,10 +67,13 @@ where
         bind_addr
     );
 
+    // Axum 0.8의 Serve는 Future가 아니라 IntoFuture를 구현하므로
+    // select!에서 사용할 Future로 변환합니다.
     let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    );
+    )
+    .into_future();
     tokio::pin!(server);
     tokio::pin!(initialize);
 
