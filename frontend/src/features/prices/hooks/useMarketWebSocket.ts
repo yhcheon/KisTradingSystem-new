@@ -72,8 +72,30 @@ export function useMarketWebSocket({
 
       nextSocket.onmessage = (event) => {
         try {
-          const tick: RealtimeTick = JSON.parse(event.data);
-          if (tick.type !== 'tick') return;
+          const message: unknown = JSON.parse(event.data);
+          if (
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            message.type === 'snapshot' &&
+            'data' in message &&
+            typeof message.data === 'object' &&
+            message.data !== null &&
+            'regular' in message.data &&
+            'mini' in message.data
+          ) {
+            // 서버가 연결 직후 보낸 기준 스냅샷을 적용한 뒤 버퍼링된 실시간 체결을 처리합니다.
+            setData(message.data as PricesResponse);
+            return;
+          }
+
+          if (
+            typeof message !== 'object' ||
+            message === null ||
+            !('type' in message) ||
+            message.type !== 'tick'
+          ) return;
+          const tick = message as RealtimeTick;
 
           setData((previous) => {
             if (!previous) return previous;
