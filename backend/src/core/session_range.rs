@@ -100,6 +100,7 @@ impl SessionRangeMonitor {
             return None;
         }
 
+        let started_at = self.started_at;
         let (session, start, end, state) = match market_session {
             "day" => ("day", DAY_START, DAY_END, &mut self.day),
             "night" => ("night", NIGHT_START, NIGHT_END, &mut self.night),
@@ -112,7 +113,7 @@ impl SessionRangeMonitor {
 
         if state.date.as_deref() != Some(date) {
             let eligible = session_start_utc(date, start)
-                .map(|session_start| self.started_at <= session_start)
+                .map(|session_start| started_at <= session_start)
                 .unwrap_or(false);
             *state = SessionState::new(date, eligible);
         }
