@@ -189,7 +189,8 @@ const SOCIAL_ACTION_EMOJI: Record<string, string> = {
   rest: '☕',
   dance: '💃',
   sing: '🎵',
-  applause: '👏',\n  greet: '👋',
+  applause: '👏',
+  greet: '👋',
 };
 
 function usePublicChat(enabled: boolean) {
