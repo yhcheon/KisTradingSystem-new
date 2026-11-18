@@ -275,11 +275,15 @@ export default function ChatPage() {
                 className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}`}
                 key={message.id}
               >
-                <div className="chat-message-meta">
-                  {!isContinuation && <strong>{message.nickname}</strong>}
+                {!isContinuation && (
+                  <div className="chat-message-meta">
+                    <strong>{message.nickname}</strong>
+                  </div>
+                )}
+                <div className="chat-message-row">
+                  <p>{message.text}</p>
                   <time dateTime={message.sent_at}>{formatTime(message.sent_at)}</time>
                 </div>
-                <p>{message.text}</p>
               </li>
             );
           })

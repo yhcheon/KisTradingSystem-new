@@ -607,7 +607,7 @@ footer {
 
 .chat-header p,
 .chat-identity,
-.chat-message-meta time {
+.chat-message-row time {
   color: var(--text-muted);
   font-size: 13px;
 }
@@ -657,10 +657,24 @@ footer {
   color: #bfdbfe;
 }
 
-.chat-message p {
-  margin-top: 4px;
+.chat-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.chat-message-row p {
+  flex: 1;
+  min-width: 0;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.chat-message-row time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-top: 2px;
+  white-space: nowrap;
 }
 
 .chat-composer {
