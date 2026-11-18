@@ -5,6 +5,7 @@ use super::{
         trusted_proxy_ips_from_env,
     },
     message::{ChatMessage, create_message},
+    social::{parse_social_action, render_social_action, render_target_social_action},
 };
 use chrono::{NaiveDate, Utc};
 use rand::Rng;
@@ -39,6 +40,7 @@ struct ChatServiceInner {
     trusted_proxies: HashSet<IpAddr>,
     state: Mutex<ChatState>,
     messages: broadcast::Sender<ChatMessage>,
+    presence: broadcast::Sender<usize>,
 }
 
 #[derive(Default)]
@@ -60,6 +62,7 @@ struct TicketRecord {
 
 struct ConnectionRecord {
     client_ip: IpAddr,
+    alias: String,
     message_attempts: VecDeque<Instant>,
 }
 
@@ -81,6 +84,14 @@ pub struct ChatTicketResponse {
 pub struct ChatCommandDefinition {
     pub command: String,
     pub response: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ChatActionDefinition {
+    pub action_id: String,
+    pub command: String,
+    pub aliases: Vec<String>,
+    pub example: String,
 }
 
 pub struct ChatConnection {
@@ -116,6 +127,7 @@ impl ChatService {
         trusted_proxies: HashSet<IpAddr>,
     ) -> Self {
         let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
+        let (presence, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
         Self {
             inner: Arc::new(ChatServiceInner {
                 nicknames,
@@ -123,6 +135,7 @@ impl ChatService {
                 trusted_proxies,
                 state: Mutex::new(ChatState::default()),
                 messages,
+                presence,
             }),
         }
     }
@@ -260,9 +273,12 @@ impl ChatService {
             connection_id,
             ConnectionRecord {
                 client_ip: record.client_ip,
+                alias: record.alias.clone(),
                 message_attempts: VecDeque::new(),
             },
         );
+        let online_count = state.connections.len();
+        let _ = self.inner.presence.send(online_count);
 
         Ok(ChatConnection {
             inner: Arc::downgrade(&self.inner),
@@ -300,6 +316,14 @@ impl ChatService {
         self.inner.messages.subscribe()
     }
 
+    pub fn subscribe_presence(&self) -> broadcast::Receiver<usize> {
+        self.inner.presence.subscribe()
+    }
+
+    pub fn online_count(&self) -> usize {
+        self.inner.state.lock().map(|state| state.connections.len()).unwrap_or(0)
+    }
+
     pub fn list_commands(&self) -> Vec<ChatCommandDefinition> {
         self.inner
             .commands
@@ -309,18 +333,83 @@ impl ChatService {
             .collect()
     }
 
+    pub fn list_actions(&self) -> Vec<ChatActionDefinition> {
+        let mut actions = self
+            .inner
+            .commands
+            .actions
+            .iter()
+            .map(|(action_id, action)| ChatActionDefinition {
+                action_id: action_id.clone(),
+                command: action.command.clone(),
+                aliases: action.aliases.clone(),
+                example: action.template_no_arg.replace("{nickname}", "누군가"),
+            })
+            .collect::<Vec<_>>();
+        actions.sort_by(|left, right| left.command.cmp(&right.command));
+        actions
+    }
+
     pub fn publish_message(
         &self,
         connection: &ChatConnection,
         text: String,
     ) -> Result<(), ChatError> {
         connection.check_message_rate_limit()?;
-        let text = self
+        let (text, action_id) = if let Some(expanded) = self
             .inner
             .commands
             .expand(&text, connection.nickname())
-            .unwrap_or(text);
-        let message = create_message(connection.nickname(), text);
+        {
+            (expanded, None)
+        } else if let Some(matched) =
+            parse_social_action(&text, &self.inner.commands.actions)
+        {
+            let action = self
+                .inner
+                .commands
+                .actions
+                .get(&matched.action_id)
+                .ok_or(ChatError::ServiceUnavailable)?;
+            let target_match = if action.template_target.is_some()
+                && action.template_target_no_arg.is_some()
+            {
+                matched.argument.as_deref().and_then(|argument| {
+                    let state = self.inner.state.lock().ok()?;
+                    state.connections.values().find_map(|online| {
+                        let remainder = argument.strip_prefix(&online.alias)?;
+                        if remainder.is_empty() {
+                            Some((online.alias.clone(), None))
+                        } else if remainder.chars().next().is_some_and(char::is_whitespace) {
+                            let rest = remainder.trim_start();
+                            Some((online.alias.clone(), (!rest.is_empty()).then(|| rest.to_string())))
+                        } else {
+                            None
+                        }
+                    })
+                })
+            } else {
+                None
+            };
+            let rendered = if let Some((target, argument)) = target_match {
+                render_target_social_action(
+                    action,
+                    connection.nickname(),
+                    &target,
+                    argument.as_deref(),
+                )?
+            } else {
+                render_social_action(
+                    action,
+                    connection.nickname(),
+                    matched.argument.as_deref(),
+                )?
+            };
+            (rendered, Some(matched.action_id))
+        } else {
+            (text, None)
+        };
+        let message = create_message(connection.nickname(), text, action_id);
         self.inner
             .messages
             .send(message)
@@ -384,13 +473,21 @@ impl Drop for ChatConnection {
             Ok(state) => state,
             Err(poisoned) => poisoned.into_inner(),
         };
-        if let Some(connection) = state.connections.remove(&self.id) {
+        let removed = if let Some(connection) = state.connections.remove(&self.id) {
             release_alias(&mut state, &self.alias);
             if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
                 limits.active_connections = limits.active_connections.saturating_sub(1);
             }
-        }
+            true
+        } else {
+            false
+        };
         prune_ip_limits(&mut state);
+        let online_count = state.connections.len();
+        drop(state);
+        if removed {
+            let _ = inner.presence.send(online_count);
+        }
     }
 }
 
@@ -611,6 +708,41 @@ mod tests {
     }
 
     #[test]
+    fn publishes_social_actions_and_preserves_unmatched_messages() {
+        const SOCIAL_COMMANDS: &str = r#"{
+            "version": 2,
+            "commands": {
+                "/wave": "{nickname} waves"
+            },
+            "actions": {
+                "laugh": {
+                    "command": "웃",
+                    "aliases": ["웃음"],
+                    "template": "{nickname}님이{argument} 웃습니다. ^^",
+                    "template_no_arg": "{nickname}님이 웃습니다. ^^"
+                }
+            }
+        }"#;
+        let service = service_with_commands(r#"{"words":["guest"]}"#, SOCIAL_COMMANDS);
+        let mut messages = service.subscribe_messages();
+        let ticket = service.issue_ticket(ip(1), None).unwrap();
+        let connection = service.consume_ticket(&ticket.ticket).unwrap();
+
+        for (input, expected) in [
+            ("즐겁게 신나서 웃", "guest-1님이 즐겁게 신나서 웃습니다. ^^"),
+            ("웃", "guest-1님이 웃습니다. ^^"),
+            ("신나서 웃음", "guest-1님이 신나서 웃습니다. ^^"),
+            ("즐겁게 웃는다", "즐겁게 웃는다"),
+            ("/wave", "guest-1 waves"),
+        ] {
+            service.publish_message(&connection, input.to_string()).unwrap();
+            let message = messages.try_recv().unwrap();
+            assert_eq!(message.nickname, "guest-1");
+            assert_eq!(message.text, expected, "input: {input}");
+        }
+    }
+
+    #[test]
     fn continues_the_sequence_after_a_connection_disconnects() {
         let service = service(&["one"]);
         let first = service.issue_ticket(ip(1), None).unwrap();
@@ -827,4 +959,67 @@ mod tests {
             ip(9)
         );
     }
+
+    #[tokio::test]
+    async fn targets_only_online_nicknames_and_tracks_presence() {
+        const SOCIAL_COMMANDS: &str = r#"{
+            "version": 2,
+            "commands": {"/wave": "{nickname} waves"},
+            "actions": {
+                "laugh": {
+                    "command": "웃",
+                    "aliases": ["웃음"],
+                    "template": "{nickname}님이{argument} 웃습니다. ^^",
+                    "template_no_arg": "{nickname}님이 웃습니다. ^^",
+                    "template_target": "{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^",
+                    "template_target_no_arg": "{nickname}님이 {target}님을 보고 웃습니다. ^^"
+                },
+                "greet": {
+                    "command": "인사",
+                    "aliases": [],
+                    "template": "{nickname}님이{argument} 인사합니다.",
+                    "template_no_arg": "{nickname}님이 인사합니다.",
+                    "template_target": "{nickname}님이 {target}님에게{argument} 인사합니다.",
+                    "template_target_no_arg": "{nickname}님이 {target}님에게 인사합니다."
+                }
+            }
+        }"#;
+        let service = service_with_commands(r#"{"words":["guest"]}"#, SOCIAL_COMMANDS);
+        let mut presence = service.subscribe_presence();
+        let mut messages = service.subscribe_messages();
+        let first_ticket = service.issue_ticket(ip(1), None).unwrap();
+        let first = service.consume_ticket(&first_ticket.ticket).unwrap();
+        assert_eq!(presence.recv().await.unwrap(), 1);
+        let second_ticket = service.issue_ticket(ip(2), None).unwrap();
+        let second = service.consume_ticket(&second_ticket.ticket).unwrap();
+        assert_eq!(presence.recv().await.unwrap(), 2);
+        assert_eq!(service.online_count(), 2);
+
+        service.publish_message(&first, format!("{} 웃", second.nickname())).unwrap();
+        let message = messages.recv().await.unwrap();
+        assert_eq!(
+            message.text,
+            format!("{}님이 {}님을 보고 웃습니다. ^^", first.nickname(), second.nickname())
+        );
+        assert_eq!(message.action_id.as_deref(), Some("laugh"));
+
+        service.publish_message(&first, format!("{} 인사", second.nickname())).unwrap();
+        let greeting = messages.recv().await.unwrap();
+        assert_eq!(
+            greeting.text,
+            format!("{}님이 {}님에게 인사합니다.", first.nickname(), second.nickname())
+        );
+
+        service.publish_message(&first, "offline-999 웃".to_string()).unwrap();
+        let fallback = messages.recv().await.unwrap();
+        assert_eq!(
+            fallback.text,
+            format!("{}님이 offline-999 웃습니다. ^^", first.nickname())
+        );
+
+        drop(second);
+        assert_eq!(presence.recv().await.unwrap(), 1);
+        assert_eq!(service.online_count(), 1);
+    }
+
 }

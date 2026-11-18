@@ -1,11 +1,12 @@
 mod config;
 mod message;
 mod service;
+mod social;
 
 use std::fmt;
 
 pub use message::{ChatMessage, MAX_MESSAGE_FRAME_BYTES, validate_message_frame};
-pub use service::{ChatCommandDefinition, ChatConnection, ChatService, ChatTicketResponse};
+pub use service::{ChatActionDefinition, ChatCommandDefinition, ChatConnection, ChatService, ChatTicketResponse};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChatError {

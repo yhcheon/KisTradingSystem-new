@@ -20,6 +20,10 @@ pub struct ChatMessage {
     pub id: String,
     pub nickname: String,
     pub text: String,
+    #[serde(default = "default_message_kind")]
+    pub message_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action_id: Option<String>,
     pub sent_at: String,
 }
 
@@ -41,11 +45,22 @@ pub fn validate_message_frame(frame: &[u8]) -> Result<String, ChatError> {
     if text.chars().count() > MAX_MESSAGE_CHARACTERS {
         return Err(ChatError::MessageTooLong);
     }
+    if text.chars().any(char::is_control) {
+        return Err(ChatError::InvalidMessage);
+    }
 
     Ok(text.to_string())
 }
 
-pub fn create_message(nickname: &str, text: String) -> ChatMessage {
+fn default_message_kind() -> String {
+    "chat".to_string()
+}
+
+pub fn create_message(
+    nickname: &str,
+    text: String,
+    action_id: Option<String>,
+) -> ChatMessage {
     let mut bytes = [0_u8; 16];
     rand::rng().fill(&mut bytes);
     let id = bytes
@@ -58,6 +73,8 @@ pub fn create_message(nickname: &str, text: String) -> ChatMessage {
         id,
         nickname: nickname.to_string(),
         text,
+        message_kind: if action_id.is_some() { "social" } else { "chat" }.to_string(),
+        action_id,
         sent_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     }
 }
@@ -81,6 +98,17 @@ mod tests {
             validate_message_frame(&frame(&"한".repeat(501))),
             Err(ChatError::MessageTooLong)
         );
+    }
+
+    #[test]
+    fn rejects_control_characters_in_messages() {
+        for text in ["line1\nline2", "tab\there", "nul\0byte"] {
+            assert_eq!(
+                validate_message_frame(&frame(text)),
+                Err(ChatError::InvalidMessage),
+                "control characters must be rejected: {text:?}"
+            );
+        }
     }
 
     #[test]

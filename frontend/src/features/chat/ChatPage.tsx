@@ -6,6 +6,8 @@ interface ChatMessage {
   id: string;
   nickname: string;
   text: string;
+  message_kind?: 'chat' | 'social';
+  action_id?: string;
   sent_at: string;
 }
 
@@ -20,6 +22,13 @@ interface ChatCommandDefinition {
   response: string;
 }
 
+interface ChatActionDefinition {
+  action_id: string;
+  command: string;
+  aliases: string[];
+  example: string;
+}
+
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 
 const MAX_MESSAGES = 100;
@@ -29,6 +38,8 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 
 let cachedChatCommands: ChatCommandDefinition[] | null = null;
 let chatCommandsRequest: Promise<ChatCommandDefinition[]> | null = null;
+let cachedChatActions: ChatActionDefinition[] | null = null;
+let chatActionsRequest: Promise<ChatActionDefinition[]> | null = null;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
@@ -74,6 +85,50 @@ function loadChatCommands(): Promise<ChatCommandDefinition[]> {
   return request;
 }
 
+function isChatActionDefinition(value: unknown): value is ChatActionDefinition {
+  if (typeof value !== 'object' || value === null) return false;
+  const action = value as Record<string, unknown>;
+  return (
+    typeof action.action_id === 'string' &&
+    typeof action.command === 'string' &&
+    Array.isArray(action.aliases) &&
+    action.aliases.every((alias) => typeof alias === 'string') &&
+    typeof action.example === 'string'
+  );
+}
+
+function isChatActionList(value: unknown): value is ChatActionDefinition[] {
+  return Array.isArray(value) && value.every(isChatActionDefinition);
+}
+
+function loadChatActions(): Promise<ChatActionDefinition[]> {
+  if (cachedChatActions) return Promise.resolve(cachedChatActions);
+  if (chatActionsRequest) return chatActionsRequest;
+
+  const request = (async () => {
+    const response = await fetch('/api/chat/actions');
+    if (!response.ok) {
+      throw new Error(`행동 명령어 목록 요청 실패 (HTTP ${response.status})`);
+    }
+    const actionData: unknown = await response.json();
+    if (!isChatActionList(actionData)) {
+      throw new Error('채팅 서버가 올바르지 않은 행동 명령어 목록을 반환했습니다.');
+    }
+    cachedChatActions = actionData;
+    return actionData;
+  })();
+  chatActionsRequest = request;
+  void request.then(
+    () => {
+      if (chatActionsRequest === request) chatActionsRequest = null;
+    },
+    () => {
+      if (chatActionsRequest === request) chatActionsRequest = null;
+    },
+  );
+  return request;
+}
+
 function isChatTicket(value: unknown): value is ChatTicket {
   if (typeof value !== 'object' || value === null) return false;
   const ticket = value as Record<string, unknown>;
@@ -92,6 +147,10 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof message.id === 'string' &&
     typeof message.nickname === 'string' &&
     typeof message.text === 'string' &&
+    (message.message_kind === undefined ||
+      message.message_kind === 'chat' ||
+      message.message_kind === 'social') &&
+    (message.action_id === undefined || typeof message.action_id === 'string') &&
     typeof message.sent_at === 'string'
   );
 }
@@ -108,10 +167,37 @@ function formatTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
 
+const SOCIAL_ACTION_EMOJI: Record<string, string> = {
+  go: '🚶',
+  come: '👋',
+  stand: '🧍',
+  sit: '🪑',
+  lie_down: '🛏️',
+  get_up: '🌅',
+  return_go: '↩️',
+  return_come: '🏃',
+  exit: '🚪',
+  enter: '🚪',
+  come_inside: '🏠',
+  run: '🏃',
+  walk: '🚶',
+  laugh: '😄',
+  cry: '😢',
+  eat: '🍽️',
+  drink: '🥤',
+  sleep: '😴',
+  rest: '☕',
+  dance: '💃',
+  sing: '🎵',
+  applause: '👏',
+  greet: '👋',
+};
+
 function usePublicChat(enabled: boolean) {
   const [, setStatus] = useState<ConnectionStatus>('connecting');
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [onlineCount, setOnlineCount] = useState(0);
   const [connectionError, setConnectionError] = useState('');
   const [, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -202,6 +288,19 @@ function usePublicChat(enabled: boolean) {
               throw new Error('채팅 서버에서 지원하지 않는 메시지 형식을 받았습니다.');
             }
             const data: unknown = JSON.parse(event.data);
+            if (
+              typeof data === 'object' &&
+              data !== null &&
+              'type' in data &&
+              data.type === 'presence' &&
+              'online_count' in data &&
+              typeof data.online_count === 'number' &&
+              Number.isInteger(data.online_count) &&
+              data.online_count >= 0
+            ) {
+              setOnlineCount(data.online_count);
+              return;
+            }
             if (isChatMessage(data)) {
               setMessages((current) => [...current, data].slice(-MAX_MESSAGES));
               return;
@@ -234,6 +333,7 @@ function usePublicChat(enabled: boolean) {
           socketRef.current = null;
           socket = null;
           setConnectionClosed(true);
+          setOnlineCount(0);
           scheduleReconnect();
         };
       } catch (error) {
@@ -282,6 +382,7 @@ function usePublicChat(enabled: boolean) {
   return {
     connectionError,
     messages,
+    onlineCount,
     nickname,
     sendError,
     sendMessage,
@@ -293,6 +394,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
   const {
     connectionError,
     messages,
+    onlineCount,
     nickname,
     sendError,
     sendMessage,
@@ -300,6 +402,9 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
   } = usePublicChat(backendReady);
   const [text, setText] = useState('');
   const [commands, setCommands] = useState<ChatCommandDefinition[]>([]);
+  const [actions, setActions] = useState<ChatActionDefinition[]>([]);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionLoadError, setActionLoadError] = useState('');
   const [commandLoadError, setCommandLoadError] = useState('');
   const [commandPickerDismissed, setCommandPickerDismissed] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
@@ -324,6 +429,26 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
         if (!disposed) {
           setCommandLoadError(
             `명령어 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`,
+          );
+        }
+      },
+    );
+    return () => {
+      disposed = true;
+    };
+  }, [backendReady]);
+
+  useEffect(() => {
+    if (!backendReady) return;
+    let disposed = false;
+    void loadChatActions().then(
+      (loadedActions) => {
+        if (!disposed) setActions(loadedActions);
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setActionLoadError(
+            `행동 명령어 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`,
           );
         }
       },
@@ -393,6 +518,8 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
         </p>
       )}
 
+      <p className="chat-online-count" aria-live="polite">현재 접속자 {onlineCount}명</p>
+
       <ol className="chat-messages" aria-live="polite" ref={messageListRef}>
         {messages.length === 0 ? (
           <li className="chat-empty">새 메시지를 기다리는 중입니다.</li>
@@ -403,7 +530,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
 
             return (
               <li
-                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}`}
+                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}${message.message_kind === 'social' ? ' chat-message-social' : ''}`}
                 key={message.id}
               >
                 {!isContinuation && (
@@ -412,7 +539,14 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
                   </div>
                 )}
                 <div className="chat-message-row">
-                  <p>{message.text}</p>
+                  <p>
+                    {message.text}
+                    {message.message_kind === 'social' && message.action_id && (
+                      <span className="chat-social-emoji" aria-hidden="true">
+                        {' '}{SOCIAL_ACTION_EMOJI[message.action_id] ?? '✨'}
+                      </span>
+                    )}
+                  </p>
                   <time dateTime={message.sent_at}>{formatTime(message.sent_at)}</time>
                 </div>
               </li>
@@ -482,9 +616,47 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
       <p className="chat-composer-hint">
         / 슬래쉬 치면 명령을 입력할 수 있습니다.
       </p>
+      <div className="chat-action-help">
+        <div className="chat-action-help-heading">
+          <p>문장 마지막에 행동 명령을 붙여 보세요. 예: 즐겁게 웃 · 홍길동 웃 · 홍길동 인사</p>
+          <button
+            type="button"
+            className="chat-action-help-toggle"
+            aria-expanded={actionsOpen}
+            aria-controls="chat-action-help-list"
+            onClick={() => setActionsOpen((open) => !open)}
+          >
+            {actionsOpen ? '행동 명령 닫기' : '행동 명령 보기'}
+          </button>
+        </div>
+        {actionsOpen && (
+          <div className="chat-action-help-list" id="chat-action-help-list">
+            {actions.length > 0 ? (
+              actions.map((action) => (
+                <div className="chat-action-help-item" key={action.action_id}>
+                  <div className="chat-action-help-tokens">
+                    <strong>{action.command}</strong>
+                    {action.aliases.length > 0 && (
+                      <span>별칭: {action.aliases.join(', ')}</span>
+                    )}
+                  </div>
+                  <p>{action.example}</p>
+                </div>
+              ))
+            ) : (
+              <p className="chat-action-help-empty">등록된 행동 명령어가 없습니다.</p>
+            )}
+          </div>
+        )}
+      </div>
       {commandLoadError && (
         <p className="chat-error" role="alert">
           {commandLoadError}
+        </p>
+      )}
+      {actionLoadError && (
+        <p className="chat-error" role="alert">
+          {actionLoadError}
         </p>
       )}
       {sendError && (

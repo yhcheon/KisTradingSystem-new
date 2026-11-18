@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "commands": {
-    "/웃": "{nickname} 님이 깔깔대고 웃습니다. ^^",
+    "/웃": "{nickname} 님이 배꼽을 잡고 웃습니다. ㅋㅋㅋ",
     "/웃음": "{nickname} 님이 깔깔대고 웃습니다. ^^",
     "/눈물": "{nickname} 님이 눈물을 글썽입니다. ㅠㅠ",
     "/울": "{nickname} 님이 꺼이꺼이 통곡을 합니다.  ㅠ.ㅠ",
@@ -40,7 +40,6 @@
     "/짱": "{nickname} 님이 짱이라고 외칩니다!",
     "/멋": "{nickname} 님이 멋지다고 감탄합니다. 와~",
     "/귀": "{nickname} 님이 귀여움에 녹아내립니다. 심쿵!",
-    "/웃": "{nickname} 님이 배꼽을 잡고 웃습니다. ㅋㅋㅋ",
     "/빵": "{nickname} 님이 빵 터졌습니다! ㅋㅋㅋㅋ",
     "/당": "{nickname} 님이 당황해서 말을 잇지 못합니다.",
     "/당황": "{nickname} 님이 당황해서 말을 잇지 못합니다.",
@@ -104,7 +103,6 @@
     "/반가": "{nickname} 님이 반갑게 인사를 건넵니다. 반가워요!",
     "/안녕": "{nickname} 님이 안녕하고 손을 흔듭니다. 안녕~",
     "/잘가": "{nickname} 님이 손을 흔들며 작별 인사를 합니다. 잘 가요~",
-
     "/가즈아": "{nickname} 님이 외칩니다! 가즈아~~~!",
     "/상한가": "{nickname} 님이 상한가를 꿈꿉니다. 딱지 가즈아!",
     "/하한가": "{nickname} 님이 하한가에 절망합니다. 제발... 반등을...",
@@ -155,7 +153,232 @@
     "/존버승리": "{nickname} 님이 존버 승리를 선언합니다! 버틴 자가 이긴다!",
     "/개미탈출": "{nickname} 님이 개미 탈출을 꿈꿉니다. 이번엔 큰돈 벌자!",
     "/주식초보": "{nickname} 님이 주식 초보임을 고백합니다. 하나씩 배워갑니다~"
+  },
+  "actions": {
+    "laugh": {
+      "command": "웃",
+      "aliases": [
+        "웃음",
+        "하하"
+      ],
+      "template": "{nickname}님이{argument} 웃습니다.",
+      "template_no_arg": "{nickname}님이 웃습니다.",
+      "template_target": "{nickname}님이 {target}님을 보고{argument} 웃습니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님을 보고 웃습니다."
+    },
+    "cry": {
+      "command": "울",
+      "aliases": [
+        "울음",
+        "엉엉"
+      ],
+      "template": "{nickname}님이{argument} 웁니다. ㅠ.ㅠ",
+      "template_no_arg": "{nickname}님이 웁니다. ㅠ.ㅠ",
+      "template_target": "{nickname}님이 {target}님을 보며{argument} 웁니다. ㅠ.ㅠ",
+      "template_target_no_arg": "{nickname}님이 {target}님을 보며 웁니다. ㅠ.ㅠ"
+    },
+    "go": {
+      "command": "가",
+      "aliases": [
+        "가다"
+      ],
+      "template": "{nickname}님이{argument} 갑니다.",
+      "template_no_arg": "{nickname}님이 갑니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 갑니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 갑니다."
+    },
+    "come": {
+      "command": "와",
+      "aliases": [
+        "오다"
+      ],
+      "template": "{nickname}님이{argument} 옵니다.",
+      "template_no_arg": "{nickname}님이 옵니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 옵니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 옵니다."
+    },
+    "sleep": {
+      "command": "자",
+      "aliases": [
+        "자다",
+        "잠"
+      ],
+      "template": "{nickname}님이{argument} 잡니다.",
+      "template_no_arg": "{nickname}님이 잠에 빠져듭니다. 쿨쿨~",
+      "template_target": "{nickname}님이 {target}님 옆에서{argument} 잡니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 옆에서 잠에 빠져듭니다. 쿨쿨~"
+    },
+    "eat": {
+      "command": "먹",
+      "aliases": [
+        "먹다",
+        "냠냠"
+      ],
+      "template": "{nickname}님이{argument} 먹습니다.",
+      "template_no_arg": "{nickname}님이 맛있게 먹습니다. 냠냠~",
+      "template_target": "{nickname}님이 {target}님과 함께{argument} 먹습니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님과 함께 맛있게 먹습니다. 냠냠~"
+    },
+    "drink": {
+      "command": "마셔",
+      "aliases": [
+        "마시다",
+        "꿀꺽"
+      ],
+      "template": "{nickname}님이{argument} 마십니다.",
+      "template_no_arg": "{nickname}님이 시원하게 마십니다. 꿀꺽~",
+      "template_target": "{nickname}님이 {target}님과 함께{argument} 마십니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님과 함께 시원하게 마십니다. 꿀꺽~"
+    },
+    "dance": {
+      "command": "춤",
+      "aliases": [
+        "춤추다",
+        "흔들"
+      ],
+      "template": "{nickname}님이{argument} 춤춥니다.",
+      "template_no_arg": "{nickname}님이 춤을 춥니다. 흔들흔들~",
+      "template_target": "{nickname}님이 {target}님 앞에서{argument} 춤춥니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님 앞에서 춤을 춥니다. 흔들흔들~"
+    },
+    "sing": {
+      "command": "노래",
+      "aliases": [
+        "노래하다",
+        "불러"
+      ],
+      "template": "{nickname}님이{argument} 노래를 부릅니다. ♪",
+      "template_no_arg": "{nickname}님이 신나게 노래를 부릅니다. ♪",
+      "template_target": "{nickname}님이 {target}님을 위해{argument} 노래를 부릅니다. ♪",
+      "template_target_no_arg": "{nickname}님이 {target}님을 위해 노래를 부릅니다. ♪"
+    },
+    "clap": {
+      "command": "박수",
+      "aliases": [
+        "박수치다",
+        "짝짝"
+      ],
+      "template": "{nickname}님이{argument} 박수를 칩니다. 짝짝짝!",
+      "template_no_arg": "{nickname}님이 박수를 칩니다. 짝짝짝!",
+      "template_target": "{nickname}님이 {target}님에게{argument} 박수를 보냅니다. 짝짝짝!",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 박수를 보냅니다. 짝짝짝!"
+    },
+    "hug": {
+      "command": "안아",
+      "aliases": [
+        "안다",
+        "포옹"
+      ],
+      "template": "{nickname}님이{argument} 팔을 벌립니다.",
+      "template_no_arg": "{nickname}님이 팔을 벌려 안아줍니다.",
+      "template_target": "{nickname}님이 {target}님을{argument} 꼭 안아줍니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님을 꼭 안아줍니다."
+    },
+    "cheer": {
+      "command": "응원",
+      "aliases": [
+        "파이팅",
+        "힘내"
+      ],
+      "template": "{nickname}님이{argument} 응원합니다!",
+      "template_no_arg": "{nickname}님이 응원합니다!",
+      "template_target": "{nickname}님이 {target}님을{argument} 응원합니다!",
+      "template_target_no_arg": "{nickname}님이 {target}님을 응원합니다!"
+    },
+    "congratulate": {
+      "command": "축하",
+      "aliases": [
+        "축하해"
+      ],
+      "template": "{nickname}님이{argument} 축하합니다!",
+      "template_no_arg": "{nickname}님이 축하의 박수를 보냅니다! 짝짝짝!",
+      "template_target": "{nickname}님이 {target}님의{argument} 축하합니다!",
+      "template_target_no_arg": "{nickname}님이 {target}님의 일을 축하합니다! 짝짝짝!"
+    },
+    "apologize": {
+      "command": "미안",
+      "aliases": [
+        "미안해",
+        "죄송"
+      ],
+      "template": "{nickname}님이{argument} 사과합니다. 죄송해요~",
+      "template_no_arg": "{nickname}님이 머리를 긁적이며 사과합니다. 죄송해요~",
+      "template_target": "{nickname}님이 {target}님에게{argument} 사과합니다. 죄송해요~",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 사과합니다. 죄송해요~"
+    },
+    "thank": {
+      "command": "고마워",
+      "aliases": [
+        "고맙다",
+        "땡큐"
+      ],
+      "template": "{nickname}님이{argument} 감사를 전합니다. 땡큐!",
+      "template_no_arg": "{nickname}님이 감사를 전합니다. 땡큐!",
+      "template_target": "{nickname}님이 {target}님에게{argument} 감사를 전합니다. 땡큐!",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 감사를 전합니다. 땡큐!"
+    },
+    "love": {
+      "command": "사랑해",
+      "aliases": [
+        "사랑",
+        "러브"
+      ],
+      "template": "{nickname}님이{argument} 사랑을 외칩니다. ♥",
+      "template_no_arg": "{nickname}님이 사랑을 외칩니다. ♥",
+      "template_target": "{nickname}님이 {target}님에게{argument} 사랑을 고백합니다. ♥",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 사랑을 고백합니다. ♥"
+    },
+    "angry": {
+      "command": "화나",
+      "aliases": [
+        "화나다",
+        "짜증"
+      ],
+      "template": "{nickname}님이{argument} 화를 냅니다. 씩씩~",
+      "template_no_arg": "{nickname}님이 화를 냅니다. 씩씩~",
+      "template_target": "{nickname}님이 {target}님에게{argument} 화를 냅니다. 씩씩~",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 화를 냅니다. 씩씩~"
+    },
+    "surprised": {
+      "command": "놀라",
+      "aliases": [
+        "놀라다",
+        "깜놀"
+      ],
+      "template": "{nickname}님이{argument} 깜짝 놀랍니다. 헉!",
+      "template_no_arg": "{nickname}님이 깜짝 놀랍니다. 헉!",
+      "template_target": "{nickname}님이 {target}님 때문에{argument} 깜짝 놀랍니다. 헉!",
+      "template_target_no_arg": "{nickname}님이 {target}님 때문에 깜짝 놀랍니다. 헉!"
+    },
+    "sad": {
+      "command": "슬퍼",
+      "aliases": [
+        "슬프다",
+        "우울"
+      ],
+      "template": "{nickname}님이{argument} 슬퍼합니다. ㅠ.ㅠ",
+      "template_no_arg": "{nickname}님이 슬퍼합니다. ㅠ.ㅠ",
+      "template_target": "{nickname}님이 {target}님 때문에{argument} 슬퍼합니다. ㅠ.ㅠ",
+      "template_target_no_arg": "{nickname}님이 {target}님 때문에 슬퍼합니다. ㅠ.ㅠ"
+    },
+    "tired": {
+      "command": "피곤",
+      "aliases": [
+        "피곤하다",
+        "지쳐"
+      ],
+      "template": "{nickname}님이{argument} 지쳐 있습니다. 휴~",
+      "template_no_arg": "{nickname}님이 지쳐 있습니다. 휴~",
+      "template_target": "{nickname}님이 {target}님과 함께{argument} 지쳐 있습니다. 휴~",
+      "template_target_no_arg": "{nickname}님이 {target}님과 함께 지쳐 있습니다. 휴~"
+    },
+    "greet": {
+      "command": "인사",
+      "aliases": [],
+      "template": "{nickname}님이{argument} 인사합니다.",
+      "template_no_arg": "{nickname}님이 인사합니다.",
+      "template_target": "{nickname}님이 {target}님에게{argument} 인사합니다.",
+      "template_target_no_arg": "{nickname}님이 {target}님에게 인사합니다."
+    }
   }
 }
-
-
