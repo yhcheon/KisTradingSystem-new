@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { PricesResponse, RealtimeTick } from '../../../types';
+import type { PricesResponse, RangeAlert, RangeMonitorSnapshot, RealtimeTick } from '../../../types';
 import type { CandleData } from '../types';
 import { applyTickToCandles } from '../utils/candleUtils';
 
@@ -10,6 +10,8 @@ interface UseMarketWebSocketOptions {
   selectedCode: string | null;
   setData: Dispatch<SetStateAction<PricesResponse | null>>;
   setCandles: Dispatch<SetStateAction<CandleData[]>>;
+  onRangeUpdate: (range: RangeMonitorSnapshot) => void;
+  onRangeAlert: (alert: RangeAlert) => void;
 }
 
 const RECONNECT_INITIAL_DELAY_MS = 1_000;
@@ -30,6 +32,8 @@ export function useMarketWebSocket({
   selectedCode,
   setData,
   setCandles,
+  onRangeUpdate,
+  onRangeAlert,
 }: UseMarketWebSocketOptions): boolean {
   const [isConnected, setIsConnected] = useState(false);
   const selectedCodeRef = useRef<string | null>(selectedCode);
@@ -84,6 +88,9 @@ export function useMarketWebSocket({
             'regular' in message.data &&
             'mini' in message.data
           ) {
+            if ('range' in message && typeof message.range === 'object' && message.range !== null) {
+              onRangeUpdate(message.range as RangeMonitorSnapshot);
+            }
             // 유효한 가격이 포함된 스냅샷만 적용합니다. 빈 스냅샷이면 REST 재시도를 계속합니다.
             const snapshot = message.data as PricesResponse;
             if (snapshot.regular?.ok || snapshot.mini?.ok) {
@@ -99,6 +106,8 @@ export function useMarketWebSocket({
             message.type !== 'tick'
           ) return;
           const tick = message as RealtimeTick;
+          if (tick.range) onRangeUpdate(tick.range);
+          if (tick.range_alert) onRangeAlert(tick.range_alert);
 
           setData((previous) => {
             if (!previous) return previous;
@@ -187,7 +196,7 @@ export function useMarketWebSocket({
       }
       socket?.close();
     };
-  }, [enabled, setData, setCandles]);
+  }, [enabled, setData, setCandles, onRangeUpdate, onRangeAlert]);
 
   return isConnected;
 }
