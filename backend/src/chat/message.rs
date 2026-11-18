@@ -41,6 +41,9 @@ pub fn validate_message_frame(frame: &[u8]) -> Result<String, ChatError> {
     if text.chars().count() > MAX_MESSAGE_CHARACTERS {
         return Err(ChatError::MessageTooLong);
     }
+    if text.chars().any(char::is_control) {
+        return Err(ChatError::InvalidMessage);
+    }
 
     Ok(text.to_string())
 }
@@ -81,6 +84,17 @@ mod tests {
             validate_message_frame(&frame(&"한".repeat(501))),
             Err(ChatError::MessageTooLong)
         );
+    }
+
+    #[test]
+    fn rejects_control_characters_in_messages() {
+        for text in ["line1\\nline2", "tab\\there", "nul\\0byte"] {
+            assert_eq!(
+                validate_message_frame(&frame(text)),
+                Err(ChatError::InvalidMessage),
+                "control characters must be rejected: {text:?}"
+            );
+        }
     }
 
     #[test]
