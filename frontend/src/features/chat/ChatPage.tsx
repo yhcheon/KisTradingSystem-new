@@ -67,6 +67,8 @@ function usePublicChat() {
   const [connectionError, setConnectionError] = useState('');
   const [sendError, setSendError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
+  // StrictMode replays effects in development; share the pending POST to avoid burning an alias.
+  const ticketRequestRef = useRef<Promise<ChatTicket> | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -75,6 +77,33 @@ function usePublicChat() {
     let reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
     let reconnectTimer: number | null = null;
     let socket: WebSocket | null = null;
+
+    const requestTicket = () => {
+      if (ticketRequestRef.current) return ticketRequestRef.current;
+
+      const request = (async () => {
+        const response = await fetch('/api/chat/ticket', { method: 'POST' });
+        if (!response.ok) {
+          throw new Error(`티켓 발급 실패 (HTTP ${response.status})`);
+        }
+
+        const ticketData: unknown = await response.json();
+        if (!isChatTicket(ticketData)) {
+          throw new Error('채팅 서버가 올바르지 않은 연결 티켓을 반환했습니다.');
+        }
+        return ticketData;
+      })();
+      ticketRequestRef.current = request;
+      void request.then(
+        () => {
+          if (ticketRequestRef.current === request) ticketRequestRef.current = null;
+        },
+        () => {
+          if (ticketRequestRef.current === request) ticketRequestRef.current = null;
+        },
+      );
+      return request;
+    };
 
     const scheduleReconnect = () => {
       if (disposed || reconnectTimer !== null) return;
@@ -92,15 +121,7 @@ function usePublicChat() {
       if (connectedBefore) setStatus('reconnecting');
 
       try {
-        const response = await fetch('/api/chat/ticket', { method: 'POST' });
-        if (!response.ok) {
-          throw new Error(`티켓 발급 실패 (HTTP ${response.status})`);
-        }
-
-        const ticketData: unknown = await response.json();
-        if (!isChatTicket(ticketData)) {
-          throw new Error('채팅 서버가 올바르지 않은 연결 티켓을 반환했습니다.');
-        }
+        const ticketData = await requestTicket();
         if (disposed) return;
 
         setNickname(ticketData.nickname);
