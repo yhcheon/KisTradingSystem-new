@@ -17,7 +17,7 @@ interface CandleState {
   data: CandleData[];
 }
 
-export function usePrices(interval: string, selected: SymbolKind): UsePricesResult {
+export function usePrices(interval: string, selected: SymbolKind, backendReady: boolean): UsePricesResult {
   const [data, setData] = useState<PricesResponse | null>(null);
   const [candleState, setCandleState] = useState<CandleState>({
     key: '',
@@ -25,6 +25,7 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
   });
 
   useEffect(() => {
+    if (!backendReady) return;
     const controller = new AbortController();
 
     const fetchPrices = async () => {
@@ -44,7 +45,7 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
 
     void fetchPrices();
     return () => controller.abort();
-  }, []);
+  }, [backendReady]);
 
   const selectedResult = selected === 'regular' ? data?.regular : data?.mini;
   const selectedCode =
@@ -68,7 +69,7 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
   );
 
   useEffect(() => {
-    if (!selectedCode) return;
+    if (!backendReady || !selectedCode) return;
 
     const controller = new AbortController();
     const params = new URLSearchParams({
@@ -134,7 +135,7 @@ export function usePrices(interval: string, selected: SymbolKind): UsePricesResu
       controller.abort();
       window.clearInterval(refreshTimer);
     };
-  }, [selectedCode, interval, candleKey]);
+  }, [backendReady, selectedCode, interval, candleKey]);
 
   return { data, setData, candles, setCandles, selectedCode };
 }
