@@ -4,7 +4,7 @@ mod service;
 
 use std::fmt;
 
-pub use message::validate_message_frame;
+pub use message::{ChatMessage, MAX_MESSAGE_FRAME_BYTES, validate_message_frame};
 pub use service::{ChatConnection, ChatService, ChatTicketResponse};
 
 #[derive(Debug, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 use super::{
     ChatError,
     config::{NicknameConfig, nickname_config_path, trusted_proxy_ips_from_env},
+    message::{ChatMessage, create_message},
 };
 use rand::Rng;
 use serde::Serialize;
@@ -10,6 +11,7 @@ use std::{
     sync::{Arc, Mutex, Weak},
     time::{Duration, Instant},
 };
+use tokio::sync::broadcast;
 
 const TICKET_TTL: Duration = Duration::from_secs(30);
 const TICKET_REQUEST_WINDOW: Duration = Duration::from_secs(60);
@@ -20,6 +22,7 @@ const MESSAGE_RATE_WINDOW: Duration = Duration::from_secs(10);
 const MAX_MESSAGES_PER_CONNECTION_PER_WINDOW: usize = 5;
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(5);
 const TICKET_BYTES: usize = 32;
+pub const CHAT_DELIVERY_CAPACITY: usize = 256;
 
 #[derive(Clone)]
 pub struct ChatService {
@@ -30,6 +33,7 @@ struct ChatServiceInner {
     nicknames: NicknameConfig,
     trusted_proxies: HashSet<IpAddr>,
     state: Mutex<ChatState>,
+    messages: broadcast::Sender<ChatMessage>,
 }
 
 #[derive(Default)]
@@ -88,13 +92,21 @@ impl ChatService {
     }
 
     fn new(nicknames: NicknameConfig, trusted_proxies: HashSet<IpAddr>) -> Self {
+        let (messages, _) = broadcast::channel(CHAT_DELIVERY_CAPACITY);
         Self {
             inner: Arc::new(ChatServiceInner {
                 nicknames,
                 trusted_proxies,
                 state: Mutex::new(ChatState::default()),
+                messages,
             }),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test(nickname_json: &str) -> Self {
+        let nicknames = NicknameConfig::from_json(nickname_json).unwrap();
+        Self::new(nicknames, HashSet::new())
     }
 
     pub fn issue_ticket(
@@ -225,6 +237,24 @@ impl ChatService {
         let mut state = self.lock_state()?;
         prune_expired(&mut state, Instant::now());
         Ok(())
+    }
+
+    pub fn subscribe_messages(&self) -> broadcast::Receiver<ChatMessage> {
+        self.inner.messages.subscribe()
+    }
+
+    pub fn publish_message(
+        &self,
+        connection: &ChatConnection,
+        text: String,
+    ) -> Result<(), ChatError> {
+        connection.check_message_rate_limit()?;
+        let message = create_message(connection.nickname(), text);
+        self.inner
+            .messages
+            .send(message)
+            .map(|_| ())
+            .map_err(|_| ChatError::ServiceUnavailable)
     }
 
     pub fn spawn_cleanup_task(&self) {
@@ -495,13 +525,25 @@ mod tests {
             service.issue_ticket_at(ip(1), now).err(),
             Some(ChatError::ConnectionLimitReached)
         );
+        let mut messages = service.subscribe_messages();
         for _ in 0..MAX_MESSAGES_PER_CONNECTION_PER_WINDOW {
-            connections[0].check_message_rate_limit().unwrap();
+            service
+                .publish_message(&connections[0], "hello".to_string())
+                .unwrap();
         }
         assert_eq!(
             connections[0].check_message_rate_limit().err(),
             Some(ChatError::RateLimited)
         );
+        assert_eq!(
+            service
+                .publish_message(&connections[0], "hello".to_string())
+                .err(),
+            Some(ChatError::RateLimited)
+        );
+        for _ in 0..MAX_MESSAGES_PER_CONNECTION_PER_WINDOW {
+            assert_eq!(messages.try_recv().unwrap().text, "hello");
+        }
     }
 
     #[test]

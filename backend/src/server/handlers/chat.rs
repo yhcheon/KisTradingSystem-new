@@ -10,6 +10,9 @@ use axum::{
 use serde::Serialize;
 use std::net::SocketAddr;
 
+mod websocket;
+pub(crate) use websocket::ws_handler;
+
 #[derive(Serialize)]
 pub(crate) struct TicketError {
     code: &'static str,

@@ -21,6 +21,8 @@ pub fn build(state: AppState) -> Router {
             post(crate::server::handlers::chat::issue_ticket),
         )
         .route("/ws", get(market::ws_handler))
+        .route("/ws/chat", get(crate::server::handlers::chat::ws_handler))
+        .layer(axum::Extension(state.chat.clone()))
         // ── 콘텐츠 API ──
         .route("/api/notes", get(content::notes))
         .route("/api/news", get(content::news))

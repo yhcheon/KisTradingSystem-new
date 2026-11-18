@@ -1,5 +1,6 @@
 use super::ChatError;
-use serde::Deserialize;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 pub const MAX_MESSAGE_CHARACTERS: usize = 500;
 pub const MAX_MESSAGE_FRAME_BYTES: usize = 4 * 1024;
@@ -10,6 +11,16 @@ struct IncomingMessage {
     #[serde(rename = "type")]
     kind: String,
     text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct ChatMessage {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub id: String,
+    pub nickname: String,
+    pub text: String,
+    pub sent_at: String,
 }
 
 pub fn validate_message_frame(frame: &[u8]) -> Result<String, ChatError> {
@@ -32,6 +43,23 @@ pub fn validate_message_frame(frame: &[u8]) -> Result<String, ChatError> {
     }
 
     Ok(text.to_string())
+}
+
+pub fn create_message(nickname: &str, text: String) -> ChatMessage {
+    let mut bytes = [0_u8; 16];
+    rand::rng().fill(&mut bytes);
+    let id = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+
+    ChatMessage {
+        kind: "message".to_string(),
+        id,
+        nickname: nickname.to_string(),
+        text,
+        sent_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    }
 }
 
 #[cfg(test)]
