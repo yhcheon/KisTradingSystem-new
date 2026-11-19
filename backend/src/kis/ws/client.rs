@@ -6,7 +6,8 @@ use tokio::sync::{Mutex, broadcast, mpsc};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::cache::price_cache::PriceCache;
+use crate::cache::price_cache::{CachedPrice, PriceCache};
+use crate::kis;
 use crate::core::candles::CandleStore;
 use crate::core::session_range::SessionRangeMonitor;
 use crate::core::market_session::{ActiveSessions, current_active_sessions};
@@ -21,6 +22,10 @@ pub async fn run(
     candle_store: Arc<Mutex<CandleStore>>,
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
+    http_client: reqwest::Client,
+    app_key: String,
+    app_secret: String,
+    access_token: String,
 ) {
     let startup_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
     let day_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
@@ -43,6 +48,7 @@ pub async fn run(
         let error_message = match connect_and_listen(
             &approval_key, &symbols, &night_symbols, &tx,
             candle_store.clone(), session_range.clone(), price_cache.clone(),
+            &http_client, &app_key, &app_secret, &access_token,
             &mut last_day_refresh_date,
             &mut last_night_refresh_date,
         ).await {
@@ -102,6 +108,46 @@ where
     Ok(())
 }
 
+
+async fn refresh_session_quote(
+    http_client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    code: &str,
+    market_div: &str,
+    session: &str,
+    price_cache: &PriceCache,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let response = kis::get_futures_price_for_market(
+        http_client, app_key, app_secret, access_token, market_div, code,
+    )
+    .await
+    .map_err(|error| std::io::Error::other(error.to_string()))?;
+
+    let cached_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let output = response.output1;
+    let cached = CachedPrice {
+        code: code.to_string(),
+        name: output.hts_kor_isnm,
+        price: output.futs_prpr,
+        prev_close: output.futs_prdy_clpr,
+        open: output.futs_oprc,
+        high: output.futs_hgpr,
+        low: output.futs_lwpr,
+        change: output.futs_prdy_vrss,
+        change_rate: output.futs_prdy_ctrt,
+        volume: output.acml_vol,
+        cached_at,
+    };
+    price_cache.set(&cached, session).await;
+    tracing::info!("KIS {} REST 기준 시세 갱신: code={}, price={}", session, code, cached.price);
+    Ok(())
+}
+
 async fn connect_and_listen(
     approval_key: &str,
     symbols: &[String],
@@ -110,6 +156,10 @@ async fn connect_and_listen(
     candle_store: Arc<Mutex<CandleStore>>,
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
+    http_client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
     last_day_refresh_date: &mut Option<chrono::NaiveDate>,
     last_night_refresh_date: &mut Option<chrono::NaiveDate>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -197,8 +247,15 @@ async fn connect_and_listen(
                 // 주간 REST 기준가는 매일 08:45 이후 첫 가격 요청에서 새로 조회되도록 캐시를 비웁니다.
                 if now_kst.time() >= day_quote_refresh_time && *last_day_refresh_date != Some(today) {
                     price_cache.clear_session("day").await;
+                    for symbol in symbols {
+                        if let Err(error) = refresh_session_quote(
+                            http_client, app_key, app_secret, access_token,
+                            symbol, "F", "day", &price_cache,
+                        ).await {
+                            tracing::warn!("08:45 주간 REST 기준 시세 조회 실패: code={}, error={}", symbol, error);
+                        }
+                    }
                     *last_day_refresh_date = Some(today);
-                    tracing::info!("08:45 주간 초기 시세 갱신 준비: 주간 가격 캐시 초기화");
                 }
 
                 let desired: ActiveSessions = current_active_sessions();
@@ -215,8 +272,15 @@ async fn connect_and_listen(
                     if *last_night_refresh_date != Some(night_session_date) {
                         // 새 야간 거래일의 REST 기준값을 다음 가격 요청에서 새로 가져옵니다.
                         price_cache.clear_session("night").await;
+                        for symbol in night_symbols {
+                            if let Err(error) = refresh_session_quote(
+                                http_client, app_key, app_secret, access_token,
+                                symbol, "CM", "night", &price_cache,
+                            ).await {
+                                tracing::warn!("야간 REST 기준 시세 조회 실패: code={}, error={}", symbol, error);
+                            }
+                        }
                         *last_night_refresh_date = Some(night_session_date);
-                        tracing::info!("야간 세션 기준일 변경: 야간 가격 캐시 초기화");
                     }
                 }
                 if desired.night != active.night {
