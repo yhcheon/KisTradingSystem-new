@@ -169,6 +169,7 @@ fn log_and_compare_candles(
     let mut broker_only = 0usize;
     let mut local_only = 0usize;
     let mut live = 0usize;
+    let mut log_batch = Vec::with_capacity(25);
 
     for time in times {
         let broker_candle = broker.get(&time);
@@ -230,10 +231,28 @@ fn log_and_compare_candles(
             (None, None) => continue,
         };
 
-        tracing::info!(
-            target: "minute_candle_validation",
+        log_batch.push(format!(
             "{} | {} | {} | {}",
             time, broker_values, local_values, status
+        ));
+
+        // 비동기 파일 로거의 큐에 수백 개 이벤트를 한꺼번에 밀어 넣지 않도록
+        // 25개 분봉씩 묶어 출력합니다. 실시간 WebSocket 처리와도 별도 task입니다.
+        if log_batch.len() == 25 {
+            tracing::info!(
+                target: "minute_candle_validation",
+                "[MINUTE-CHECK-ROWS] {} ({})\\n{}",
+                name, symbol, log_batch.join("\\n")
+            );
+            log_batch.clear();
+        }
+    }
+
+    if !log_batch.is_empty() {
+        tracing::info!(
+            target: "minute_candle_validation",
+            "[MINUTE-CHECK-ROWS] {} ({})\\n{}",
+            name, symbol, log_batch.join("\\n")
         );
     }
 
