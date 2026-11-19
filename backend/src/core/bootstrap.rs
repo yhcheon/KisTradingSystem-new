@@ -119,6 +119,10 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         let store = candle_store.clone();
         let ws_session_range = session_range.clone();
         let ws_price_cache = price_cache.clone();
+        let ws_http_client = http_client.clone();
+        let ws_app_key = app_key.clone();
+        let ws_app_secret = app_secret.clone();
+        let ws_access_token = access_token.clone();
         tokio::spawn(async move {
             kis::ws::run(
                 key,
@@ -128,6 +132,10 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
                 store,
                 ws_session_range,
                 ws_price_cache,
+                ws_http_client,
+                ws_app_key,
+                ws_app_secret,
+                ws_access_token,
             )
             .await;
         });
