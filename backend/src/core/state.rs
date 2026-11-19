@@ -1,7 +1,6 @@
 // ============================================================
-// 파일명: core/state.rs
-// 설명: Axum 핸들러가 공유하는 AppState 및 외부 인증 설정
-// 수정일: 2026-11-19 - 시세 WS 카운팅 제거, 접속자수는 채팅(ChatService)으로 일원화
+// 파일명: core/state.rs  (PATCHED)
+// 변경점: AppState에 shutdown: Arc<Notify> 필드 추가
 // ============================================================
 
 use crate::chat::ChatService;
@@ -11,9 +10,8 @@ use crate::core::session_range::SessionRangeMonitor;
 use crate::kis::ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::{Arc, atomic::AtomicBool};
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{Mutex, Notify, broadcast};
 
-/// KIS REST API 호출에 필요한 인증 정보
 #[derive(Clone)]
 pub struct KisCredentials {
     pub app_key: String,
@@ -21,7 +19,6 @@ pub struct KisCredentials {
     pub access_token: String,
 }
 
-/// 레거시 HS256 JWT 검증에 필요한 설정
 #[derive(Clone)]
 pub struct JwtConfig {
     pub legacy_hs256_secret: String,
@@ -31,11 +28,7 @@ pub struct JwtConfig {
 pub struct AppState {
     pub kis: KisCredentials,
     pub jwt: JwtConfig,
-
-    // redis 사용하지 않기로
-    //pub redis: Arc<Mutex<redis::aio::MultiplexedConnection>>,
     pub price_cache: crate::cache::price_cache::PriceCache,
-
     pub regular: FuturesSymbol,
     pub mini: FuturesSymbol,
     pub ws_tx: broadcast::Sender<RealtimeTick>,
@@ -45,4 +38,11 @@ pub struct AppState {
     pub minute_candle_check_running: Arc<AtomicBool>,
     pub supabase: SupabaseClient,
     pub chat: ChatService,
+    /// Graceful shutdown 신호. runtime.rs의 Notify와 같은 인스턴스입니다.
+    /// Notify는 notify_waiters()가 호출된 뒤에 등록된 waiter는 깨우지 않으므로,
+    /// 이 필드를 직접 await하는 곳에서는 반드시 아래 주의사항을 따르세요:
+    /// - 이미 종료 신호가 온 뒤에 시작하는 태스크는 is_notified()를 먼저 확인할 것.
+    ///   (이 패치에서는 runtime이 initialize()에 같은 Notify를 미리 넘기므로,
+    ///    초기화 완료 시점에는 아직 신호가 안 온 경우에만 태스크가 뜹니다.)
+    pub shutdown: Arc<Notify>,
 }
