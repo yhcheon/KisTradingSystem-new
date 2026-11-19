@@ -1,4 +1,9 @@
 //! KIS 1분봉 과거 데이터 검증을 백그라운드에서 실행하고 로그 파일에 출력합니다.
+//! 
+//! 
+
+
+use chrono::NaiveTime;
 use crate::{core::{candles::Candle, state::AppState}, kis};
 use axum::{Json, extract::State, http::StatusCode};
 use serde_json::{Value, json};
@@ -337,9 +342,11 @@ async fn fetch_day_candles(
         let Some(earliest) = earliest else {
             break;
         };
-        if earliest <= DAY_START {
+
+        if earliest.as_str() <= DAY_START {
             break;
         }
+
 
         let next_cursor = previous_minute(&earliest)
             .ok_or_else(|| format!("잘못된 분봉 시간 형식: {}", earliest))?;
