@@ -1,7 +1,7 @@
 // ============================================================
 // 파일명: core/bootstrap.rs
 // 설명: 외부 서비스 연결 및 애플리케이션 공유 상태 초기화
-//       - Redis 없음, 메모리 PriceCache 사용 (부팅 1회 REST + 체결로 갱신)
+//       - Redis 없음, 주간/야간 분리 메모리 PriceCache 사용
 //       - HTTP 클라이언트, KIS 시장 데이터
 //       - Supabase, KIS WebSocket, AppState 구성
 // ============================================================
@@ -18,8 +18,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let chat = crate::chat::ChatService::load_from_env()?;
     chat.spawn_cleanup_task();
 
-    // Redis 사용하지 않음. 메모리 시세 캐시 사용.
-    // 부팅 시 1회 REST로 채우고, 이후 체결이 들어올 때마다 update_by_tick()으로 갱신.
+    // 주간/야간 세션별로 독립된 메모리 시세 캐시를 사용합니다.
     let price_cache = crate::cache::price_cache::PriceCache::new();
 
     // HTTP 클라이언트
@@ -54,40 +53,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         core::session_range::SessionRangeMonitor::new(regular.code.clone()),
     ));
 
-    // 야간선물은 별도 고정 코드를 쓰지 않고, 선물 마스터에서 선택한 정규/미니 최근월물 코드를 사용합니다.
-    // REST는 CM, WebSocket은 H0MFCNT0로 야간 시장을 구분합니다.
+    // 주간/야간 가격은 각각 최초 시세 요청 시 REST로 초기화하고,
+    // 이후 해당 세션의 WebSocket 체결로만 갱신합니다.
     let night_symbols = vec![regular.code.clone(), mini.code.clone()];
-    for night_symbol in &night_symbols {
-        tracing::info!(
-            "야간선물 REST 검증 시작: market=CM, code={} (선물 마스터 선택 결과)",
-            night_symbol
-        );
-        match kis::get_futures_price_for_market(
-            &http_client,
-            &app_key,
-            &app_secret,
-            &access_token,
-            "CM",
-            night_symbol,
-        )
-        .await
-        {
-            Ok(price) => tracing::info!(
-                "야간선물 REST 조회 성공: code={}, name={}, price={}, change={}, change_rate={}, volume={}",
-                night_symbol,
-                price.output1.hts_kor_isnm,
-                price.output1.futs_prpr,
-                price.output1.futs_prdy_vrss,
-                price.output1.futs_prdy_ctrt,
-                price.output1.acml_vol
-            ),
-            Err(error) => tracing::warn!(
-                "야간선물 REST 조회 실패: market=CM, code={}, error={}",
-                night_symbol,
-                error
-            ),
-        }
-    }
 
     // Supabase 초기화
     let supabase_url = std::env::var("SUPABASE_URL").map_err(|e| {
@@ -133,8 +101,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
             .into());
         }
     };
-    // 야간 분봉은 18시 전에는 조회하지 않고, 야간 세션 중 재시작하면 현재 시각부터 조회합니다.
-    // H0MFCNT0 구독은 아래 WebSocket 연결에서 장 시작 전부터 미리 신청합니다.
+    // 야간 분봉 로더는 별도로 동작하며, WebSocket 구독은 KST 시간표에 따라 관리합니다.
     market::history::spawn_night_candle_loader(
         http_client.clone(),
         app_key.clone(),
@@ -165,7 +132,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
             .await;
         });
     }
-    tracing::info!("KIS WebSocket 백그라운드 시작 (주간/야간 정규선물 + 미니선물)");
+    tracing::info!("KIS WebSocket 백그라운드 시작 (KST 시간표 기반 주간/야간 구독)");
 
     Ok(AppState {
         kis: KisCredentials {
