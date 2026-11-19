@@ -1,5 +1,5 @@
 //! KST 기준 KIS 선물 세션 구독 시간 판정.
-use chrono::{NaiveTime, Timelike};
+use chrono::NaiveTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActiveSessions {
