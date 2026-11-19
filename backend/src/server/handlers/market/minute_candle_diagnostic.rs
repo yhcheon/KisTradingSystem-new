@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn previous_minute_moves_cursor_back_one_full_minute() {
         assert_eq!(previous_minute("140201").as_deref(), Some("140101"));
-        assert_eq!(previous_minute("084501").as_deref(), Some("083501"));
+        assert_eq!(previous_minute("084501").as_deref(), Some("084401"));
         assert!(previous_minute("bad").is_none());
     }
 }
