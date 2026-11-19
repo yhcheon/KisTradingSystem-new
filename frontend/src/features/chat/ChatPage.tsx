@@ -6,7 +6,7 @@ interface ChatMessage {
   id: string;
   nickname: string;
   text: string;
-  message_kind?: 'chat' | 'social';
+  message_kind?: 'chat' | 'social' | 'system';
   action_id?: string;
   sent_at: string;
 }
@@ -149,7 +149,8 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof message.text === 'string' &&
     (message.message_kind === undefined ||
       message.message_kind === 'chat' ||
-      message.message_kind === 'social') &&
+      message.message_kind === 'social' ||
+      message.message_kind === 'system') &&
     (message.action_id === undefined || typeof message.action_id === 'string') &&
     typeof message.sent_at === 'string'
   );
@@ -541,22 +542,32 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
           <li className="chat-empty">새 메시지를 기다리는 중입니다.</li>
         ) : (
           messages.map((message, index) => {
+            const isSystem = message.message_kind === 'system';
             const isContinuation =
+              !isSystem &&
               index > 0 && messages[index - 1]?.nickname === message.nickname;
 
             return (
               <li
-                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}${message.message_kind === 'social' ? ' chat-message-social' : ''}`}
+                className={`chat-message${isContinuation ? ' chat-message-continuation' : ''}${message.message_kind === 'social' ? ' chat-message-social' : ''}${isSystem ? ' chat-message-system' : ''}`}
                 key={message.id}
               >
-                {!isContinuation && (
+                {!isContinuation && !isSystem && (
                   <div className="chat-message-meta">
                     <strong>{message.nickname}</strong>
                   </div>
                 )}
                 <div className="chat-message-row">
                   <p>
-                    {message.text}
+                    {(() => {
+                      // 합의: 서버는 공통 메시지 1개만 보내고,
+                      // 프론트에서 내 닉네임이면 앞부분만 "내가"로 치환.
+                      // 존댓말은 그대로 둠 — "내가 입장하셨습니다."가 재미 요소.
+                      // 대상(누구에게) 처리 없음. "하하 웃" 앞부분은 전부 데이터.
+                      const prefix = `${message.nickname}님이`;
+                      const isOwn = message.nickname === nickname && message.text.startsWith(prefix);
+                      return isOwn ? `내가${message.text.slice(prefix.length)}` : message.text;
+                    })()}
                     {message.message_kind === 'social' && message.action_id && (
                       <span className="chat-social-emoji" aria-hidden="true">
                         {' '}{SOCIAL_ACTION_EMOJI[message.action_id] ?? '✨'}

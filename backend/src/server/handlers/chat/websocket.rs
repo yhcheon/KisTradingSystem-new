@@ -127,6 +127,9 @@ async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: Cha
 async fn run_loop(socket: &mut WebSocket, chat: &ChatService, connection: &ChatConnection) {
     let mut messages: broadcast::Receiver<ChatMessage> = chat.subscribe_messages();
     let mut presence = chat.subscribe_presence();
+    // 입장 알림: 구독 직후에 뿌려야 본인도 자기 입장 메시지를 받습니다.
+    // consume_ticket에서 뿌리면 구독 전이라 본인은 못 받습니다.
+    chat.broadcast_entry(connection);
     while presence.try_recv().is_ok() {}
     if send_presence(&mut *socket, chat.online_count())
         .await
@@ -522,7 +525,6 @@ mod tests {
         server.abort();
     }
 }
-
 
 
 

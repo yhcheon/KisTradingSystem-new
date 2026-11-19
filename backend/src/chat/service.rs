@@ -6,7 +6,7 @@ use super::{
         ChatCommandConfig, NicknameConfig, chat_commands_config_path, nickname_config_path,
         trusted_proxy_ips_from_env,
     },
-    message::{ChatMessage, create_message},
+    message::{ChatMessage, create_message, create_system_message},
     social::{parse_social_action, render_social_action, render_target_social_action},
 };
 use chrono::{NaiveDate, Utc};
@@ -333,6 +333,18 @@ impl ChatService {
         self.inner.messages.subscribe()
     }
 
+    /// 입장 알림을 모든 접속자에게 뿌립니다.
+    /// - handle_socket에서 구독(subscribe) 직후에 불러야
+    ///   들어온 본인도 자기 입장 메시지를 받습니다.
+    /// - consume_ticket에서 보내면, 아직 구독 전이라 본인은 못 받습니다.
+    pub fn broadcast_entry(&self, connection: &ChatConnection) {
+        let leave = create_system_message(
+            connection.nickname(),
+            format!("{}님이 입장하셨습니다.", connection.nickname()),
+        );
+        let _ = self.inner.messages.send(leave);
+    }
+
     pub fn subscribe_presence(&self) -> broadcast::Receiver<usize> {
         self.inner.presence.subscribe()
     }
@@ -502,6 +514,16 @@ impl Drop for ChatConnection {
         drop(state);
         if removed {
             let _ = inner.presence.send(online_count);
+            // 퇴장 알림: 브라우저를 끄거나 다른 사이트로 가면
+            // WebSocket이 끊기고, 이 Drop이 바로 실행됩니다.
+            // 여기서 남은 사람들한테 "멍충이-1님이 퇴장하셨습니다."를 뿌립니다.
+            // self.alias를 여기서 쓰는 이유: 별명은 이 연결에 붙은 익명 닉네임이라
+            // Drop 시점에도 그대로 살아있습니다.
+            let leave = create_system_message(
+                &self.alias,
+                format!("{}님이 퇴장하셨습니다.", self.alias),
+            );
+            let _ = inner.messages.send(leave);
         }
     }
 }
@@ -619,5 +641,4 @@ fn prune_ip_limits(state: &mut ChatState) {
 #[cfg(test)]
 #[path = "service_tests.rs"]
 mod tests;
-
 
