@@ -43,7 +43,7 @@ impl PriceCache {
 
     pub async fn clear_session(&self, session: &str) {
         let mut map = self.inner.lock().await;
-        map.retain(|(_, cached_session), _| cached_session != session);
+        map.retain(|key, _| key.1.as_str() != session);
     }
 
     pub async fn update_by_tick(&self, tick: &RealtimeTick) {
