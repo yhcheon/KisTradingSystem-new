@@ -22,10 +22,19 @@ pub async fn run(
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
 ) {
+    let startup_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+    let day_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
+    let mut last_day_refresh_date = if startup_kst.time() >= day_refresh_time {
+        Some(startup_kst.date_naive())
+    } else {
+        None
+    };
+
     loop {
         let error_message = match connect_and_listen(
             &approval_key, &symbols, &night_symbols, &tx,
             candle_store.clone(), session_range.clone(), price_cache.clone(),
+            &mut last_day_refresh_date,
         ).await {
             Ok(()) => None,
             Err(error) => Some(error.to_string()),
@@ -91,6 +100,7 @@ async fn connect_and_listen(
     candle_store: Arc<Mutex<CandleStore>>,
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
+    last_day_refresh_date: &mut Option<chrono::NaiveDate>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ws_url = std::env::var("KIS_WS_DOMAIN")
         .unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
