@@ -41,6 +41,11 @@ impl PriceCache {
         map.insert((price.code.clone(), session.to_string()), (price.clone(), Instant::now()));
     }
 
+    pub async fn clear_session(&self, session: &str) {
+        let mut map = self.inner.lock().await;
+        map.retain(|(_, cached_session), _| cached_session != session);
+    }
+
     pub async fn update_by_tick(&self, tick: &RealtimeTick) {
         let mut map = self.inner.lock().await;
         let key = (tick.code.clone(), tick.market_session.clone());
