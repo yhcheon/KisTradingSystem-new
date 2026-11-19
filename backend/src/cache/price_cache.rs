@@ -1,6 +1,4 @@
-// 파일명: cache/price_cache.rs
-// 설명: Redis 없는 메모리 시세 캐시 (TTL 없음 - 부팅 1회 + 체결로 갱신)
-
+// Redis 없이 프로세스 메모리에 주간/야간 가격을 독립 보관합니다.
 use crate::kis::ws::RealtimeTick;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,47 +23,72 @@ pub struct CachedPrice {
 
 #[derive(Clone, Default)]
 pub struct PriceCache {
-    inner: Arc<Mutex<HashMap<String, (CachedPrice, Instant)>>>,
+    // 종목코드만 키로 사용하던 구조를 (종목코드, 세션)으로 분리합니다.
+    inner: Arc<Mutex<HashMap<(String, String), (CachedPrice, Instant)>>>,
 }
 
 impl PriceCache {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
-    // TTL 체크 없음. 있으면 무조건 반환, 없으면 None
-    pub async fn get(&self, code: &str) -> Option<CachedPrice> {
+    pub async fn get(&self, code: &str, session: &str) -> Option<CachedPrice> {
         let map = self.inner.lock().await;
-        let (price, _at) = map.get(code)?;
+        let (price, _) = map.get(&(code.to_string(), session.to_string()))?;
         Some(price.clone())
     }
 
-    pub async fn set(&self, price: &CachedPrice) {
+    pub async fn set(&self, price: &CachedPrice, session: &str) {
         let mut map = self.inner.lock().await;
-        map.insert(price.code.clone(), (price.clone(), Instant::now()));
+        map.insert((price.code.clone(), session.to_string()), (price.clone(), Instant::now()));
     }
 
-    // 체결이 들어올 때마다 현재가/거래량/고가/저가만 갱신
     pub async fn update_by_tick(&self, tick: &RealtimeTick) {
         let mut map = self.inner.lock().await;
-        // map 값은 (CachedPrice, Instant) 튜플이라서 .0으로 접근해야 해요
-        if let Some((cached, _at)) = map.get_mut(&tick.code) {
+        let key = (tick.code.clone(), tick.market_session.clone());
+        if let Some((cached, _)) = map.get_mut(&key) {
             cached.price = tick.price.clone();
             cached.volume = tick.volume.clone();
             cached.change = tick.change.clone();
             cached.change_rate = tick.change_rate.clone();
 
-            // 고가/저가는 체결 가격으로 갱신
-            let price: f64 = tick.price.parse().unwrap_or(0.0);
-            let high: f64 = cached.high.parse().unwrap_or(0.0);
-            let low: f64 = cached.low.parse().unwrap_or(0.0);
-            if price > high {
-                cached.high = tick.price.clone();
-            }
-            if low == 0.0 || price < low {
-                cached.low = tick.price.clone();
-            }
+            let price = tick.price.parse::<f64>().unwrap_or(0.0);
+            let high = cached.high.parse::<f64>().unwrap_or(0.0);
+            let low = cached.low.parse::<f64>().unwrap_or(0.0);
+            if price > high { cached.high = tick.price.clone(); }
+            if low == 0.0 || price < low { cached.low = tick.price.clone(); }
         }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kis::ws::RealtimeTick;
+
+    fn tick(session: &str, price: &str) -> RealtimeTick {
+        RealtimeTick {
+            code: "101W9000".into(), date: "20261119".into(),
+            price: price.into(), change: "1".into(), change_rate: "0.1".into(),
+            volume: "10".into(), last_qty: "1".into(), time: "100000".into(),
+            market_session: session.into(), range_alert: None,
+        }
+    }
+
+    fn quote(price: &str) -> CachedPrice {
+        CachedPrice {
+            code: "101W9000".into(), name: "선물".into(), price: price.into(),
+            prev_close: "100".into(), open: "100".into(), high: "100".into(),
+            low: "100".into(), change: "0".into(), change_rate: "0".into(),
+            volume: "0".into(), cached_at: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn day_and_night_prices_are_isolated_for_same_symbol() {
+        let cache = PriceCache::new();
+        cache.set(&quote("101"), "day").await;
+        cache.set(&quote("102"), "night").await;
+        cache.update_by_tick(&tick("night", "103")).await;
+        assert_eq!(cache.get("101W9000", "day").await.unwrap().price, "101");
+        assert_eq!(cache.get("101W9000", "night").await.unwrap().price, "103");
+    }
+}
