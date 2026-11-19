@@ -1,5 +1,7 @@
 use crate::{
-    chat::{ChatActionDefinition, ChatCommandDefinition, ChatError, ChatService, ChatTicketResponse},
+    chat::{
+        ChatActionDefinition, ChatCommandDefinition, ChatError, ChatService, ChatTicketResponse,
+    },
     core::state::AppState,
 };
 use axum::{

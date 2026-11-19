@@ -7,10 +7,10 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::cache::price_cache::{CachedPrice, PriceCache};
-use crate::kis;
 use crate::core::candles::CandleStore;
-use crate::core::session_range::SessionRangeMonitor;
 use crate::core::market_session::{ActiveSessions, current_active_sessions};
+use crate::core::session_range::SessionRangeMonitor;
+use crate::kis;
 
 use super::protocol::{DAY_TR_ID, NIGHT_TR_ID, RealtimeTick, handle_text, parse_tick};
 
@@ -27,7 +27,7 @@ pub async fn run(
     app_secret: String,
     access_token: String,
 ) {
-    let startup_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia_Seoul);
+    let startup_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
     let day_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
     let mut last_day_refresh_date = if startup_kst.time() >= day_refresh_time {
         Some(startup_kst.date_naive())
@@ -46,12 +46,22 @@ pub async fn run(
 
     loop {
         let error_message = match connect_and_listen(
-            &approval_key, &symbols, &night_symbols, &tx,
-            candle_store.clone(), session_range.clone(), price_cache.clone(),
-            &http_client, &app_key, &app_secret, &access_token,
+            &approval_key,
+            &symbols,
+            &night_symbols,
+            &tx,
+            candle_store.clone(),
+            session_range.clone(),
+            price_cache.clone(),
+            &http_client,
+            &app_key,
+            &app_secret,
+            &access_token,
             &mut last_day_refresh_date,
             &mut last_night_refresh_date,
-        ).await {
+        )
+        .await
+        {
             Ok(()) => None,
             Err(error) => Some(error.to_string()),
         };
@@ -86,7 +96,13 @@ where
     ws.send(Message::Text(msg.to_string().into())).await?;
     tracing::info!(
         "KIS WS {} 요청: tr_id={}, tr_key={}",
-        if enabled { "구독 등록" } else { "구독 해제" }, tr_id, symbol
+        if enabled {
+            "구독 등록"
+        } else {
+            "구독 해제"
+        },
+        tr_id,
+        symbol
     );
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     Ok(())
@@ -108,7 +124,6 @@ where
     Ok(())
 }
 
-
 async fn refresh_session_quote(
     http_client: &reqwest::Client,
     app_key: &str,
@@ -120,7 +135,12 @@ async fn refresh_session_quote(
     price_cache: &PriceCache,
 ) -> Result<(), String> {
     let response = kis::get_futures_price_for_market(
-        http_client, app_key, app_secret, access_token, market_div, code,
+        http_client,
+        app_key,
+        app_secret,
+        access_token,
+        market_div,
+        code,
     )
     .await
     .map_err(|error| error.to_string())?;
@@ -144,7 +164,12 @@ async fn refresh_session_quote(
         cached_at,
     };
     price_cache.set(&cached, session).await;
-    tracing::info!("KIS {} REST 기준 시세 갱신: code={}, price={}", session, code, cached.price);
+    tracing::info!(
+        "KIS {} REST 기준 시세 갱신: code={}, price={}",
+        session,
+        code,
+        cached.price
+    );
     Ok(())
 }
 

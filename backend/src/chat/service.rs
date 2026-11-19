@@ -321,7 +321,11 @@ impl ChatService {
     }
 
     pub fn online_count(&self) -> usize {
-        self.inner.state.lock().map(|state| state.connections.len()).unwrap_or(0)
+        self.inner
+            .state
+            .lock()
+            .map(|state| state.connections.len())
+            .unwrap_or(0)
     }
 
     pub fn list_commands(&self) -> Vec<ChatCommandDefinition> {
@@ -356,41 +360,39 @@ impl ChatService {
         text: String,
     ) -> Result<(), ChatError> {
         connection.check_message_rate_limit()?;
-        let (text, action_id) = if let Some(expanded) = self
-            .inner
-            .commands
-            .expand(&text, connection.nickname())
+        let (text, action_id) = if let Some(expanded) =
+            self.inner.commands.expand(&text, connection.nickname())
         {
             (expanded, None)
-        } else if let Some(matched) =
-            parse_social_action(&text, &self.inner.commands.actions)
-        {
+        } else if let Some(matched) = parse_social_action(&text, &self.inner.commands.actions) {
             let action = self
                 .inner
                 .commands
                 .actions
                 .get(&matched.action_id)
                 .ok_or(ChatError::ServiceUnavailable)?;
-            let target_match = if action.template_target.is_some()
-                && action.template_target_no_arg.is_some()
-            {
-                matched.argument.as_deref().and_then(|argument| {
-                    let state = self.inner.state.lock().ok()?;
-                    state.connections.values().find_map(|online| {
-                        let remainder = argument.strip_prefix(&online.alias)?;
-                        if remainder.is_empty() {
-                            Some((online.alias.clone(), None))
-                        } else if remainder.chars().next().is_some_and(char::is_whitespace) {
-                            let rest = remainder.trim_start();
-                            Some((online.alias.clone(), (!rest.is_empty()).then(|| rest.to_string())))
-                        } else {
-                            None
-                        }
+            let target_match =
+                if action.template_target.is_some() && action.template_target_no_arg.is_some() {
+                    matched.argument.as_deref().and_then(|argument| {
+                        let state = self.inner.state.lock().ok()?;
+                        state.connections.values().find_map(|online| {
+                            let remainder = argument.strip_prefix(&online.alias)?;
+                            if remainder.is_empty() {
+                                Some((online.alias.clone(), None))
+                            } else if remainder.chars().next().is_some_and(char::is_whitespace) {
+                                let rest = remainder.trim_start();
+                                Some((
+                                    online.alias.clone(),
+                                    (!rest.is_empty()).then(|| rest.to_string()),
+                                ))
+                            } else {
+                                None
+                            }
+                        })
                     })
-                })
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
             let rendered = if let Some((target, argument)) = target_match {
                 render_target_social_action(
                     action,
@@ -399,11 +401,7 @@ impl ChatService {
                     argument.as_deref(),
                 )?
             } else {
-                render_social_action(
-                    action,
-                    connection.nickname(),
-                    matched.argument.as_deref(),
-                )?
+                render_social_action(action, connection.nickname(), matched.argument.as_deref())?
             };
             (rendered, Some(matched.action_id))
         } else {
@@ -735,7 +733,9 @@ mod tests {
             ("즐겁게 웃는다", "즐겁게 웃는다"),
             ("/wave", "guest-1 waves"),
         ] {
-            service.publish_message(&connection, input.to_string()).unwrap();
+            service
+                .publish_message(&connection, input.to_string())
+                .unwrap();
             let message = messages.try_recv().unwrap();
             assert_eq!(message.nickname, "guest-1");
             assert_eq!(message.text, expected, "input: {input}");
@@ -995,22 +995,36 @@ mod tests {
         assert_eq!(presence.recv().await.unwrap(), 2);
         assert_eq!(service.online_count(), 2);
 
-        service.publish_message(&first, format!("{} 웃", second.nickname())).unwrap();
+        service
+            .publish_message(&first, format!("{} 웃", second.nickname()))
+            .unwrap();
         let message = messages.recv().await.unwrap();
         assert_eq!(
             message.text,
-            format!("{}님이 {}님을 보고 웃습니다. ^^", first.nickname(), second.nickname())
+            format!(
+                "{}님이 {}님을 보고 웃습니다. ^^",
+                first.nickname(),
+                second.nickname()
+            )
         );
         assert_eq!(message.action_id.as_deref(), Some("laugh"));
 
-        service.publish_message(&first, format!("{} 인사", second.nickname())).unwrap();
+        service
+            .publish_message(&first, format!("{} 인사", second.nickname()))
+            .unwrap();
         let greeting = messages.recv().await.unwrap();
         assert_eq!(
             greeting.text,
-            format!("{}님이 {}님에게 인사합니다.", first.nickname(), second.nickname())
+            format!(
+                "{}님이 {}님에게 인사합니다.",
+                first.nickname(),
+                second.nickname()
+            )
         );
 
-        service.publish_message(&first, "offline-999 웃".to_string()).unwrap();
+        service
+            .publish_message(&first, "offline-999 웃".to_string())
+            .unwrap();
         let fallback = messages.recv().await.unwrap();
         assert_eq!(
             fallback.text,
@@ -1021,5 +1035,4 @@ mod tests {
         assert_eq!(presence.recv().await.unwrap(), 1);
         assert_eq!(service.online_count(), 1);
     }
-
 }

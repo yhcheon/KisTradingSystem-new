@@ -114,7 +114,6 @@ impl NicknameConfig {
     }
 }
 
-
 fn validate_social_token(token: &str) -> Result<(), ChatError> {
     let length = token.chars().count();
     if token.trim() != token
@@ -168,7 +167,7 @@ fn validate_social_template(template: &str, requires_argument: bool) -> Result<(
                 match placeholder.as_str() {
                     "nickname" => has_nickname = true,
                     "argument" => has_argument = true,
-                    "target" => {},
+                    "target" => {}
                     _ => unreachable!(),
                 }
             }
@@ -228,9 +227,9 @@ impl ChatCommandConfig {
                 for (action_id, action) in raw.actions {
                     if action_id.is_empty()
                         || action_id.len() > 64
-                        || !action_id
-                            .chars()
-                            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+                        || !action_id.chars().all(|character| {
+                            character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                        })
                     {
                         return Err(ChatError::Configuration(
                             "social action ids must use 1-64 ASCII letters, digits, '_' or '-'"
@@ -505,7 +504,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(config.expand("/hello", "guest-1").as_deref(), Some("guest-1 says hello"));
+        assert_eq!(
+            config.expand("/hello", "guest-1").as_deref(),
+            Some("guest-1 says hello")
+        );
         assert_eq!(config.commands.len(), 1);
         let laugh = config.actions.get("laugh").unwrap();
         assert_eq!(laugh.command, "웃");
@@ -525,7 +527,10 @@ mod tests {
             r#"{"version":2,"commands":{"/hello":"hello"},"actions":{"a":{"command":"즐겁게 웃","template":"{nickname}{argument}","template_no_arg":"{nickname}"}}}"#,
         ];
         for json in cases {
-            assert!(ChatCommandConfig::from_json(json).is_err(), "expected invalid config: {json}");
+            assert!(
+                ChatCommandConfig::from_json(json).is_err(),
+                "expected invalid config: {json}"
+            );
         }
     }
 

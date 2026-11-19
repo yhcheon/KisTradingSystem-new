@@ -143,8 +143,11 @@ impl SessionRangeMonitor {
         }
 
         if state.date.as_deref() != Some(date) {
-            let eligible = session_start_utc(date, start)
-                .is_some_and(|session_start| started_at.as_ref().is_some_and(|started| *started <= session_start));
+            let eligible = session_start_utc(date, start).is_some_and(|session_start| {
+                started_at
+                    .as_ref()
+                    .is_some_and(|started| *started <= session_start)
+            });
             *state = SessionState::new(date, eligible);
         }
 
@@ -207,7 +210,11 @@ impl SessionRangeMonitor {
         } else {
             day_date.clone()
         };
-        let night_hour = if now.hour() < 6 { now.hour() + 24 } else { now.hour() };
+        let night_hour = if now.hour() < 6 {
+            now.hour() + 24
+        } else {
+            now.hour()
+        };
         let night_hhmm = format!("{:02}{:02}", night_hour, now.minute());
 
         RangeMonitorSnapshot {
@@ -235,8 +242,11 @@ impl SessionRangeMonitor {
         let date = state.date.as_deref().unwrap_or(current_date);
         let eligible = state.eligible
             || (state.date.is_none()
-                && session_start_utc(date, start)
-                    .is_some_and(|session_start| self.started_at.as_ref().is_some_and(|started| *started <= session_start)));
+                && session_start_utc(date, start).is_some_and(|session_start| {
+                    self.started_at
+                        .as_ref()
+                        .is_some_and(|started| *started <= session_start)
+                }));
         let start_hhmm = format!("{:02}{:02}", start.0, start.1);
         let end_hhmm = format!("{:02}{:02}", end.0, end.1);
         let status = if !eligible {
@@ -302,38 +312,68 @@ mod tests {
     #[test]
     fn day_session_collects_then_alerts_once_per_direction() {
         let mut monitor = monitor("2026-11-18T23:30:00Z"); // KST 08:30
-        for (time, price) in [
-            ("084500", 350.0),
-            ("090000", 351.0),
-            ("092959", 349.0),
-        ] {
-            assert!(monitor.on_tick("101W9000", "20261119", time, "day", price).is_none());
+        for (time, price) in [("084500", 350.0), ("090000", 351.0), ("092959", 349.0)] {
+            assert!(
+                monitor
+                    .on_tick("101W9000", "20261119", time, "day", price)
+                    .is_none()
+            );
         }
         assert_eq!(monitor.snapshot().day.high, Some(351.0));
         assert_eq!(monitor.snapshot().day.low, Some(349.0));
 
-        let high = monitor.on_tick("101W9000", "20261119", "093000", "day", 351.05).unwrap();
+        let high = monitor
+            .on_tick("101W9000", "20261119", "093000", "day", 351.05)
+            .unwrap();
         assert_eq!(high.direction, "high");
-        assert!(monitor.on_tick("101W9000", "20261119", "093001", "day", 351.10).is_none());
-        assert!(monitor.on_tick("101W9000", "20261119", "093002", "day", 350.0).is_none());
-        assert!(monitor.on_tick("101W9000", "20261119", "093003", "day", 348.95).is_some());
-        assert!(monitor.on_tick("101W9000", "20261119", "093004", "day", 348.90).is_none());
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "093001", "day", 351.10)
+                .is_none()
+        );
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "093002", "day", 350.0)
+                .is_none()
+        );
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "093003", "day", 348.95)
+                .is_some()
+        );
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "093004", "day", 348.90)
+                .is_none()
+        );
     }
 
     #[test]
     fn late_start_disables_only_the_session_that_has_already_started() {
         let mut monitor = monitor("2026-11-19T00:00:00Z"); // KST 09:00
-        assert!(monitor.on_tick("101W9000", "20261119", "090000", "day", 350.0).is_none());
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "090000", "day", 350.0)
+                .is_none()
+        );
         assert_eq!(monitor.snapshot().day.status, "unavailable");
 
-        assert!(monitor.on_tick("101W9000", "20261119", "180000", "night", 350.0).is_none());
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "180000", "night", 350.0)
+                .is_none()
+        );
         assert_eq!(monitor.snapshot().night.high, Some(350.0));
     }
 
     #[test]
     fn ignores_mini_ticks_and_keeps_day_and_night_independent() {
         let mut monitor = monitor("2026-11-18T23:00:00Z"); // KST 08:00
-        assert!(monitor.on_tick("201W9000", "20261119", "084500", "day", 500.0).is_none());
+        assert!(
+            monitor
+                .on_tick("201W9000", "20261119", "084500", "day", 500.0)
+                .is_none()
+        );
         assert_eq!(monitor.snapshot().day.high, None);
 
         monitor.on_tick("101W9000", "20261119", "084500", "day", 350.0);
@@ -348,7 +388,11 @@ mod tests {
         let mut monitor = monitor("2026-11-18T23:00:00Z");
         monitor.on_tick("101W9000", "20261119", "084500", "day", 350.0);
         monitor.on_tick("101W9000", "20261119", "092959", "day", 349.0);
-        assert!(monitor.on_tick("101W9000", "20261119", "093000", "day", 351.0).is_some());
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "093000", "day", 351.0)
+                .is_some()
+        );
         monitor.on_tick("101W9000", "20261120", "084500", "day", 352.0);
         assert_eq!(monitor.snapshot().day.high_alerted, false);
         assert_eq!(monitor.snapshot().day.date.as_deref(), Some("20261120"));
@@ -359,8 +403,16 @@ mod tests {
         let mut monitor = monitor("2026-11-19T08:00:00Z"); // KST 17:00
         monitor.on_tick("101W9000", "20261119", "180000", "night", 350.0);
         monitor.on_tick("101W9000", "20261119", "184459", "night", 349.0);
-        assert!(monitor.on_tick("101W9000", "20261119", "184500", "night", 351.0).is_some());
-        assert!(monitor.on_tick("101W9000", "20261119", "250001", "night", 348.9).is_some());
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "184500", "night", 351.0)
+                .is_some()
+        );
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "250001", "night", 348.9)
+                .is_some()
+        );
         assert_eq!(monitor.snapshot().night.low_alerted, true);
     }
 }

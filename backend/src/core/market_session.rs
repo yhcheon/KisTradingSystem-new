@@ -29,19 +29,81 @@ pub fn current_active_sessions() -> ActiveSessions {
 mod tests {
     use super::*;
 
-    fn at(h: u32, m: u32) -> NaiveTime { NaiveTime::from_hms_opt(h, m, 0).unwrap() }
+    fn at(h: u32, m: u32) -> NaiveTime {
+        NaiveTime::from_hms_opt(h, m, 0).unwrap()
+    }
 
     #[test]
     fn day_and_night_session_boundaries_are_kst() {
-        assert_eq!(active_sessions_at(at(3, 0)), ActiveSessions { day: false, night: true });
-        assert_eq!(active_sessions_at(at(6, 4)), ActiveSessions { day: false, night: true });
-        assert_eq!(active_sessions_at(at(6, 5)), ActiveSessions { day: false, night: false });
-        assert_eq!(active_sessions_at(at(8, 39)), ActiveSessions { day: false, night: false });
-        assert_eq!(active_sessions_at(at(8, 40)), ActiveSessions { day: true, night: false });
-        assert_eq!(active_sessions_at(at(15, 49)), ActiveSessions { day: true, night: false });
-        assert_eq!(active_sessions_at(at(15, 50)), ActiveSessions { day: false, night: false });
-        assert_eq!(active_sessions_at(at(17, 54)), ActiveSessions { day: false, night: false });
-        assert_eq!(active_sessions_at(at(17, 55)), ActiveSessions { day: false, night: true });
-        assert_eq!(active_sessions_at(at(23, 0)), ActiveSessions { day: false, night: true });
+        assert_eq!(
+            active_sessions_at(at(3, 0)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(6, 4)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(6, 5)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(8, 39)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(8, 40)),
+            ActiveSessions {
+                day: true,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(15, 49)),
+            ActiveSessions {
+                day: true,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(15, 50)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(17, 54)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(17, 55)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(23, 0)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
     }
 }

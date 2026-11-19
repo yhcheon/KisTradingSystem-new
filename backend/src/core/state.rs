@@ -5,8 +5,8 @@
 
 use crate::chat::ChatService;
 use crate::core::candles::CandleStore;
-use crate::core::session_range::SessionRangeMonitor;
 use crate::core::db::SupabaseClient;
+use crate::core::session_range::SessionRangeMonitor;
 use crate::kis::ws::RealtimeTick;
 use crate::master::FuturesSymbol;
 use std::sync::Arc;
@@ -31,11 +31,9 @@ pub struct AppState {
     pub kis: KisCredentials,
     pub jwt: JwtConfig,
 
-
     // redis 사용하지 않기로
     //pub redis: Arc<Mutex<redis::aio::MultiplexedConnection>>,
     pub price_cache: crate::cache::price_cache::PriceCache,
-
 
     pub regular: FuturesSymbol,
     pub mini: FuturesSymbol,

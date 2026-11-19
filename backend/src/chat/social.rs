@@ -1,8 +1,4 @@
-use super::{
-    ChatError,
-    config::SocialActionConfig,
-    message::MAX_MESSAGE_CHARACTERS,
-};
+use super::{ChatError, config::SocialActionConfig, message::MAX_MESSAGE_CHARACTERS};
 use std::collections::HashMap;
 
 /// A successful match against the final whitespace-delimited input token.
@@ -62,7 +58,6 @@ pub(super) fn parse_social_action(
     None
 }
 
-
 /// Renders a matched social action without changing the parser's input semantics.
 /// The argument placeholder receives one separating space when an argument exists.
 pub(super) fn render_social_action(
@@ -96,10 +91,18 @@ pub(super) fn render_target_social_action(
 ) -> Result<String, ChatError> {
     let argument = argument.filter(|value| !value.is_empty());
     let template = match argument {
-        Some(_) => action.template_target.as_deref().ok_or(ChatError::ServiceUnavailable)?,
-        None => action.template_target_no_arg.as_deref().ok_or(ChatError::ServiceUnavailable)?,
+        Some(_) => action
+            .template_target
+            .as_deref()
+            .ok_or(ChatError::ServiceUnavailable)?,
+        None => action
+            .template_target_no_arg
+            .as_deref()
+            .ok_or(ChatError::ServiceUnavailable)?,
     };
-    let argument_text = argument.map(|value| format!(" {value}")).unwrap_or_default();
+    let argument_text = argument
+        .map(|value| format!(" {value}"))
+        .unwrap_or_default();
     let rendered = template
         .replace("{nickname}", nickname)
         .replace("{target}", target)
@@ -123,8 +126,12 @@ mod tests {
             aliases: vec!["웃음".to_string()],
             template: "{nickname}님이{argument} 웃습니다. ^^".to_string(),
             template_no_arg: "{nickname}님이 웃습니다. ^^".to_string(),
-            template_target: Some("{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^".to_string()),
-            template_target_no_arg: Some("{nickname}님이 {target}님을 보고 웃습니다. ^^".to_string()),
+            template_target: Some(
+                "{nickname}님이 {target}님을 보고{argument} 웃습니다. ^^".to_string(),
+            ),
+            template_target_no_arg: Some(
+                "{nickname}님이 {target}님을 보고 웃습니다. ^^".to_string(),
+            ),
         }
     }
 
@@ -135,8 +142,14 @@ mod tests {
     #[test]
     fn renders_social_action_with_and_without_argument() {
         let action = laugh_action();
-        assert_eq!(render_social_action(&action, "작성자", None).unwrap(), "작성자님이 웃습니다. ^^");
-        assert_eq!(render_social_action(&action, "작성자", Some("즐겁게")).unwrap(), "작성자님이 즐겁게 웃습니다. ^^");
+        assert_eq!(
+            render_social_action(&action, "작성자", None).unwrap(),
+            "작성자님이 웃습니다. ^^"
+        );
+        assert_eq!(
+            render_social_action(&action, "작성자", Some("즐겁게")).unwrap(),
+            "작성자님이 즐겁게 웃습니다. ^^"
+        );
     }
 
     #[test]

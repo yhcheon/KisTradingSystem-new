@@ -28,7 +28,9 @@ pub struct PriceCache {
 }
 
 impl PriceCache {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub async fn get(&self, code: &str, session: &str) -> Option<CachedPrice> {
         let map = self.inner.lock().await;
@@ -38,7 +40,10 @@ impl PriceCache {
 
     pub async fn set(&self, price: &CachedPrice, session: &str) {
         let mut map = self.inner.lock().await;
-        map.insert((price.code.clone(), session.to_string()), (price.clone(), Instant::now()));
+        map.insert(
+            (price.code.clone(), session.to_string()),
+            (price.clone(), Instant::now()),
+        );
     }
 
     pub async fn clear_session(&self, session: &str) {
@@ -58,8 +63,12 @@ impl PriceCache {
             let price = tick.price.parse::<f64>().unwrap_or(0.0);
             let high = cached.high.parse::<f64>().unwrap_or(0.0);
             let low = cached.low.parse::<f64>().unwrap_or(0.0);
-            if price > high { cached.high = tick.price.clone(); }
-            if low == 0.0 || price < low { cached.low = tick.price.clone(); }
+            if price > high {
+                cached.high = tick.price.clone();
+            }
+            if low == 0.0 || price < low {
+                cached.low = tick.price.clone();
+            }
         }
     }
 }
@@ -71,19 +80,32 @@ mod tests {
 
     fn tick(session: &str, price: &str) -> RealtimeTick {
         RealtimeTick {
-            code: "101W9000".into(), date: "20261119".into(),
-            price: price.into(), change: "1".into(), change_rate: "0.1".into(),
-            volume: "10".into(), last_qty: "1".into(), time: "100000".into(),
-            market_session: session.into(), range_alert: None,
+            code: "101W9000".into(),
+            date: "20261119".into(),
+            price: price.into(),
+            change: "1".into(),
+            change_rate: "0.1".into(),
+            volume: "10".into(),
+            last_qty: "1".into(),
+            time: "100000".into(),
+            market_session: session.into(),
+            range_alert: None,
         }
     }
 
     fn quote(price: &str) -> CachedPrice {
         CachedPrice {
-            code: "101W9000".into(), name: "선물".into(), price: price.into(),
-            prev_close: "100".into(), open: "100".into(), high: "100".into(),
-            low: "100".into(), change: "0".into(), change_rate: "0".into(),
-            volume: "0".into(), cached_at: 0,
+            code: "101W9000".into(),
+            name: "선물".into(),
+            price: price.into(),
+            prev_close: "100".into(),
+            open: "100".into(),
+            high: "100".into(),
+            low: "100".into(),
+            change: "0".into(),
+            change_rate: "0".into(),
+            volume: "0".into(),
+            cached_at: 0,
         }
     }
 

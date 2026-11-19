@@ -10,10 +10,7 @@ pub async fn prices(State(state): State<AppState>) -> Json<Value> {
     Json(build_prices(&state).await)
 }
 
-fn night_result(
-    result: Result<CachedPrice, String>,
-    reference_price: Option<String>,
-) -> Value {
+fn night_result(result: Result<CachedPrice, String>, reference_price: Option<String>) -> Value {
     match result {
         Ok(price) => json!({
             "ok": true,

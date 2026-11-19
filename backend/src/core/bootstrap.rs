@@ -49,9 +49,9 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
     let mini = market_data.mini;
     let candle_store = market_data.candles;
     // KIS 실시간 구독을 시작하는 시각을 기준으로 세션별 기준 수집 자격을 고정합니다.
-    let session_range = Arc::new(Mutex::new(
-        core::session_range::SessionRangeMonitor::new(regular.code.clone()),
-    ));
+    let session_range = Arc::new(Mutex::new(core::session_range::SessionRangeMonitor::new(
+        regular.code.clone(),
+    )));
 
     // 주간/야간 가격은 각각 최초 시세 요청 시 REST로 초기화하고,
     // 이후 해당 세션의 WebSocket 체결로만 갱신합니다.
@@ -162,6 +162,3 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         chat,
     })
 }
-
-
-

@@ -48,7 +48,10 @@ async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: Cha
     let mut messages: broadcast::Receiver<ChatMessage> = chat.subscribe_messages();
     let mut presence = chat.subscribe_presence();
     while presence.try_recv().is_ok() {}
-    if send_presence(&mut socket, chat.online_count()).await.is_err() {
+    if send_presence(&mut socket, chat.online_count())
+        .await
+        .is_err()
+    {
         return;
     }
     loop {
