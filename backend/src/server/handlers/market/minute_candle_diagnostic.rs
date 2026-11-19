@@ -241,8 +241,8 @@ fn log_and_compare_candles(
         if log_batch.len() == 25 {
             tracing::info!(
                 target: "minute_candle_validation",
-                "[MINUTE-CHECK-ROWS] {} ({})\\n{}",
-                name, symbol, log_batch.join("\\n")
+                "[MINUTE-CHECK-ROWS] {} ({})\n{}",
+                name, symbol, log_batch.join("\n")
             );
             log_batch.clear();
         }
@@ -251,8 +251,8 @@ fn log_and_compare_candles(
     if !log_batch.is_empty() {
         tracing::info!(
             target: "minute_candle_validation",
-            "[MINUTE-CHECK-ROWS] {} ({})\\n{}",
-            name, symbol, log_batch.join("\\n")
+            "[MINUTE-CHECK-ROWS] {} ({})\n{}",
+            name, symbol, log_batch.join("\n")
         );
     }
 
