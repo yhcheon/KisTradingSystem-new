@@ -9,7 +9,6 @@ use std::{
         atomic::Ordering,
     },
 };
-use chrono::NaiveTime;
 
 const DAY_START: &str = "084500";
 const MAX_PAGES: usize = 8;
@@ -194,7 +193,7 @@ fn log_and_compare_candles(
                 ]
                 .iter()
                 .all(|(reference, ours)| {
-                    reference.as_ref().map(|value| (value - ours).abs() < 0.000001).unwrap_or(false)
+                    reference.as_ref().map(|value| (*value - *ours).abs() < 0.000001).unwrap_or(false)
                 });
                 if same {
                     matched += 1;
@@ -374,9 +373,23 @@ async fn fetch_day_candles(
 }
 
 fn previous_minute(value: &str) -> Option<String> {
-    let time = NaiveTime::parse_from_str(value, "%H%M%S").ok()?;
-    let previous = time.checked_sub_signed(chrono::Duration::minutes(1))?;
-    Some(previous.format("%H%M%S").to_string())
+    if value.len() != 6 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let hour = value[0..2].parse::<u32>().ok()?;
+    let minute = value[2..4].parse::<u32>().ok()?;
+    let second = value[4..6].parse::<u32>().ok()?;
+    if hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let total_seconds = hour * 3600 + minute * 60 + second;
+    let previous = total_seconds.checked_sub(60)?;
+    Some(format!(
+        "{:02}{:02}{:02}",
+        previous / 3600,
+        (previous % 3600) / 60,
+        previous % 60
+    ))
 }
 
 #[cfg(test)]
