@@ -1,7 +1,8 @@
+
+
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { PricesResponse, RangeAlert, RangeMonitorSnapshot, RealtimeTick } from '../../../types';
-import type { CandleData } from '../types';
+import type { CandleData, PricesResponse, RangeAlert, RangeMonitorSnapshot, RealtimeTick } from '../types';
 import { applyTickToCandles } from '../utils/candleUtils';
 
 interface UseMarketWebSocketOptions {
@@ -249,3 +250,6 @@ export function useMarketWebSocket({
 
   return isConnected;
 }
+
+
+

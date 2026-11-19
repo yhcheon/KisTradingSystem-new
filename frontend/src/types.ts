@@ -1,94 +1,10 @@
 // ============================================================
-// 파일명: types.ts
-// 설명: 백엔드 API + WebSocket 메시지 타입 정의
+// 파일명: src/types.ts
+// 설명: 전역 공용 타입 — 분석 글(Note)만 남김
+//       시세 타입은 features/prices/types.ts 로 이동 (2026-11-19 분리)
 // 작성일: 2026-11-14
 // ============================================================
 
-export interface CachedPrice {
-  code: string;
-  name: string;
-  price: string;
-  prev_close: string;
-  open: string;
-  high: string;
-  low: string;
-  change: string;
-  change_rate: string;
-  volume: string;
-  cached_at: number;
-}
-
-export interface SessionQuote {
-  code: string;
-  name: string;
-  price: string;
-  open: string;
-  high: string;
-  low: string;
-  reference_price: string;
-  change: string;
-  change_rate: string;
-  volume: string;
-}
-
-export interface SessionPriceResult {
-  ok: boolean;
-  data?: SessionQuote;
-  error?: string;
-}
-
-export interface PriceResult {
-  ok: boolean;
-  data?: CachedPrice;
-  error?: string;
-  night?: SessionPriceResult;
-}
-
-export interface PricesResponse {
-  regular: PriceResult;
-  mini: PriceResult;
-}
-
-export interface SessionRange {
-  session: 'day' | 'night';
-  date: string | null;
-  status: 'waiting' | 'collecting' | 'monitoring' | 'unavailable';
-  high: number | null;
-  low: number | null;
-  high_alerted: boolean;
-  low_alerted: boolean;
-}
-
-export interface RangeMonitorSnapshot {
-  day: SessionRange;
-  night: SessionRange;
-}
-
-export interface RangeAlert {
-  session: 'day' | 'night';
-  direction: 'high' | 'low';
-  price: number;
-  reference_price: number;
-  message: string;
-}
-
-export interface RealtimeTick {
-  type: 'tick';
-  market_session: 'day' | 'night';
-  code: string;
-  date: string;
-  price: string;
-  change: string;
-  change_rate: string;
-  volume: string;
-  last_qty: string;
-  time: string;
-  range?: RangeMonitorSnapshot;
-  range_alert?: RangeAlert | null;
-}
-
-
-// 기존 코드 아래에 추가
 export interface Note {
   id: string;
   category: string;

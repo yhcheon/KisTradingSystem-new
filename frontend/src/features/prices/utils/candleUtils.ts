@@ -1,5 +1,6 @@
-import type { RealtimeTick } from '../../../types';
-import type { CandleData } from '../types';
+
+
+import type { CandleData, RealtimeTick } from '../types';
 
 export function intervalToMinutes(interval: string): number {
   return parseInt(interval.replace('m', ''), 10);
@@ -93,3 +94,6 @@ export function applyTickToCandles(
 
   return updated;
 }
+
+
+

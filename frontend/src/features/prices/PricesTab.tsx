@@ -1,16 +1,17 @@
+
+
 // ============================================================
 // 파일명: PricesTab.tsx
 // 설명: 시세 카드, 차트 및 세션별 시초 레인지 돌파 경보
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import PriceCard from '../../PriceCard';
-import CandleChart from '../../CandleChart';
+import PriceCard from './PriceCard';
+import CandleChart from './CandleChart';
 import ChatPage from '../chat/ChatPage';
 import { usePrices } from './hooks/usePrices';
 import { useMarketWebSocket } from './hooks/useMarketWebSocket';
-import { INTERVALS, type SymbolKind } from './types';
-import type { RangeAlert, RangeMonitorSnapshot } from '../../types';
+import { INTERVALS, type SymbolKind, type RangeAlert, type RangeMonitorSnapshot } from './types';
 
 interface PricesTabProps {
   activePage: 'prices' | 'chat';
@@ -212,3 +213,6 @@ export default function PricesTab({ activePage, backendReady, onMarketConnection
     </div>
   );
 }
+
+
+
