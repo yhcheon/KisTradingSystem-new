@@ -3,11 +3,15 @@
 // 설명: Axum 서버 실행 및 CORS 설정
 //       - TCP Listener를 초기화보다 먼저 열어 연결 거부 방지
 //       - 초기화 중 /api/health 응답 제공
+//       - Graceful shutdown: Ctrl+C / SIGTERM 수신 시
+//         새 연결 거부 + 진행 중 요청/WS 드레인 후 종료 (2026-11-19)
 // ============================================================
 
 use axum::http::{HeaderValue, Method, header};
 use std::future::{Future, IntoFuture};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::sync::Notify;
 use tower_http::cors::CorsLayer;
 
 pub async fn serve_with_startup<F>(initialize: F) -> Result<(), Box<dyn std::error::Error>>
@@ -68,12 +72,24 @@ where
         bind_addr
     );
 
+    // --- Graceful shutdown 준비 ---
+    // 종료 신호는 한 번만 오지만, 두 곳에서 기다려야 합니다:
+    //  1) axum::serve의 with_graceful_shutdown (HTTP/WS 드레인)
+    //  2) 아래 select!의 초기화 단계 (초기화 중에 Ctrl+C가 와도 바로 끝내기)
+    // 그래서 Notify를 공유합니다. Future를 두 번 쓸 수 없어서 Notify로 푼 겁니다.
+    let shutdown = Arc::new(Notify::new());
+    super::shutdown::spawn_shutdown_watcher(shutdown.clone());
+
     // Axum 0.8의 Serve는 Future가 아니라 IntoFuture를 구현하므로
     // select!에서 사용할 Future로 변환합니다.
+    let shutdown_for_server = shutdown.clone();
     let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(async move {
+        shutdown_for_server.notified().await;
+    })
     .into_future();
     tokio::pin!(server);
     tokio::pin!(initialize);
@@ -87,6 +103,7 @@ where
                 tracing::error!("Axum 서버 실행 중 오류: {}", e);
                 e
             })?;
+            tracing::info!("백엔드 종료 완료 (서버 소켓 닫힘)");
             return Ok(());
         }
         result = &mut initialize => {
@@ -107,12 +124,25 @@ where
                 }
             }
         }
+        // 초기화 중에 Ctrl+C / SIGTERM이 온 경우:
+        // 초기화가 끝날 때까지 기다리지 않고 바로 종료합니다.
+        // (아직 실제 API가 안 열렸고, health만 떠 있던 단계라 드레인할 게 없습니다)
+        _ = shutdown.notified() => {
+            tracing::info!("초기화 중 종료 신호 수신 - 초기화 중단 후 종료합니다");
+            return Ok(());
+        }
     }
 
+    // 초기화 완료 후: 종료 신호가 올 때까지 서버를 계속 띄웁니다.
+    // with_graceful_shutdown 덕분에 신호가 오면 Axum이
+    // 새 연결을 거부하고, 진행 중 요청/WS가 끝날 때까지 기다렸다가 닫습니다.
     server.await.map_err(|e| {
         tracing::error!("Axum 서버 실행 중 오류: {}", e);
         e
     })?;
 
+    tracing::info!("백엔드 종료 완료 (Graceful shutdown)");
     Ok(())
 }
+
+
