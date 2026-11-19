@@ -9,7 +9,7 @@ use crate::core::db::SupabaseClient;
 use crate::core::session_range::SessionRangeMonitor;
 use crate::kis::ws::RealtimeTick;
 use crate::master::FuturesSymbol;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::AtomicBool};
 use tokio::sync::{Mutex, broadcast};
 
 /// KIS REST API 호출에 필요한 인증 정보
@@ -41,6 +41,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub candles: Arc<Mutex<CandleStore>>,
     pub session_range: Arc<Mutex<SessionRangeMonitor>>,
+    pub minute_candle_check_running: Arc<AtomicBool>,
     pub supabase: SupabaseClient,
     pub chat: ChatService,
 }

@@ -15,6 +15,7 @@ pub fn build(state: AppState) -> Router {
         .route("/", get(|| async { "backend ok" }))
         .route("/api/prices", get(market::prices))
         .route("/api/candles", get(market::candles))
+        .route("/api/admin/market/minute-candle-check", post(market::start_minute_candle_check))
         .route(
             "/api/chat/ticket",
             post(crate::server::handlers::chat::issue_ticket),
