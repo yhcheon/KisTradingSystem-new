@@ -9,6 +9,7 @@ pub mod candles;
 pub mod cleanup;
 pub mod db;
 pub mod market_data;
+pub mod market_session;
 pub mod session_range;
 pub mod state;
 pub mod time;
