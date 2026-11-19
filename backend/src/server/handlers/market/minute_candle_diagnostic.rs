@@ -1,9 +1,9 @@
 //! KIS 1분봉 과거 데이터 검증을 백그라운드에서 실행하고 로그 파일에 출력합니다.
-use crate::{core::state::AppState, kis};
+use crate::{core::{candles::Candle, state::AppState}, kis};
 use axum::{Json, extract::State, http::StatusCode};
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Arc,
         atomic::Ordering,
@@ -102,29 +102,18 @@ async fn run_minute_candle_check(state: AppState) -> Result<(), String> {
                 );
             }
             Ok(candles) => {
-                let first_time = candles.keys().next().cloned().unwrap_or_default();
-                let last_time = candles.keys().next_back().cloned().unwrap_or_default();
-                tracing::info!(
-                    target: "minute_candle_validation",
-                    "[MINUTE-CHECK] {} ({}) : 최초 데이터={}, 마지막 데이터={}, 총 {}개. 최초 데이터 시각을 실제 데이터 시작 시각으로 기록합니다.",
-                    symbol.name, symbol.code, first_time, last_time, candles.len()
+                // 내부 CandleStore는 짧게 잠가 스냅샷만 복사하고, 이후 비교/로그 중에는 잠금을 유지하지 않습니다.
+                let local_candles = {
+                    let store = state.candles.lock().await;
+                    store.get(&symbol.code, &date, "1m")
+                };
+                log_and_compare_candles(
+                    &symbol.name,
+                    &symbol.code,
+                    &candles,
+                    &local_candles,
+                    &end_time,
                 );
-                tracing::info!(
-                    target: "minute_candle_validation",
-                    "시간(KST) | 시가(Open) | 고가(High) | 저가(Low) | 종가(Close)"
-                );
-
-                for candle in candles.values() {
-                    tracing::info!(
-                        target: "minute_candle_validation",
-                        "{} | {} | {} | {} | {}",
-                        candle.stck_cntg_hour,
-                        candle.futs_oprc,
-                        candle.futs_hgpr,
-                        candle.futs_lwpr,
-                        candle.futs_prpr
-                    );
-                }
             }
             Err(error) => {
                 tracing::error!(
@@ -142,6 +131,117 @@ async fn run_minute_candle_check(state: AppState) -> Result<(), String> {
         date
     );
     Ok(())
+}
+
+fn log_and_compare_candles(
+    name: &str,
+    symbol: &str,
+    broker: &BTreeMap<String, kis::MinuteCandle>,
+    local: &[Candle],
+    end_time: &str,
+) {
+    let local_map: BTreeMap<String, &Candle> = local
+        .iter()
+        .filter(|candle| candle.time.len() == 4)
+        .map(|candle| (format!("{}00", candle.time), candle))
+        .filter(|(time, _)| time.as_str() >= DAY_START && time.as_str() <= end_time)
+        .collect();
+
+    let mut times = BTreeSet::new();
+    times.extend(broker.keys().cloned());
+    times.extend(local_map.keys().cloned());
+
+    let first_broker = broker.keys().next().cloned().unwrap_or_else(|| "없음".to_string());
+    let first_local = local_map.keys().next().cloned().unwrap_or_else(|| "없음".to_string());
+    tracing::info!(
+        target: "minute_candle_validation",
+        "[MINUTE-CHECK] {} ({}) : KIS 최초={}, 내부 최초={}, KIS {}개 / 내부 {}개",
+        name, symbol, first_broker, first_local, broker.len(), local_map.len()
+    );
+    tracing::info!(
+        target: "minute_candle_validation",
+        "시간 | KIS 시가/고가/저가/종가 | 내부 시가/고가/저가/종가 | 판정"
+    );
+
+    let current_minute = &end_time[..4];
+    let mut matched = 0usize;
+    let mut mismatched = 0usize;
+    let mut broker_only = 0usize;
+    let mut local_only = 0usize;
+    let mut live = 0usize;
+
+    for time in times {
+        let broker_candle = broker.get(&time);
+        let local_candle = local_map.get(&time);
+        let time_label = &time[..4];
+
+        let (broker_values, local_values, status) = match (broker_candle, local_candle) {
+            (Some(reference), Some(ours)) if time_label == current_minute => {
+                live += 1;
+                (
+                    format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
+                    format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                    "진행중",
+                )
+            }
+            (Some(reference), Some(ours)) => {
+                let same = [
+                    (reference.futs_oprc.parse::<f64>(), ours.open),
+                    (reference.futs_hgpr.parse::<f64>(), ours.high),
+                    (reference.futs_lwpr.parse::<f64>(), ours.low),
+                    (reference.futs_prpr.parse::<f64>(), ours.close),
+                ]
+                .iter()
+                .all(|(reference, ours)| {
+                    reference.as_ref().map(|value| (value - ours).abs() < 0.000001).unwrap_or(false)
+                });
+                if same {
+                    matched += 1;
+                    (
+                        format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
+                        format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                        "일치",
+                    )
+                } else {
+                    mismatched += 1;
+                    (
+                        format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
+                        format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                        "불일치",
+                    )
+                }
+            }
+            (Some(reference), None) => {
+                broker_only += 1;
+                (
+                    format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
+                    "-".to_string(),
+                    "KIS만 있음",
+                )
+            }
+            (None, Some(ours)) => {
+                local_only += 1;
+                (
+                    "-".to_string(),
+                    format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                    "내부만 있음",
+                )
+            }
+            (None, None) => continue,
+        };
+
+        tracing::info!(
+            target: "minute_candle_validation",
+            "{} | {} | {} | {}",
+            time, broker_values, local_values, status
+        );
+    }
+
+    tracing::info!(
+        target: "minute_candle_validation",
+        "[MINUTE-CHECK-SUMMARY] {} ({}) 일치={} 불일치={} KIS만={} 내부만={} 진행중={}",
+        name, symbol, matched, mismatched, broker_only, local_only, live
+    );
 }
 
 async fn fetch_day_candles(
