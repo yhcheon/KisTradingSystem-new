@@ -159,6 +159,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
         http_client,
         candles: candle_store,
         session_range,
+        minute_candle_check_running,
         supabase,
         chat,
     })
