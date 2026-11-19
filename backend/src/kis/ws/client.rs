@@ -29,12 +29,22 @@ pub async fn run(
     } else {
         None
     };
+    let night_start = chrono::NaiveTime::from_hms_opt(17, 55, 0).unwrap();
+    let night_end = chrono::NaiveTime::from_hms_opt(6, 5, 0).unwrap();
+    let mut last_night_refresh_date = if startup_kst.time() >= night_start {
+        Some(startup_kst.date_naive())
+    } else if startup_kst.time() < night_end {
+        Some(startup_kst.date_naive() - chrono::Duration::days(1))
+    } else {
+        None
+    };
 
     loop {
         let error_message = match connect_and_listen(
             &approval_key, &symbols, &night_symbols, &tx,
             candle_store.clone(), session_range.clone(), price_cache.clone(),
             &mut last_day_refresh_date,
+            &mut last_night_refresh_date,
         ).await {
             Ok(()) => None,
             Err(error) => Some(error.to_string()),
@@ -101,6 +111,7 @@ async fn connect_and_listen(
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
     last_day_refresh_date: &mut Option<chrono::NaiveDate>,
+    last_night_refresh_date: &mut Option<chrono::NaiveDate>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ws_url = std::env::var("KIS_WS_DOMAIN")
         .unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
@@ -202,11 +213,20 @@ async fn connect_and_listen(
                     set_session(&mut ws, approval_key, DAY_TR_ID, symbols, desired.day).await?;
                     active.day = desired.day;
                 }
-                if desired.night != active.night {
-                    if desired.night {
-                        // 새 야간 세션의 REST 기준값을 다음 가격 요청에서 새로 가져옵니다.
+                if desired.night {
+                    let night_session_date = if now_kst.time() >= chrono::NaiveTime::from_hms_opt(17, 55, 0).unwrap() {
+                        today
+                    } else {
+                        today - chrono::Duration::days(1)
+                    };
+                    if *last_night_refresh_date != Some(night_session_date) {
+                        // 새 야간 거래일의 REST 기준값을 다음 가격 요청에서 새로 가져옵니다.
                         price_cache.clear_session("night").await;
+                        *last_night_refresh_date = Some(night_session_date);
+                        tracing::info!("야간 세션 기준일 변경: 야간 가격 캐시 초기화");
                     }
+                }
+                if desired.night != active.night {
                     set_session(&mut ws, approval_key, NIGHT_TR_ID, night_symbols, desired.night).await?;
                     active.night = desired.night;
                 }
