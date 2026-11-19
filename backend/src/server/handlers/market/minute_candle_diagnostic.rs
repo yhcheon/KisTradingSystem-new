@@ -9,11 +9,11 @@ use std::{
         atomic::Ordering,
     },
 };
-use chrono::{NaiveTime, Timelike};
+use chrono::NaiveTime;
 
 const DAY_START: &str = "084500";
-const MAX_PAGES: usize = 16;
-const PAGE_DELAY_MS: u64 = 250;
+const MAX_PAGES: usize = 8;
+const MAX_RATE_LIMIT_RETRIES: usize = 3;
 
 struct RunningGuard(Arc<std::sync::atomic::AtomicBool>);
 
@@ -154,18 +154,47 @@ async fn fetch_day_candles(
     let mut cursor = end_time.to_string();
 
     for page in 0..MAX_PAGES {
-        let candles = kis::get_minute_chart_for_market(
-            &state.http_client,
-            &state.kis.app_key,
-            &state.kis.app_secret,
-            &state.kis.access_token,
-            "F",
-            symbol,
-            date,
-            &cursor,
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+        let request_delay_ms = std::env::var("KIS_CANDLE_REQUEST_DELAY_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(300);
+
+        let mut retry = 0usize;
+        let candles = loop {
+            match kis::get_minute_chart_for_market(
+                &state.http_client,
+                &state.kis.app_key,
+                &state.kis.app_secret,
+                &state.kis.access_token,
+                "F",
+                symbol,
+                date,
+                &cursor,
+            )
+            .await
+            {
+                Ok(candles) => break candles,
+                Err(error) => {
+                    let message = error.to_string();
+                    drop(error);
+                    if message.contains("EGW00201") && retry < MAX_RATE_LIMIT_RETRIES {
+                        retry += 1;
+                        let backoff_ms = request_delay_ms
+                            .max(1000u64.saturating_mul(2u64.pow(retry as u32 - 1)));
+                        tracing::warn!(
+                            target: "minute_candle_validation",
+                            "[MINUTE-CHECK-RATE-LIMIT] symbol={} date={} cursor={} retry={}/{} wait_ms={}",
+                            symbol, date, cursor, retry, MAX_RATE_LIMIT_RETRIES, backoff_ms
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    } else {
+                        return Err(message);
+                    }
+                }
+            }
+        };
+
+        tokio::time::sleep(std::time::Duration::from_millis(request_delay_ms)).await;
 
         if candles.is_empty() {
             break;
@@ -194,7 +223,7 @@ async fn fetch_day_candles(
             break;
         }
 
-        let next_cursor = previous_second(&earliest)
+        let next_cursor = previous_minute(&earliest)
             .ok_or_else(|| format!("잘못된 분봉 시간 형식: {}", earliest))?;
         if next_cursor >= cursor {
             tracing::warn!(
@@ -206,12 +235,16 @@ async fn fetch_day_candles(
         }
 
         cursor = next_cursor;
-        if page + 1 < MAX_PAGES {
-            tokio::time::sleep(std::time::Duration::from_millis(PAGE_DELAY_MS)).await;
+        if page + 1 == MAX_PAGES {
+            tracing::warn!(
+                target: "minute_candle_validation",
+                "[MINUTE-CHECK] 최대 페이지 수 도달: symbol={}, max_pages={}, earliest_seen={}",
+                symbol, MAX_PAGES, earliest
+            );
         }
     }
 
-    if result.len() > 0 {
+    if !result.is_empty() {
         tracing::info!(
             target: "minute_candle_validation",
             "[MINUTE-CHECK] symbol={} 누적 조회 {}개 분봉",
@@ -221,15 +254,10 @@ async fn fetch_day_candles(
     Ok(result)
 }
 
-fn previous_second(value: &str) -> Option<String> {
+fn previous_minute(value: &str) -> Option<String> {
     let time = NaiveTime::parse_from_str(value, "%H%M%S").ok()?;
-    let previous = time.checked_sub_signed(chrono::Duration::seconds(1))?;
-    Some(format!(
-        "{:02}{:02}{:02}",
-        previous.hour(),
-        previous.minute(),
-        previous.second()
-    ))
+    let previous = time.checked_sub_signed(chrono::Duration::minutes(1))?;
+    Some(previous.format("%H%M%S").to_string())
 }
 
 #[cfg(test)]
@@ -237,10 +265,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn previous_second_moves_cursor_back_without_repeating_boundary() {
-        assert_eq!(previous_second("140201").as_deref(), Some("140200"));
-        assert_eq!(previous_second("084501").as_deref(), Some("084500"));
-        assert_eq!(previous_second("084500").as_deref(), Some("084459"));
-        assert!(previous_second("bad").is_none());
+    fn previous_minute_moves_cursor_back_one_full_minute() {
+        assert_eq!(previous_minute("140201").as_deref(), Some("140101"));
+        assert_eq!(previous_minute("084501").as_deref(), Some("083501"));
+        assert!(previous_minute("bad").is_none());
     }
 }
