@@ -247,13 +247,37 @@ function usePublicChat(enabled: boolean) {
       return request;
     };
 
+    // A: 백엔드가 초기화 중이면 티켓을 때리지 않고 health가 ready될 때까지 기다립니다.
+    // backendReady는 3초 폴링이라 최대 3초까지 낡을 수 있어서,
+    // connect 직전에 /api/health를 한 번 더 확인해서 그 틈을 메웁니다.
+    // 503이면 Retry-After(2초)를 존중하고, 재연결에는 지터를 더해
+    // 탭 여러 개가 동시에 몰리는 thundering herd를 막습니다.
+    const waitForBackendReady = async (): Promise<boolean> => {
+      try {
+        const response = await fetch('/api/health', { cache: 'no-store' });
+        if (response.ok) {
+          const payload = (await response.json()) as { ready?: boolean; status?: string };
+          return payload.ready === true || payload.status === 'ok';
+        }
+        const retryAfter = Number(response.headers.get('Retry-After'));
+        if (Number.isFinite(retryAfter) && retryAfter > 0) {
+          reconnectDelay = Math.min(Math.max(retryAfter * 1000, INITIAL_RECONNECT_DELAY_MS), MAX_RECONNECT_DELAY_MS);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
     const scheduleReconnect = () => {
       if (disposed || !enabled || reconnectTimer !== null) return;
       setStatus('reconnecting');
+      // 지터: 탭 여러 개가 같은 타이밍에 재연결하지 않게 0~500ms 랜덤을 더합니다.
+      const delayWithJitter = reconnectDelay + Math.floor(Math.random() * 500);
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
         void connect();
-      }, reconnectDelay);
+      }, delayWithJitter);
       reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
     };
 
@@ -263,6 +287,16 @@ function usePublicChat(enabled: boolean) {
       if (connectedBefore) setStatus('reconnecting');
 
       try {
+        // 백엔드가 아직 starting이면 티켓을 때리지 않고 재연결로 미룹니다.
+        // 이렇게 해야 초기화 구간에 503을 맞고 에러를 띄우는 일이 없어집니다.
+        const ready = await waitForBackendReady();
+        if (!ready) {
+          if (!disposed) {
+            setConnectionError('백엔드 준비 중입니다. 잠시 후 다시 연결합니다.');
+            scheduleReconnect();
+          }
+          return;
+        }
         const ticketData = await requestTicket();
         if (disposed) return;
 

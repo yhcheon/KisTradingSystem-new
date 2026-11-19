@@ -4,6 +4,7 @@
 //       차트용 CandleData / SymbolKind / INTERVALS 포함
 // ============================================================
 
+
 export interface CachedPrice {
   code: string;
   name: string;

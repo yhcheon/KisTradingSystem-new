@@ -1,5 +1,4 @@
 
-
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CandleData, PricesResponse, RangeAlert, RangeMonitorSnapshot, RealtimeTick } from '../types';
@@ -61,10 +60,47 @@ export function useMarketWebSocket({
     let disposed = false;
     const url = getWebSocketUrl();
 
-    const connect = () => {
+    // A: 시세 WS도 health를 보고 붙입니다. 백엔드 초기화 중에는 WS를 열지 않고
+    // Retry-After만큼 기다렸다가 다시 시도합니다. 그래야 초기화 구간에
+    // WS가 바로 끊기고 재연결이 몰리는 일을 막을 수 있습니다.
+    const checkHealth = async (): Promise<boolean> => {
+      try {
+        const response = await fetch('/api/health', { cache: 'no-store' });
+        if (response.ok) {
+          const payload = (await response.json()) as { ready?: boolean; status?: string };
+          return payload.ready === true || payload.status === 'ok';
+        }
+        const retryAfter = Number(response.headers.get('Retry-After'));
+        if (Number.isFinite(retryAfter) && retryAfter > 0) {
+          reconnectDelay = Math.min(Math.max(retryAfter * 1000, RECONNECT_INITIAL_DELAY_MS), RECONNECT_MAX_DELAY_MS);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || !enabled) return;
+      // 지터: 탭 여러 개가 같은 타이밍에 재연결하지 않게 0~500ms 랜덤을 더합니다.
+      const delayWithJitter = reconnectDelay + Math.floor(Math.random() * 500);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, delayWithJitter);
+      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS);
+    };
+
+    const connect = async () => {
       if (disposed || !enabled) return;
 
       setIsConnected(false);
+      // health가 ready가 아니면 WS를 열지 않습니다.
+      const ready = await checkHealth();
+      if (!ready || disposed || !enabled) {
+        scheduleReconnect();
+        return;
+      }
       const nextSocket = new WebSocket(url);
       socket = nextSocket;
 
@@ -225,8 +261,7 @@ export function useMarketWebSocket({
 
         socket = null;
         setIsConnected(false);
-        reconnectTimer = window.setTimeout(connect, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS);
+        scheduleReconnect();
       };
 
       nextSocket.onerror = () => {

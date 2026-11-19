@@ -1,8 +1,7 @@
 
-
 import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { CandleData, SymbolKind, PricesResponse } from '../types';
+import type { CandleData, PricesResponse, SymbolKind } from '../types';
 import { mapCandlesForChart } from '../utils/candleUtils';
 
 interface UsePricesResult {
@@ -152,6 +151,5 @@ export function usePrices(interval: string, selected: SymbolKind, backendReady: 
 
   return { data, setData, candles, setCandles, selectedCode };
 }
-
 
 
