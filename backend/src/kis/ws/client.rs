@@ -102,6 +102,14 @@ async fn connect_and_listen(
 
     // 서버 시작/재연결 시 현재 KST 시각에 진행 중인 세션만 즉시 복구합니다.
     let mut active = current_active_sessions();
+    let initial_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
+    let day_quote_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
+    // 연결이 08:45 이후 시작됐다면 새 프로세스의 캐시는 비어 있으므로 오늘 초기화는 완료된 것으로 봅니다.
+    let mut last_day_refresh_date = if initial_kst.time() >= day_quote_refresh_time {
+        Some(initial_kst.date_naive())
+    } else {
+        None
+    };
     if active.day {
         set_session(&mut ws, approval_key, DAY_TR_ID, symbols, true).await?;
     }
@@ -169,12 +177,26 @@ async fn connect_and_listen(
                 }
             }
             _ = schedule.tick() => {
+                let now_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
+                let today = now_kst.date_naive();
+
+                // 주간 REST 기준가는 매일 08:45 이후 첫 가격 요청에서 새로 조회되도록 캐시를 비웁니다.
+                if now_kst.time() >= day_quote_refresh_time && last_day_refresh_date != Some(today) {
+                    price_cache.clear_session("day").await;
+                    last_day_refresh_date = Some(today);
+                    tracing::info!("08:45 주간 초기 시세 갱신 준비: 주간 가격 캐시 초기화");
+                }
+
                 let desired: ActiveSessions = current_active_sessions();
                 if desired.day != active.day {
                     set_session(&mut ws, approval_key, DAY_TR_ID, symbols, desired.day).await?;
                     active.day = desired.day;
                 }
                 if desired.night != active.night {
+                    if desired.night {
+                        // 새 야간 세션의 REST 기준값을 다음 가격 요청에서 새로 가져옵니다.
+                        price_cache.clear_session("night").await;
+                    }
                     set_session(&mut ws, approval_key, NIGHT_TR_ID, night_symbols, desired.night).await?;
                     active.night = desired.night;
                 }
