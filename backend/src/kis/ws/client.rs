@@ -118,12 +118,12 @@ async fn refresh_session_quote(
     market_div: &str,
     session: &str,
     price_cache: &PriceCache,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), String> {
     let response = kis::get_futures_price_for_market(
         http_client, app_key, app_secret, access_token, market_div, code,
     )
     .await
-    .map_err(|error| std::io::Error::other(error.to_string()))?;
+    .map_err(|error| error.to_string())?;
 
     let cached_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -244,7 +244,7 @@ async fn connect_and_listen(
                 let now_kst = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
                 let today = now_kst.date_naive();
 
-                // 주간 REST 기준가는 매일 08:45 이후 첫 가격 요청에서 새로 조회되도록 캐시를 비웁니다.
+                // 매일 08:45에 주간 REST 기준 시세를 정규/미니 각각 다시 조회합니다.
                 if now_kst.time() >= day_quote_refresh_time && *last_day_refresh_date != Some(today) {
                     price_cache.clear_session("day").await;
                     for symbol in symbols {
@@ -270,7 +270,7 @@ async fn connect_and_listen(
                         today - chrono::Duration::days(1)
                     };
                     if *last_night_refresh_date != Some(night_session_date) {
-                        // 새 야간 거래일의 REST 기준값을 다음 가격 요청에서 새로 가져옵니다.
+                        // 새 야간 거래일이 시작되면 REST 기준 시세를 정규/미니 각각 다시 조회합니다.
                         price_cache.clear_session("night").await;
                         for symbol in night_symbols {
                             if let Err(error) = refresh_session_quote(
