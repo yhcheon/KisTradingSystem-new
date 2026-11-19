@@ -198,6 +198,7 @@ function usePublicChat(enabled: boolean) {
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [peakToday, setPeakToday] = useState(0);
   const [connectionError, setConnectionError] = useState('');
   const [, setConnectionClosed] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -298,7 +299,20 @@ function usePublicChat(enabled: boolean) {
               Number.isInteger(data.online_count) &&
               data.online_count >= 0
             ) {
-              setOnlineCount(data.online_count);
+              const online = data.online_count;
+              setOnlineCount(online);
+              // 백엔드가 presence에 peak_today를 같이 보내줍니다.
+              // 없으면(구 백엔드) 현재 접속자수를 최고로 씁니다.
+              if (
+                'peak_today' in data &&
+                typeof data.peak_today === 'number' &&
+                Number.isInteger(data.peak_today) &&
+                data.peak_today >= 0
+              ) {
+                setPeakToday(data.peak_today);
+              } else {
+                setPeakToday((prev) => Math.max(prev, online));
+              }
               return;
             }
             if (isChatMessage(data)) {
@@ -383,6 +397,7 @@ function usePublicChat(enabled: boolean) {
     connectionError,
     messages,
     onlineCount,
+    peakToday,
     nickname,
     sendError,
     sendMessage,
@@ -395,6 +410,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
     connectionError,
     messages,
     onlineCount,
+    peakToday,
     nickname,
     sendError,
     sendMessage,
@@ -518,7 +534,7 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
         </p>
       )}
 
-      <p className="chat-online-count" aria-live="polite">현재 접속자 {onlineCount}명</p>
+      <p className="chat-online-count" aria-live="polite">현재 접속자 {onlineCount}명 (오늘 최고 {peakToday}명)</p>
 
       <ol className="chat-messages" aria-live="polite" ref={messageListRef}>
         {messages.length === 0 ? (
@@ -667,3 +683,6 @@ export default function ChatPage({ active, backendReady }: { active: boolean; ba
     </main>
   );
 }
+
+
+

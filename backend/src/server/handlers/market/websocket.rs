@@ -3,6 +3,9 @@
 // 설명: 브라우저 실시간 시세 WebSocket 핸들러
 //       - 연결 직후 현재 시세 스냅샷 전송
 //       - 스냅샷 생성 중 발생한 체결은 broadcast receiver에서 이어서 전달
+//       - 접속자수 카운팅은 하지 않음. 접속자수는 채팅 WS(ChatService)로만 셈
+//         (같은 브라우저가 시세 WS + 채팅 WS 2개를 열므로, 둘 다 세면 2배가 됨)
+// 수정일: 2026-11-19 - 시세 WS 카운팅 제거, 접속자수는 채팅으로 일원화
 // ============================================================
 
 use super::{prices::build_prices, ws_message::tick_message};
@@ -70,3 +73,4 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     tracing::info!("브라우저 WebSocket 연결 종료");
 }
+
