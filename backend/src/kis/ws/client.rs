@@ -6,7 +6,7 @@
 //         ① CandleStore.on_tick() → 분봉 누적
 //         ② PriceCache.update_by_tick() → 현재가 갱신 (부팅 1회 REST 이후 체결로만 갱신)
 //         ③ broadcast tx.send() → 브라우저 /ws로 실시간 중계
-//       - 연결 끊기면 5초 후 자동 재연결
+//       - 연결 끊기면 환경변수 정책에 따라 제한적으로 재연결
 // ============================================================
 
 use futures_util::{SinkExt, StreamExt};
@@ -31,6 +31,36 @@ pub async fn run(
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
 ) {
+    // 재연결 정책은 환경변수로 관리합니다. 누락되거나 0 이하/잘못된 값이면
+    // 임의의 기본값으로 동작하지 않고 WS 작업을 시작하지 않습니다.
+    let reconnect_delay_secs = match std::env::var("KIS_WS_RECONNECT_DELAY_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+    {
+        Some(value) => value,
+        None => {
+            tracing::error!(
+                "KIS_WS_RECONNECT_DELAY_SECS 환경변수가 없거나 유효하지 않습니다."
+            );
+            return;
+        }
+    };
+    let max_reconnect_attempts = match std::env::var("KIS_WS_MAX_RECONNECT_ATTEMPTS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+    {
+        Some(value) => value,
+        None => {
+            tracing::error!(
+                "KIS_WS_MAX_RECONNECT_ATTEMPTS 환경변수가 없거나 유효하지 않습니다."
+            );
+            return;
+        }
+    };
+
+    let mut reconnect_attempts = 0usize;
     loop {
         // Box<dyn Error> 값을 별도 블록 안에서 문자열로 바꿔 다음 await 전에 drop합니다.
         let error_message = match connect_and_listen(
@@ -50,10 +80,26 @@ pub async fn run(
         session_range.lock().await.mark_feed_disconnected();
 
         match error_message {
-            None => tracing::warn!("KIS WS 연결 종료, 5초 후 재연결"),
-            Some(error) => tracing::error!("KIS WS 오류: {}, 5초 후 재연결", error),
+            None => tracing::warn!("KIS WS 연결 종료"),
+            Some(error) => tracing::error!("KIS WS 오류: {}", error),
         }
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        if reconnect_attempts >= max_reconnect_attempts {
+            tracing::error!(
+                "KIS WS 최대 재연결 횟수({}) 초과. 자동 재연결을 중단합니다.",
+                max_reconnect_attempts
+            );
+            break;
+        }
+
+        reconnect_attempts += 1;
+        tracing::warn!(
+            "KIS WS 재연결 대기: {}초 후 시도 ({}/{})",
+            reconnect_delay_secs,
+            reconnect_attempts,
+            max_reconnect_attempts
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(reconnect_delay_secs)).await;
     }
 }
 
