@@ -4,8 +4,8 @@
 시세·차트 화면은 로그인 없이 볼 수 있고, 로그인 사용자는 분석 글과 뉴스 링크를 열람하며, 관리자는 콘텐츠를 관리할 수 있습니다.
 익명 채팅(별칭 + 소셜 액션 명령어)과 주간/야간 시초 레인지 돌파 경보도 포함되어 있습니다.
 
-> 이 README는 2026-11-19 기준 실제 소스 코드(`backend/` 약 8,870줄, `frontend/` 약 4,657줄)를 기준으로 다시 작성한 것입니다.
-> 이전 README에 있던 "Redis 사용", "채팅 미구현(Phase 1)" 설명은 현재 코드와 맞지 않아 수정했습니다.
+> 이 README는 2026-11-20 기준 실제 소스 코드와 `cargo test` 결과를 기준으로 다시 작성한 것입니다.
+> 2026-11-19 버전 이후 적용된 것: Graceful shutdown(JoinHandle 대기), 환경변수 한 번에 검증, 세션/레인지/종료 테스트 추가.
 
 ## 1. 시스템 구성
 
@@ -38,6 +38,8 @@ Supabase ──> 분석 글 / 뉴스 링크 / 관리자 권한 ──> /api/note
 - **주간/야간 세션:** `SessionRangeMonitor`가 정규선물 틱만으로 주간(08:45~09:30), 야간(18:00~18:45) 시초 레인지를 수집합니다. 수집 중 WebSocket이 끊기면 해당 세션의 레인지는 무효 처리합니다. 수집이 끝난 뒤 고가/저가를 돌파·이탈하면 1회성 경보를 냅니다. 프론트는 경보를 차트 가격선으로 표시하고, `speechSynthesis`로 음성 안내합니다.
 - **채팅:** `POST /api/chat/ticket`으로 30초 유효 티켓 + 익명 별칭을 발급받고, `/ws/chat?ticket=...`으로 연결합니다. 티켓은 1회성입니다. 메시지는 `tokio::sync::broadcast`로 fan-out되고, 접속자 수(presence)도 함께 브로드캐스트됩니다.
 - **헬스체크:** 백엔드는 리스너를 먼저 열고 초기화가 끝나기 전에도 `/api/health`에 응답합니다. 초기화 중에는 `503 + Retry-After`, 완료 후에는 `200 + ready:true`를 반환합니다.
+- **환경변수 검증:** 시작 시 `core/env.rs`가 필수 5개(`KIS_APP_KEY`, `KIS_APP_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`)를 한 번에 검사합니다. 빠진 게 있으면 하나씩이 아니라 전부 나열하고 종료합니다.
+- **Graceful shutdown:** Ctrl+C / SIGTERM 시 `Notify`가 4개 백그라운드 태스크(KIS WS, daily cleanup, chat cleanup, 야간 분봉 로더)에 전파되고, `server/runtime.rs`가 각 태스크를 최대 5초까지 기다린 뒤에 종료합니다. 종료 로그는 `백엔드 종료 완료`가 제일 마지막에 찍히는 순서가 정상입니다.
 
 ## 2. 주요 기능
 
@@ -62,7 +64,8 @@ KisTradingSystem-new/
       cache/          # PriceCache (인메모리, 주간/야간 분리)
       chat/           # 채팅 도메인: config, message, service, social
       core/           # bootstrap, state, market_data, market_session,
-                      # session_range, time, cleanup, candles/, db/
+                      # session_range, time, cleanup, candles/, db/, env/
+                      # env.rs = 필수 환경변수 한 번에 검증
         candles/      # CandleStore, aggregation, types
         db/           # SupabaseClient, query, mutations, cleanup
       kis/            # KIS API 클라이언트 (shim + 하위 모듈)
@@ -72,7 +75,7 @@ KisTradingSystem-new/
       market/         # 과거 시세 로딩
         history/      # convert, pagination, time, 야간 분봉 로더
       master/         # 선물 마스터 파싱 / 최근월 선택
-      server/         # router, runtime, startup(헬스체크용), handlers/
+      server/         # router, runtime(종료 시 백그라운드 join), startup(헬스체크용), handlers/
         handlers/
           chat/       # 티켓 발급, WS 핸들러
           content/    # 분석 글 / 뉴스 / 관리자 / 인증
@@ -218,6 +221,8 @@ cargo check
 cargo test
 ```
 
+2026-11-20 기준 `cargo test` 결과: **100개 중 99개 통과, 1개 실패(flaky)**. 실패하는 1개는 `broadcasts_once_to_two_clients_including_sender_without_replay`로, 두 입장 메시지의 도착 순서(2ms 차이)를 고정으로 기대하는 기존 테스트의 타이밍 경합이며, 이번 변경과 무관합니다. 새로 추가된 테스트: `core/env` 3개, `core/market_session` 3개, `core/session_range` 3개, `server/runtime` 2개.
+
 Frontend PowerShell (`frontend/`):
 
 ```powershell
@@ -274,20 +279,29 @@ npm run build
 - 백엔드는 매일 KST 07:00에 30일 지난 데이터를 삭제하는 백그라운드 cleanup을 실행합니다 (`core/cleanup.rs`, `core/db/cleanup.rs`).
 - 주말/휴장일의 최근 거래일 차트 표시 정책은 `DESIGN.md`에 미확정 안건으로 기록되어 있습니다. 합의 전에는 날짜 조회 정책을 임의로 변경하지 않습니다.
 
-### 알려진 고도화 과제 (2026-11-19 기준, 코드 확인됨)
+### 알려진 고도화 과제 (2026-11-20 기준, 코드 확인됨)
 
 다음은 버그가 아니라 다음 단계에서 다룰 과제입니다.
 
 1. **채팅/WS 경로의 `unwrap()` 정리** — `chat/service.rs`, `handlers/chat/websocket.rs`에 `unwrap()`이 집중되어 있습니다. 외부 입력 경로에서 패닉이 나지 않도록 `Result` 처리로 교체하는 것이 1순위입니다.
-2. **Graceful shutdown 없음** — 현재 Ctrl+C 종료 시 KIS WS, cleanup task가 즉시 중단됩니다. `tokio::signal` 기반 종료 신호 전파가 필요합니다.
+2. ~~**Graceful shutdown 없음**~~ — **2026-11-20 완료.** `Notify` 전파 + `JoinHandle` 대기(태스크당 최대 5초)로, KIS WS 구독 해제 후 백엔드가 종료됩니다. 남은 한계: `Notify::notify_waiters()`는 저장되지 않는 신호라, 초기화 전에 온 종료 신호는 `runtime`이 따로 처리합니다. 완벽한 상태 유지를 원하면 `CancellationToken`/`watch`로 교체하는 것을 권장합니다. 야간 분봉 로더는 로드 1회분이 끝난 뒤 다음 대기 지점에서 종료됩니다.
 3. **로그가 파일 전용** — `logging.rs`는 파일에만 쓰고 콘솔(stdout)에는 쓰지 않습니다. Docker/배포 환경에서는 stdout JSON 로그를 추가하는 것이 좋습니다.
 4. **프론트 `.env.example` 누락** — `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`가 `.env.example`에 없습니다. 실제 필수 변수이므로 템플릿에 추가하는 것이 좋습니다.
 5. **백엔드 `.env.example` 잔재** — `REDIS_URL`이 남아 있으나 현재 코드는 Redis를 사용하지 않습니다. 혼란을 피하려면 템플릿에서 제거하거나 주석으로 명시하는 것이 좋습니다.
 6. **프론트 루트 파일 정리** — `src/CandleChart.tsx`, `src/PriceCard.tsx`, `src/candleColors.ts`, `src/types.ts`가 `src/` 루트에 있습니다. `features/prices/`로 이동하면 구조가 더 깔끔해집니다.
+7. **Flaky 테스트 1개** — `broadcasts_once_to_two_clients_including_sender_without_replay`가 두 입장 메시지의 도착 순서를 고정으로 기대해 가끔 실패합니다. 순서에 의존하지 않도록 테스트를 고치는 것이 좋습니다.
+
+
+## 8-1. 최근 변경 (2026-11-20)
+
+- **Graceful shutdown:** `core/bootstrap.rs`가 `initialize()`에서 `(AppState, Vec<JoinHandle>)`을 반환하고, `server/runtime.rs`가 서버 종료 후 백그라운드 태스크를 태스크당 최대 5초까지 기다립니다. `AppState`에 `JoinHandle`을 넣지 않은 이유: `AppState`는 `Clone`인데 `JoinHandle`은 `Clone`이 안 되기 때문입니다.
+- **환경변수 한 번에 검증:** `core/env.rs` 신규. 시작 시 필수 5개를 한 번에 검사합니다.
+- **테스트 추가:** `core/env` 3개, `core/market_session` 3개(빈틈·자정 넘김·겹침 금지), `core/session_range` 3개(수집 시작 전 무시·잘못된 입력 무시·야간 경계), `server/runtime` 2개(빠른 종료 대기·멈춘 태스크 타임아웃).
+- **정리:** `candle_merge.rs`는 `CandleStore`에 이미 동등한 병합/집계 테스트가 있어 추가하지 않았습니다. 중복 로직 방지를 위함입니다.
 
 ## 9. 보안 주의사항
 
-- `.env`, `.env.local`, `.token`, 서비스 키, JWT Secret, 계좌 정보는 저장소에 커밋하지 않습니다.
+- `.env`, `.env.local`, `.token`, 서비스 키, JWT Secret, 계좌 정보는 저장소나 드라이브에 올리지 않습니다. 드라이브에 `.token`이 남아 있으면 삭제하세요.
 - Supabase Service Role Key와 `SUPABASE_JWT_SECRET`은 백엔드에서만 사용합니다. 프론트에는 Anon Key만 넣습니다.
 - KIS 토큰 파일(`.token`)에는 토큰 값 + 발행 시간이 기록되며, 프로그램이 24시간 경과 여부를 판단해 자동 재발급합니다. `.token`도 절대 Git에 올리지 않습니다.
 - 뉴스는 제목과 링크 중심으로 관리하며 기사 본문 전문을 무단 저장하지 않습니다.
