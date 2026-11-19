@@ -7,7 +7,7 @@
 // ============================================================
 
 use crate::{core, kis, market};
-use std::sync::Arc;
+use std::sync::{Arc, atomic::AtomicBool};
 use tokio::sync::Mutex;
 
 use crate::core::state::{AppState, JwtConfig, KisCredentials};
@@ -20,6 +20,7 @@ pub async fn initialize() -> Result<AppState, Box<dyn std::error::Error>> {
 
     // 주간/야간 세션별로 독립된 메모리 시세 캐시를 사용합니다.
     let price_cache = crate::cache::price_cache::PriceCache::new();
+    let minute_candle_check_running = Arc::new(AtomicBool::new(false));
 
     // HTTP 클라이언트
     let http_client = reqwest::Client::builder()
