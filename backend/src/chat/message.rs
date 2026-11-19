@@ -80,7 +80,6 @@ pub fn create_message(nickname: &str, text: String, action_id: Option<String>) -
     }
 }
 
-
 /// 입장/퇴장 같은 시스템 메시지를 만듭니다.
 /// - 프론트에서 message_kind == "system"이면 가운데 회색으로 띄웁니다.
 /// - nickname에는 퇴장한 사람의 별명을 그대로 넣어서
@@ -88,7 +87,10 @@ pub fn create_message(nickname: &str, text: String, action_id: Option<String>) -
 pub fn create_system_message(nickname: &str, text: String) -> ChatMessage {
     let mut bytes = [0_u8; 16];
     rand::rng().fill(&mut bytes);
-    let id = bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let id = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     ChatMessage {
         kind: "message".to_string(),
         id,
@@ -152,6 +154,3 @@ mod tests {
         );
     }
 }
-
-
-

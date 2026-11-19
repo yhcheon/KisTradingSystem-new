@@ -1,4 +1,3 @@
-
 use super::{
     ChatError,
     config::{
@@ -22,10 +21,6 @@ use tokio::sync::broadcast;
 
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-
-
-
-
 
 const TICKET_TTL: Duration = Duration::from_secs(30);
 const TICKET_REQUEST_WINDOW: Duration = Duration::from_secs(60);
@@ -161,15 +156,13 @@ impl ChatService {
     // parse error attached instead of a bare `unwrap()` (which hides the cause).
     #[cfg(test)]
     pub(crate) fn new_for_test(nickname_json: &str) -> Self {
-        let nicknames = NicknameConfig::from_json(nickname_json).unwrap_or_else(|error| {
-            panic!("test nickname config JSON must be valid: {error}")
-        });
-        let commands = ChatCommandConfig::from_json(
-            r#"{"version":1,"commands":{"/test":"{nickname} test"}}"#,
-        )
-        .unwrap_or_else(|error| {
-            panic!("test chat command config JSON must be valid: {error}")
-        });
+        let nicknames = NicknameConfig::from_json(nickname_json)
+            .unwrap_or_else(|error| panic!("test nickname config JSON must be valid: {error}"));
+        let commands =
+            ChatCommandConfig::from_json(r#"{"version":1,"commands":{"/test":"{nickname} test"}}"#)
+                .unwrap_or_else(|error| {
+                    panic!("test chat command config JSON must be valid: {error}")
+                });
         Self::new(nicknames, commands, HashSet::new())
     }
 
@@ -451,8 +444,6 @@ impl ChatService {
             .map_err(|_| ChatError::ServiceUnavailable)
     }
 
-
-
     pub fn spawn_cleanup_task(&self, shutdown: Arc<Notify>) -> JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {
@@ -473,174 +464,170 @@ impl ChatService {
         })
     }
 
-
-
     fn lock_state(&self) -> Result<std::sync::MutexGuard<'_, ChatState>, ChatError> {
-            self.inner
-                .state
-                .lock()
-                .map_err(|_| ChatError::ServiceUnavailable)
-        }
+        self.inner
+            .state
+            .lock()
+            .map_err(|_| ChatError::ServiceUnavailable)
+    }
+}
+
+impl ChatConnection {
+    pub fn nickname(&self) -> &str {
+        &self.alias
     }
 
-    impl ChatConnection {
-        pub fn nickname(&self) -> &str {
-            &self.alias
+    pub fn check_message_rate_limit(&self) -> Result<(), ChatError> {
+        let inner = self.inner.upgrade().ok_or(ChatError::ServiceUnavailable)?;
+        let now = Instant::now();
+        let mut state = inner
+            .state
+            .lock()
+            .map_err(|_| ChatError::ServiceUnavailable)?;
+
+        let connection = state
+            .connections
+            .get_mut(&self.id)
+            .ok_or(ChatError::InvalidTicket)?;
+        prune_window(&mut connection.message_attempts, now, MESSAGE_RATE_WINDOW);
+        if connection.message_attempts.len() >= MAX_MESSAGES_PER_CONNECTION_PER_WINDOW {
+            return Err(ChatError::RateLimited);
         }
+        connection.message_attempts.push_back(now);
+        Ok(())
+    }
+}
 
-        pub fn check_message_rate_limit(&self) -> Result<(), ChatError> {
-            let inner = self.inner.upgrade().ok_or(ChatError::ServiceUnavailable)?;
-            let now = Instant::now();
-            let mut state = inner
-                .state
-                .lock()
-                .map_err(|_| ChatError::ServiceUnavailable)?;
-
-            let connection = state
-                .connections
-                .get_mut(&self.id)
-                .ok_or(ChatError::InvalidTicket)?;
-            prune_window(&mut connection.message_attempts, now, MESSAGE_RATE_WINDOW);
-            if connection.message_attempts.len() >= MAX_MESSAGES_PER_CONNECTION_PER_WINDOW {
-                return Err(ChatError::RateLimited);
+impl Drop for ChatConnection {
+    fn drop(&mut self) {
+        let Some(inner) = self.inner.upgrade() else {
+            return;
+        };
+        let mut state = match inner.state.lock() {
+            Ok(state) => state,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let removed = if let Some(connection) = state.connections.remove(&self.id) {
+            release_alias(&mut state, &self.alias);
+            if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
+                limits.active_connections = limits.active_connections.saturating_sub(1);
             }
-            connection.message_attempts.push_back(now);
-            Ok(())
+            true
+        } else {
+            false
+        };
+        prune_ip_limits(&mut state);
+        let online_count = state.connections.len();
+        drop(state);
+        if removed {
+            let _ = inner.presence.send(online_count);
+            // 퇴장 알림: 브라우저를 끄거나 다른 사이트로 가면
+            // WebSocket이 끊기고, 이 Drop이 바로 실행됩니다.
+            // 여기서 남은 사람들한테 "멍충이-1님이 퇴장하셨습니다."를 뿌립니다.
+            // self.alias를 여기서 쓰는 이유: 별명은 이 연결에 붙은 익명 닉네임이라
+            // Drop 시점에도 그대로 살아있습니다.
+            let leave =
+                create_system_message(&self.alias, format!("{}님이 퇴장하셨습니다.", self.alias));
+            let _ = inner.messages.send(leave);
+        }
+    }
+}
+
+fn select_alias(
+    config: &NicknameConfig,
+    nickname_sequences: &mut HashMap<String, u64>,
+    active_aliases: &HashSet<String>,
+) -> Result<String, ChatError> {
+    let word_index = rand::rng().random_range(0..config.words.len());
+    next_alias_for_word(
+        nickname_sequences,
+        active_aliases,
+        &config.words[word_index],
+    )
+}
+
+fn next_alias_for_word(
+    nickname_sequences: &mut HashMap<String, u64>,
+    active_aliases: &HashSet<String>,
+    word: &str,
+) -> Result<String, ChatError> {
+    let sequence = nickname_sequences.entry(word.to_string()).or_default();
+    loop {
+        *sequence = sequence
+            .checked_add(1)
+            .ok_or(ChatError::NicknameSequenceExhausted)?;
+        let alias = format!("{word}-{sequence}");
+        if !active_aliases.contains(&alias) {
+            return Ok(alias);
+        }
+    }
+}
+
+fn current_kst_date() -> NaiveDate {
+    kst_date_at(Utc::now())
+}
+
+fn kst_date_at(utc_time: chrono::DateTime<Utc>) -> NaiveDate {
+    (utc_time + chrono::Duration::hours(9)).date_naive()
+}
+
+fn generate_ticket(existing: &HashMap<String, TicketRecord>) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut rng = rand::rng();
+
+    loop {
+        let mut bytes = [0_u8; TICKET_BYTES];
+        rng.fill(&mut bytes);
+        let mut token = String::with_capacity(TICKET_BYTES * 2);
+        for byte in bytes {
+            token.push(HEX[(byte >> 4) as usize] as char);
+            token.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+        if !existing.contains_key(&token) {
+            return token;
+        }
+    }
+}
+
+fn prune_expired(state: &mut ChatState, now: Instant) {
+    let expired_tickets = state
+        .tickets
+        .iter()
+        .filter_map(|(ticket, record)| (record.expires_at <= now).then(|| ticket.clone()))
+        .collect::<Vec<_>>();
+    for ticket in expired_tickets {
+        if let Some(record) = state.tickets.remove(&ticket) {
+            release_pending_ticket(state, &record);
         }
     }
 
-    impl Drop for ChatConnection {
-        fn drop(&mut self) {
-            let Some(inner) = self.inner.upgrade() else {
-                return;
-            };
-            let mut state = match inner.state.lock() {
-                Ok(state) => state,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            let removed = if let Some(connection) = state.connections.remove(&self.id) {
-                release_alias(&mut state, &self.alias);
-                if let Some(limits) = state.ip_limits.get_mut(&connection.client_ip) {
-                    limits.active_connections = limits.active_connections.saturating_sub(1);
-                }
-                true
-            } else {
-                false
-            };
-            prune_ip_limits(&mut state);
-            let online_count = state.connections.len();
-            drop(state);
-            if removed {
-                let _ = inner.presence.send(online_count);
-                // 퇴장 알림: 브라우저를 끄거나 다른 사이트로 가면
-                // WebSocket이 끊기고, 이 Drop이 바로 실행됩니다.
-                // 여기서 남은 사람들한테 "멍충이-1님이 퇴장하셨습니다."를 뿌립니다.
-                // self.alias를 여기서 쓰는 이유: 별명은 이 연결에 붙은 익명 닉네임이라
-                // Drop 시점에도 그대로 살아있습니다.
-                let leave = create_system_message(
-                    &self.alias,
-                    format!("{}님이 퇴장하셨습니다.", self.alias),
-                );
-                let _ = inner.messages.send(leave);
-            }
-        }
+    for limits in state.ip_limits.values_mut() {
+        prune_window(&mut limits.ticket_attempts, now, TICKET_REQUEST_WINDOW);
     }
-
-    fn select_alias(
-        config: &NicknameConfig,
-        nickname_sequences: &mut HashMap<String, u64>,
-        active_aliases: &HashSet<String>,
-    ) -> Result<String, ChatError> {
-        let word_index = rand::rng().random_range(0..config.words.len());
-        next_alias_for_word(
-            nickname_sequences,
-            active_aliases,
-            &config.words[word_index],
-        )
+    for connection in state.connections.values_mut() {
+        prune_window(&mut connection.message_attempts, now, MESSAGE_RATE_WINDOW);
     }
+    prune_ip_limits(state);
+}
 
-    fn next_alias_for_word(
-        nickname_sequences: &mut HashMap<String, u64>,
-        active_aliases: &HashSet<String>,
-        word: &str,
-    ) -> Result<String, ChatError> {
-        let sequence = nickname_sequences.entry(word.to_string()).or_default();
-        loop {
-            *sequence = sequence
-                .checked_add(1)
-                .ok_or(ChatError::NicknameSequenceExhausted)?;
-            let alias = format!("{word}-{sequence}");
-            if !active_aliases.contains(&alias) {
-                return Ok(alias);
-            }
-        }
+fn prune_window(queue: &mut VecDeque<Instant>, now: Instant, window: Duration) {
+    while queue
+        .front()
+        .is_some_and(|timestamp| now.duration_since(*timestamp) >= window)
+    {
+        queue.pop_front();
     }
+}
 
-    fn current_kst_date() -> NaiveDate {
-        kst_date_at(Utc::now())
+fn release_pending_ticket(state: &mut ChatState, record: &TicketRecord) {
+    if let Some(limits) = state.ip_limits.get_mut(&record.client_ip) {
+        limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
     }
+    release_alias(state, &record.alias);
+}
 
-    fn kst_date_at(utc_time: chrono::DateTime<Utc>) -> NaiveDate {
-        (utc_time + chrono::Duration::hours(9)).date_naive()
-    }
-
-    fn generate_ticket(existing: &HashMap<String, TicketRecord>) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut rng = rand::rng();
-
-        loop {
-            let mut bytes = [0_u8; TICKET_BYTES];
-            rng.fill(&mut bytes);
-            let mut token = String::with_capacity(TICKET_BYTES * 2);
-            for byte in bytes {
-                token.push(HEX[(byte >> 4) as usize] as char);
-                token.push(HEX[(byte & 0x0f) as usize] as char);
-            }
-            if !existing.contains_key(&token) {
-                return token;
-            }
-        }
-    }
-
-    fn prune_expired(state: &mut ChatState, now: Instant) {
-        let expired_tickets = state
-            .tickets
-            .iter()
-            .filter_map(|(ticket, record)| (record.expires_at <= now).then(|| ticket.clone()))
-            .collect::<Vec<_>>();
-        for ticket in expired_tickets {
-            if let Some(record) = state.tickets.remove(&ticket) {
-                release_pending_ticket(state, &record);
-            }
-        }
-
-        for limits in state.ip_limits.values_mut() {
-            prune_window(&mut limits.ticket_attempts, now, TICKET_REQUEST_WINDOW);
-        }
-        for connection in state.connections.values_mut() {
-            prune_window(&mut connection.message_attempts, now, MESSAGE_RATE_WINDOW);
-        }
-        prune_ip_limits(state);
-    }
-
-    fn prune_window(queue: &mut VecDeque<Instant>, now: Instant, window: Duration) {
-        while queue
-            .front()
-            .is_some_and(|timestamp| now.duration_since(*timestamp) >= window)
-        {
-            queue.pop_front();
-        }
-    }
-
-    fn release_pending_ticket(state: &mut ChatState, record: &TicketRecord) {
-        if let Some(limits) = state.ip_limits.get_mut(&record.client_ip) {
-            limits.pending_tickets = limits.pending_tickets.saturating_sub(1);
-        }
-        release_alias(state, &record.alias);
-    }
-
-    fn release_alias(state: &mut ChatState, alias: &str) {
-        state.active_aliases.remove(alias);
+fn release_alias(state: &mut ChatState, alias: &str) {
+    state.active_aliases.remove(alias);
 }
 
 fn prune_ip_limits(state: &mut ChatState) {
@@ -659,4 +646,3 @@ fn prune_ip_limits(state: &mut ChatState) {
 #[cfg(test)]
 #[path = "service_tests.rs"]
 mod tests;
-

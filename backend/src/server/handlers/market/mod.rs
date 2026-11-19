@@ -7,13 +7,13 @@ mod candle_params;
 mod candle_query;
 mod candle_response;
 mod candles;
+mod minute_candle_diagnostic;
 mod price_fetch;
 mod prices;
-mod minute_candle_diagnostic;
 mod websocket;
 mod ws_message;
 
 pub use candles::candles;
-pub use prices::prices;
 pub use minute_candle_diagnostic::start_minute_candle_check;
+pub use prices::prices;
 pub use websocket::ws_handler;

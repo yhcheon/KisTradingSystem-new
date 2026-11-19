@@ -1,18 +1,17 @@
 //! KIS 1분봉 과거 데이터 검증을 백그라운드에서 실행하고 로그 파일에 출력합니다.
-//! 
-//! 
+//!
+//!
 
-
-use chrono::NaiveTime;
-use crate::{core::{candles::Candle, state::AppState}, kis};
+use crate::{
+    core::{candles::Candle, state::AppState},
+    kis,
+};
 use axum::{Json, extract::State, http::StatusCode};
+use chrono::NaiveTime;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{
-        Arc,
-        atomic::Ordering,
-    },
+    sync::{Arc, atomic::Ordering},
 };
 
 const DAY_START: &str = "084500";
@@ -29,9 +28,7 @@ impl Drop for RunningGuard {
 
 /// POST /api/admin/market/minute-candle-check
 /// 응답은 즉시 반환하고, 실제 REST 조회와 로그 출력은 독립 Tokio task에서 수행합니다.
-pub async fn start_minute_candle_check(
-    State(state): State<AppState>,
-) -> (StatusCode, Json<Value>) {
+pub async fn start_minute_candle_check(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
     if state
         .minute_candle_check_running
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -67,8 +64,8 @@ pub async fn start_minute_candle_check(
 
 async fn run_minute_candle_check(state: AppState) -> Result<(), String> {
     let now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
-    let start = NaiveTime::parse_from_str(DAY_START, "%H%M%S")
-        .map_err(|error| error.to_string())?;
+    let start =
+        NaiveTime::parse_from_str(DAY_START, "%H%M%S").map_err(|error| error.to_string())?;
     if now.time() < start {
         return Err("현재 시각이 08:45 이전이므로 오늘 주간 분봉을 조회하지 않습니다.".to_string());
     }
@@ -90,14 +87,7 @@ async fn run_minute_candle_check(state: AppState) -> Result<(), String> {
             symbol.name, symbol.code
         );
 
-        match fetch_day_candles(
-            &state,
-            &symbol.code,
-            &date,
-            &end_time,
-        )
-        .await
-        {
+        match fetch_day_candles(&state, &symbol.code, &date, &end_time).await {
             Ok(candles) if candles.is_empty() => {
                 tracing::info!(
                     target: "minute_candle_validation",
@@ -155,8 +145,16 @@ fn log_and_compare_candles(
     times.extend(broker.keys().cloned());
     times.extend(local_map.keys().cloned());
 
-    let first_broker = broker.keys().next().cloned().unwrap_or_else(|| "없음".to_string());
-    let first_local = local_map.keys().next().cloned().unwrap_or_else(|| "없음".to_string());
+    let first_broker = broker
+        .keys()
+        .next()
+        .cloned()
+        .unwrap_or_else(|| "없음".to_string());
+    let first_local = local_map
+        .keys()
+        .next()
+        .cloned()
+        .unwrap_or_else(|| "없음".to_string());
     tracing::info!(
         target: "minute_candle_validation",
         "[MINUTE-CHECK] {} ({}) : KIS 최초={}, 내부 최초={}, KIS {}개 / 내부 {}개",
@@ -184,8 +182,17 @@ fn log_and_compare_candles(
             (Some(reference), Some(ours)) if time_label == current_minute => {
                 live += 1;
                 (
-                    format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
-                    format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                    format!(
+                        "{}/{}/{}/{}",
+                        reference.futs_oprc,
+                        reference.futs_hgpr,
+                        reference.futs_lwpr,
+                        reference.futs_prpr
+                    ),
+                    format!(
+                        "{:.2}/{:.2}/{:.2}/{:.2}",
+                        ours.open, ours.high, ours.low, ours.close
+                    ),
                     "진행중",
                 )
             }
@@ -198,20 +205,41 @@ fn log_and_compare_candles(
                 ]
                 .iter()
                 .all(|(reference, ours)| {
-                    reference.as_ref().map(|value| (*value - *ours).abs() < 0.000001).unwrap_or(false)
+                    reference
+                        .as_ref()
+                        .map(|value| (*value - *ours).abs() < 0.000001)
+                        .unwrap_or(false)
                 });
                 if same {
                     matched += 1;
                     (
-                        format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
-                        format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                        format!(
+                            "{}/{}/{}/{}",
+                            reference.futs_oprc,
+                            reference.futs_hgpr,
+                            reference.futs_lwpr,
+                            reference.futs_prpr
+                        ),
+                        format!(
+                            "{:.2}/{:.2}/{:.2}/{:.2}",
+                            ours.open, ours.high, ours.low, ours.close
+                        ),
                         "일치",
                     )
                 } else {
                     mismatched += 1;
                     (
-                        format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
-                        format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                        format!(
+                            "{}/{}/{}/{}",
+                            reference.futs_oprc,
+                            reference.futs_hgpr,
+                            reference.futs_lwpr,
+                            reference.futs_prpr
+                        ),
+                        format!(
+                            "{:.2}/{:.2}/{:.2}/{:.2}",
+                            ours.open, ours.high, ours.low, ours.close
+                        ),
                         "불일치",
                     )
                 }
@@ -219,7 +247,13 @@ fn log_and_compare_candles(
             (Some(reference), None) => {
                 broker_only += 1;
                 (
-                    format!("{}/{}/{}/{}", reference.futs_oprc, reference.futs_hgpr, reference.futs_lwpr, reference.futs_prpr),
+                    format!(
+                        "{}/{}/{}/{}",
+                        reference.futs_oprc,
+                        reference.futs_hgpr,
+                        reference.futs_lwpr,
+                        reference.futs_prpr
+                    ),
                     "-".to_string(),
                     "KIS만 있음",
                 )
@@ -228,7 +262,10 @@ fn log_and_compare_candles(
                 local_only += 1;
                 (
                     "-".to_string(),
-                    format!("{:.2}/{:.2}/{:.2}/{:.2}", ours.open, ours.high, ours.low, ours.close),
+                    format!(
+                        "{:.2}/{:.2}/{:.2}/{:.2}",
+                        ours.open, ours.high, ours.low, ours.close
+                    ),
                     "내부만 있음",
                 )
             }
@@ -346,7 +383,6 @@ async fn fetch_day_candles(
         if earliest.as_str() <= DAY_START {
             break;
         }
-
 
         let next_cursor = previous_minute(&earliest)
             .ok_or_else(|| format!("잘못된 분봉 시간 형식: {}", earliest))?;

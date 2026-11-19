@@ -106,4 +106,99 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn gap_periods_have_no_active_session() {
+        // 빈틈 1: 야간 종료(06:05) ~ 주간 시작(08:40) — 아무것도 안 켜져야 함
+        assert_eq!(
+            active_sessions_at(at(6, 5)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(7, 0)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(8, 39)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        // 빈틈 2: 주간 종료(15:50) ~ 야간 시작(17:55)
+        assert_eq!(
+            active_sessions_at(at(15, 50)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(16, 30)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(17, 54)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+    }
+
+    #[test]
+    fn night_session_wraps_past_midnight() {
+        // 자정 넘김: 23:59와 00:00이 같은 야간 세션이어야 함
+        assert_eq!(
+            active_sessions_at(at(23, 59)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(0, 0)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        assert_eq!(
+            active_sessions_at(at(6, 4)),
+            ActiveSessions {
+                day: false,
+                night: true
+            }
+        );
+        // 그런데 06:05가 되면 끝나야 함
+        assert_eq!(
+            active_sessions_at(at(6, 5)),
+            ActiveSessions {
+                day: false,
+                night: false
+            }
+        );
+    }
+
+    #[test]
+    fn day_session_never_overlaps_night() {
+        // 주간 시간에는 야간이, 야간 시간에는 주간이 절대 같이 켜지면 안 됨
+        for (h, m) in [(9, 0), (12, 0), (15, 0)] {
+            let s = active_sessions_at(at(h, m));
+            assert!(s.day && !s.night, "{h}:{m}에서 겹침: {s:?}");
+        }
+        for (h, m) in [(18, 0), (22, 0), (2, 0)] {
+            let s = active_sessions_at(at(h, m));
+            assert!(!s.day && s.night, "{h}:{m}에서 겹침: {s:?}");
+        }
+    }
 }

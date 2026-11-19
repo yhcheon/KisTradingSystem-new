@@ -20,8 +20,14 @@ const SHUTDOWN_JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 /// 모든 백그라운드 태스크가 끝날 때까지 기다립니다. 하나라도 5초를 넘기면
 /// 그 태스크는 포기하고(abort) 넘어갑니다. 종료가 무한히 멈추지 않게 하기 위함입니다.
 async fn join_background(mut handles: Vec<JoinHandle<()>>) {
-    if handles.is_empty() { return; }
-    tracing::info!("백그라운드 태스크 종료 대기 중 ({}개, 최대 {:?})", handles.len(), SHUTDOWN_JOIN_TIMEOUT);
+    if handles.is_empty() {
+        return;
+    }
+    tracing::info!(
+        "백그라운드 태스크 종료 대기 중 ({}개, 최대 {:?})",
+        handles.len(),
+        SHUTDOWN_JOIN_TIMEOUT
+    );
     // join_all이 아니라 하나씩 timeout을 거는 이유: 하나가 멈춰도 나머지는 기다릴 수 있게.
     // futures crate 없이, tokio만으로 구현합니다.
     for handle in handles.drain(..) {
@@ -32,7 +38,9 @@ async fn join_background(mut handles: Vec<JoinHandle<()>>) {
                 tracing::warn!("백그라운드 태스크가 panic으로 종료됨: {}", join_err);
             }
             Err(_) => {
-                tracing::warn!("백그라운드 태스크 종료 대기 시간 초과 (5초) - 다음 태스크로 넘어갑니다");
+                tracing::warn!(
+                    "백그라운드 태스크 종료 대기 시간 초과 (5초) - 다음 태스크로 넘어갑니다"
+                );
                 // timeout된 handle은 이미 소비됐으므로 abort할 수 없습니다.
                 // 각 태스크는 shutdown 신호를 받았으니 곧 스스로 끝납니다.
             }
@@ -44,15 +52,29 @@ async fn join_background(mut handles: Vec<JoinHandle<()>>) {
 pub async fn serve_with_startup<F, Fut>(initialize: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: FnOnce(Arc<Notify>) -> Fut,
-    Fut: Future<Output = Result<(crate::core::state::AppState, Vec<JoinHandle<()>>), Box<dyn std::error::Error>>>,
+    Fut: Future<
+        Output = Result<
+            (crate::core::state::AppState, Vec<JoinHandle<()>>),
+            Box<dyn std::error::Error>,
+        >,
+    >,
 {
     let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
-    let allowed_origins = cors_origins.split(',').map(str::trim).filter(|o| !o.is_empty())
-        .map(|origin| origin.parse::<HeaderValue>().map_err(|e| {
-            tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("CORS_ALLOWED_ORIGINS에 허용 Origin이 있습니다: {}", origin))
-        })).collect::<Result<Vec<_>, _>>()?;
+    let allowed_origins = cors_origins
+        .split(',')
+        .map(str::trim)
+        .filter(|o| !o.is_empty())
+        .map(|origin| {
+            origin.parse::<HeaderValue>().map_err(|e| {
+                tracing::error!("잘못된 CORS Origin 설정({}): {}", origin, e);
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("CORS_ALLOWED_ORIGINS에 허용 Origin이 있습니다: {}", origin),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if allowed_origins.is_empty() {
         let message = "CORS_ALLOWED_ORIGINS에 허용 Origin을 하나 이상 설정해야 합니다.";
         tracing::error!("{}", message);
@@ -60,22 +82,40 @@ where
     }
     let cors = CorsLayer::new()
         .allow_origin(allowed_origins)
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
-    let bind_addr = std::env::var("BACKEND_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
-    let listener = tokio::net::TcpListener::bind(&bind_addr).await.map_err(|e| {
-        tracing::error!("백엔드 서버 주소({}) 바인딩 실패: {}", bind_addr, e); e
-    })?;
+    let bind_addr =
+        std::env::var("BACKEND_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
+        .await
+        .map_err(|e| {
+            tracing::error!("백엔드 서버 주소({}) 바인딩 실패: {}", bind_addr, e);
+            e
+        })?;
     let startup = super::startup::StartupShared::new();
     let app = super::startup::build(startup.clone()).layer(cors);
-    tracing::info!("backend listening on {} (startup health endpoint active)", bind_addr);
+    tracing::info!(
+        "backend listening on {} (startup health endpoint active)",
+        bind_addr
+    );
 
     let shutdown = Arc::new(Notify::new());
     super::shutdown::spawn_shutdown_watcher(shutdown.clone());
     let shutdown_for_server = shutdown.clone();
-    let server = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(async move { shutdown_for_server.notified().await; })
-        .into_future();
+    let server = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_for_server.notified().await;
+    })
+    .into_future();
     tokio::pin!(server);
     let initialize = initialize(shutdown.clone());
     tokio::pin!(initialize);
@@ -119,13 +159,63 @@ where
     }
 
     // 정상 경로: 초기화 완료 후 서버가 끝날 때까지 대기, 그 후 백그라운드 join
-    server.await.map_err(|e| { tracing::error!("Axum 서버 실행 중 오류: {}", e); e })?;
+    server.await.map_err(|e| {
+        tracing::error!("Axum 서버 실행 중 오류: {}", e);
+        e
+    })?;
     join_background(std::mem::take(&mut background)).await;
     tracing::info!("백엔드 종료 완료 (Graceful shutdown)");
     Ok(())
 }
 
+// ============================================================
+// 파일명: src/server/runtime.rs — join_background 옆에 붙이는 테스트
+// 1번-D: 종료 대기(join) 테스트
+// - 빨리 끝나는 태스크는 기다려서 끝까지 확인하고,
+// - 안 끝나는 태스크는 5초 타임아웃에 걸려서 종료가 무한히 멈추지 않는지 검증.
+// 실제 server/runtime.rs의 join_background()와 같은 로직을 테스트합니다.
+// join_background()가 private이면 이 테스트는 같은 파일 안에 두어야 합니다.
+// ============================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::Notify;
 
+    // join_background()는 runtime.rs에 있는 그 함수를 그대로 쓴다고 가정.
+    // 만약 join_background가 아직 없다면 (JoinHandle 패치 전이라면) 먼저
+    // JoinHandle 패치(runtime_JOIN)를 적용하세요.
 
+    #[tokio::test]
+    async fn fast_task_is_awaited_before_return() {
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let d = done.clone();
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            d.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        join_background(vec![handle]).await;
+        assert!(
+            done.load(std::sync::atomic::Ordering::SeqCst),
+            "빨리 끝나는 태스크를 기다리지 않고 리턴하면 안 됨"
+        );
+    }
 
-
+    #[tokio::test]
+    async fn stuck_task_does_not_block_shutdown_forever() {
+        let shutdown = Arc::new(Notify::new());
+        let s = shutdown.clone();
+        let handle = tokio::spawn(async move {
+            // shutdown 신호를 무시하고 무한 대기하는 "망가진" 태스크 시뮬레이션
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            drop(s);
+        });
+        let started = std::time::Instant::now();
+        join_background(vec![handle]).await;
+        // 5초 타임아웃 + 여유 1초 안에 끝나야 함. 3600초까지 기다리면 실패.
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(6),
+            "멈춘 태스크 때문에 종료가 무한히 멈추면 안 됨: {:?}",
+            started.elapsed()
+        );
+    }
+}

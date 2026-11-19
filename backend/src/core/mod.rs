@@ -8,6 +8,7 @@ pub mod bootstrap;
 pub mod candles;
 pub mod cleanup;
 pub mod db;
+pub mod env;
 pub mod market_data;
 pub mod market_session;
 pub mod session_range;

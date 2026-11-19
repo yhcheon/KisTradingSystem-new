@@ -87,5 +87,3 @@ async fn wait_for_shutdown_signal() {
         }
     }
 }
-
-

@@ -16,7 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let _log_guard = logging::init();
     tracing::info!("============================================================");
-    tracing::info!("🚀 백엔드 시작  ({})", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    tracing::info!(
+        "🚀 백엔드 시작  ({})",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    );
     tracing::info!("============================================================");
     // PATCH: initialize가 shutdown을 인자로 받도록 변경
     server::runtime::serve_with_startup(|shutdown| core::bootstrap::initialize(shutdown)).await?;

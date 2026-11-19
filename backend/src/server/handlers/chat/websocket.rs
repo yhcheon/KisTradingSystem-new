@@ -106,7 +106,8 @@ async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: Cha
     let peak = update_peak(current);
     tracing::info!(
         "채팅 WebSocket 연결됨 (+1) 현재 접속자 {}명 (오늘 최고 {}명)",
-        current, peak
+        current,
+        peak
     );
 
     // 실제 루프는 run_loop으로 분리. 어떤 경로로 끝나도 아래 -1이 딱 한 번만 일어납니다.
@@ -120,7 +121,8 @@ async fn handle_socket(mut socket: WebSocket, chat: ChatService, connection: Cha
     let peak = update_peak(current);
     tracing::info!(
         "채팅 WebSocket 연결 종료 (-1) 현재 접속자 {}명 (오늘 최고 {}명)",
-        current, peak
+        current,
+        peak
     );
 }
 
@@ -525,6 +527,3 @@ mod tests {
         server.abort();
     }
 }
-
-
-

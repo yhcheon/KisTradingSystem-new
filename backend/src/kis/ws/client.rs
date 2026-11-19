@@ -25,7 +25,10 @@ use crate::kis;
 use super::protocol::{DAY_TR_ID, NIGHT_TR_ID, RealtimeTick, handle_text, parse_tick};
 
 /// connect_and_listen이 왜 끝났는지. Shutdown이면 바깥 루프가 재연결하지 않습니다.
-enum ShutdownReason { Disconnected, Shutdown }
+enum ShutdownReason {
+    Disconnected,
+    Shutdown,
+}
 
 pub async fn run(
     approval_key: String,
@@ -45,23 +48,37 @@ pub async fn run(
     let day_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
     let mut last_day_refresh_date = if startup_kst.time() >= day_refresh_time {
         Some(startup_kst.date_naive())
-    } else { None };
+    } else {
+        None
+    };
     let night_start = chrono::NaiveTime::from_hms_opt(17, 55, 0).unwrap();
     let night_end = chrono::NaiveTime::from_hms_opt(6, 5, 0).unwrap();
     let mut last_night_refresh_date = if startup_kst.time() >= night_start {
         Some(startup_kst.date_naive())
     } else if startup_kst.time() < night_end {
         Some(startup_kst.date_naive() - chrono::Duration::days(1))
-    } else { None };
+    } else {
+        None
+    };
 
     loop {
         let outcome = connect_and_listen(
-            &approval_key, &symbols, &night_symbols, &tx,
-            candle_store.clone(), session_range.clone(), price_cache.clone(),
-            &http_client, &app_key, &app_secret, &access_token,
-            &mut last_day_refresh_date, &mut last_night_refresh_date,
+            &approval_key,
+            &symbols,
+            &night_symbols,
+            &tx,
+            candle_store.clone(),
+            session_range.clone(),
+            price_cache.clone(),
+            &http_client,
+            &app_key,
+            &app_secret,
+            &access_token,
+            &mut last_day_refresh_date,
+            &mut last_night_refresh_date,
             shutdown.clone(), // PATCH
-        ).await;
+        )
+        .await;
 
         // FIXED (Send): Box<dyn Error + Send + Sync>는 Send가 아니라서 await 너머로 들고 가면
         // tokio::spawn이 요구하는 Future + Send를 만족하지 못합니다.
@@ -100,9 +117,13 @@ pub async fn run(
 
 async fn set_subscription<S>(
     ws: &mut tokio_tungstenite::WebSocketStream<S>,
-    approval_key: &str, tr_id: &str, symbol: &str, enabled: bool,
+    approval_key: &str,
+    tr_id: &str,
+    symbol: &str,
+    enabled: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     let msg = json!({
         "header": {
@@ -112,54 +133,102 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
         "body": { "input": { "tr_id": tr_id, "tr_key": symbol } }
     });
     ws.send(Message::Text(msg.to_string().into())).await?;
-    tracing::info!("KIS WS {} 요청: tr_id={}, tr_key={}",
-        if enabled { "구독 등록" } else { "구독 해제" }, tr_id, symbol);
+    tracing::info!(
+        "KIS WS {} 요청: tr_id={}, tr_key={}",
+        if enabled {
+            "구독 등록"
+        } else {
+            "구독 해제"
+        },
+        tr_id,
+        symbol
+    );
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     Ok(())
 }
 
 async fn set_session<S>(
     ws: &mut tokio_tungstenite::WebSocketStream<S>,
-    approval_key: &str, tr_id: &str, symbols: &[String], enabled: bool,
+    approval_key: &str,
+    tr_id: &str,
+    symbols: &[String],
+    enabled: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
-    for symbol in symbols { set_subscription(ws, approval_key, tr_id, symbol, enabled).await?; }
+    for symbol in symbols {
+        set_subscription(ws, approval_key, tr_id, symbol, enabled).await?;
+    }
     Ok(())
 }
 
 async fn refresh_session_quote(
-    http_client: &reqwest::Client, app_key: &str, app_secret: &str, access_token: &str,
-    code: &str, market_div: &str, session: &str, price_cache: &PriceCache,
+    http_client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
+    code: &str,
+    market_div: &str,
+    session: &str,
+    price_cache: &PriceCache,
 ) -> Result<(), String> {
     let response = kis::get_futures_price_for_market(
-        http_client, app_key, app_secret, access_token, market_div, code,
-    ).await.map_err(|error| error.to_string())?;
-    let cached_at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        http_client,
+        app_key,
+        app_secret,
+        access_token,
+        market_div,
+        code,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    let cached_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let output = response.output1;
     let cached = CachedPrice {
-        code: code.to_string(), name: output.hts_kor_isnm, price: output.futs_prpr,
-        prev_close: output.futs_prdy_clpr, open: output.futs_oprc, high: output.futs_hgpr,
-        low: output.futs_lwpr, change: output.futs_prdy_vrss, change_rate: output.futs_prdy_ctrt,
-        volume: output.acml_vol, cached_at,
+        code: code.to_string(),
+        name: output.hts_kor_isnm,
+        price: output.futs_prpr,
+        prev_close: output.futs_prdy_clpr,
+        open: output.futs_oprc,
+        high: output.futs_hgpr,
+        low: output.futs_lwpr,
+        change: output.futs_prdy_vrss,
+        change_rate: output.futs_prdy_ctrt,
+        volume: output.acml_vol,
+        cached_at,
     };
     price_cache.set(&cached, session).await;
-    tracing::info!("KIS {} REST 기준 시세 갱신: code={}, price={}", session, code, cached.price);
+    tracing::info!(
+        "KIS {} REST 기준 시세 갱신: code={}, price={}",
+        session,
+        code,
+        cached.price
+    );
     Ok(())
 }
 
 async fn connect_and_listen(
-    approval_key: &str, symbols: &[String], night_symbols: &[String],
+    approval_key: &str,
+    symbols: &[String],
+    night_symbols: &[String],
     tx: &broadcast::Sender<RealtimeTick>,
     candle_store: Arc<Mutex<CandleStore>>,
     session_range: Arc<Mutex<SessionRangeMonitor>>,
     price_cache: PriceCache,
-    http_client: &reqwest::Client, app_key: &str, app_secret: &str, access_token: &str,
+    http_client: &reqwest::Client,
+    app_key: &str,
+    app_secret: &str,
+    access_token: &str,
     last_day_refresh_date: &mut Option<chrono::NaiveDate>,
     last_night_refresh_date: &mut Option<chrono::NaiveDate>,
     shutdown: Arc<Notify>, // PATCH
 ) -> Result<ShutdownReason, Box<dyn std::error::Error + Send + Sync>> {
-    let ws_url = std::env::var("KIS_WS_DOMAIN").unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
+    let ws_url = std::env::var("KIS_WS_DOMAIN")
+        .unwrap_or_else(|_| "ws://ops.koreainvestment.com:21000".to_string());
     tracing::info!("KIS WS 연결 시도: {}", ws_url);
     let (mut ws, _) = connect_async(&ws_url).await?;
     tracing::info!("KIS WS 연결됨");
@@ -167,8 +236,12 @@ async fn connect_and_listen(
     let (pong_tx, mut pong_rx) = mpsc::channel::<String>(32);
     let mut active = current_active_sessions();
     let day_quote_refresh_time = chrono::NaiveTime::from_hms_opt(8, 45, 0).unwrap();
-    if active.day { set_session(&mut ws, approval_key, DAY_TR_ID, symbols, true).await?; }
-    if active.night { set_session(&mut ws, approval_key, NIGHT_TR_ID, night_symbols, true).await?; }
+    if active.day {
+        set_session(&mut ws, approval_key, DAY_TR_ID, symbols, true).await?;
+    }
+    if active.night {
+        set_session(&mut ws, approval_key, NIGHT_TR_ID, night_symbols, true).await?;
+    }
     if !active.day && !active.night {
         tracing::info!("현재 KST 시간은 주간/야간 구독 구간이 아니므로 대기합니다.");
     }
@@ -283,4 +356,3 @@ async fn connect_and_listen(
         }
     }
 }
-

@@ -48,7 +48,9 @@ fn default_stdout_filter() -> EnvFilter {
     // 중요: 한 줄 문자열로만 씁니다. Rust의 `\` + 줄바꿈 이어쓰기를 쓰면
     // EnvFilter가 뒤쪽 지시문을 공백 포함으로 읽고 버립니다.
     // (이번에 터미널에 뜬 "ignoring `         backend::...`" 경고가 그거였습니다.)
-    EnvFilter::new("warn,backend=info,backend::server::handlers::market=warn,backend::server::handlers::market::websocket=info,backend::market::history::pagination=warn,backend::kis::ws::protocol=warn")
+    EnvFilter::new(
+        "warn,backend=info,backend::server::handlers::market=warn,backend::server::handlers::market::websocket=info,backend::market::history::pagination=warn,backend::kis::ws::protocol=warn",
+    )
 }
 /// STDOUT_LOG_LEVEL이 있으면 그 값을 그대로 쓰고,
 /// 없으면 위의 정제 필터를 씁니다.
@@ -56,15 +58,16 @@ fn default_stdout_filter() -> EnvFilter {
 ///     STDOUT_LOG_LEVEL=debug -> 터미널에도 틱/debug까지 전부 (홍수 주의)
 fn stdout_filter() -> EnvFilter {
     match std::env::var("STDOUT_LOG_LEVEL") {
-        Ok(level) if !level.trim().is_empty() => {
-            match EnvFilter::try_new(level.trim()) {
-                Ok(f) => f,
-                Err(e) => {
-                    eprintln!("[logging] STDOUT_LOG_LEVEL 파싱 실패({}), 기본 정제 필터 사용", e);
-                    default_stdout_filter()
-                }
+        Ok(level) if !level.trim().is_empty() => match EnvFilter::try_new(level.trim()) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!(
+                    "[logging] STDOUT_LOG_LEVEL 파싱 실패({}), 기본 정제 필터 사용",
+                    e
+                );
+                default_stdout_filter()
             }
-        }
+        },
         _ => default_stdout_filter(),
     }
 }
@@ -85,7 +88,8 @@ pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // --- 파일 레이어: 기존 그대로, 전부 기록 ---
-    let file_filter = EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let file_filter =
+        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
         .with_ansi(false) // 파일에 색상 코드 없음
@@ -113,5 +117,3 @@ pub fn init() -> tracing_appender::non_blocking::WorkerGuard {
 
     guard
 }
-
-

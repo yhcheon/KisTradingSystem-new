@@ -19,7 +19,6 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
-
 // ============================================================
 pub fn spawn_night_candle_loader(
     http_client: reqwest::Client,
@@ -37,8 +36,13 @@ pub fn spawn_night_candle_loader(
             let hour = chrono::Timelike::hour(&now);
             let session_active = hour >= 18 || hour < 6;
             if !session_active {
-                let next_start = now.date_naive().and_hms_opt(18, 0, 0).expect("valid night session start");
-                let wait = (next_start - now.naive_local()).to_std().unwrap_or_default();
+                let next_start = now
+                    .date_naive()
+                    .and_hms_opt(18, 0, 0)
+                    .expect("valid night session start");
+                let wait = (next_start - now.naive_local())
+                    .to_std()
+                    .unwrap_or_default();
                 tracing::info!(target: "kis::night_candles", "[NIGHT-WAIT] now={} wait_seconds={}", now, wait.as_secs());
                 tokio::select! {
                     _ = shutdown.notified() => {
@@ -56,10 +60,17 @@ pub fn spawn_night_candle_loader(
             let session_now = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
             let session_hour = chrono::Timelike::hour(&session_now);
             let (trade_date, cursor_hour) = if session_hour < 6 {
-                ((session_now.date_naive() - chrono::Duration::days(1)).format("%Y%m%d").to_string(),
-                 format!("{:02}{}", session_hour + 24, session_now.format("%M%S")))
+                (
+                    (session_now.date_naive() - chrono::Duration::days(1))
+                        .format("%Y%m%d")
+                        .to_string(),
+                    format!("{:02}{}", session_hour + 24, session_now.format("%M%S")),
+                )
             } else {
-                (session_now.format("%Y%m%d").to_string(), session_now.format("%H%M%S").to_string())
+                (
+                    session_now.format("%Y%m%d").to_string(),
+                    session_now.format("%H%M%S").to_string(),
+                )
             };
             tracing::info!(target: "kis::night_candles", "[NIGHT-SESSION-BEGIN] trade_date={} cursor={}", trade_date, cursor_hour);
             for symbol in &symbols {
@@ -71,7 +82,17 @@ pub fn spawn_night_candle_loader(
                     }
                     _ = async {} => {}
                 }
-                let load_result = load_night_session(&http_client, &app_key, &app_secret, &access_token, symbol, &trade_date, &cursor_hour).await.map_err(|error| error.to_string());
+                let load_result = load_night_session(
+                    &http_client,
+                    &app_key,
+                    &app_secret,
+                    &access_token,
+                    symbol,
+                    &trade_date,
+                    &cursor_hour,
+                )
+                .await
+                .map_err(|error| error.to_string());
                 match load_result {
                     Ok(candles) => {
                         let count = candles.len();
@@ -81,13 +102,23 @@ pub fn spawn_night_candle_loader(
                         }
                         tracing::info!(target: "kis::night_candles", "[NIGHT-SYMBOL-DONE] symbol={} loaded={}", symbol, count);
                     }
-                    Err(error) => tracing::error!(target: "kis::night_candles", "[NIGHT-SYMBOL-FAILED] symbol={} error={}", symbol, error),
+                    Err(error) => {
+                        tracing::error!(target: "kis::night_candles", "[NIGHT-SYMBOL-FAILED] symbol={} error={}", symbol, error)
+                    }
                 }
             }
             let after_load = chrono::Utc::now().with_timezone(&chrono_tz::Asia::Seoul);
-            let next_start_date = if chrono::Timelike::hour(&after_load) < 6 { after_load.date_naive() } else { after_load.date_naive() + chrono::Duration::days(1) };
-            let next_day_start = next_start_date.and_hms_opt(18, 0, 0).expect("valid next night session start");
-            let wait = (next_day_start - after_load.naive_local()).to_std().unwrap_or_default();
+            let next_start_date = if chrono::Timelike::hour(&after_load) < 6 {
+                after_load.date_naive()
+            } else {
+                after_load.date_naive() + chrono::Duration::days(1)
+            };
+            let next_day_start = next_start_date
+                .and_hms_opt(18, 0, 0)
+                .expect("valid next night session start");
+            let wait = (next_day_start - after_load.naive_local())
+                .to_std()
+                .unwrap_or_default();
             tokio::select! {
                 _ = shutdown.notified() => {
                     tracing::info!(target: "kis::night_candles", "[NIGHT-SHUTDOWN] 종료 신호 수신 - 야간 로더 종료");
@@ -98,15 +129,6 @@ pub fn spawn_night_candle_loader(
         }
     })
 }
-
-
-
-
-
-
-
-
-
 
 async fn load_night_session(
     http_client: &reqwest::Client,

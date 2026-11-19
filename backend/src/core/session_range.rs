@@ -415,4 +415,89 @@ mod tests {
         );
         assert_eq!(monitor.snapshot().night.low_alerted, true);
     }
+
+    // ============================================================
+    // 파일명: src/core/session_range.rs — 기존 tests 모듈 안에 추가
+    // 1번-C: 세션 레인지 경계 엣지 테스트
+    // 기존 테스트는 정상 수집 → 돌파까지는 검증했지만,
+    // "수집 시작 직전 틱", "잘못된 입력", "야간 경계"는 빠져 있었습니다.
+    // ============================================================
+    #[test]
+    fn tick_before_session_start_is_ignored() {
+        let mut monitor = monitor("2026-11-18T23:00:00Z"); // KST 08:00, 아직 시작 전
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084400", "day", 350.0)
+                .is_none()
+        );
+        assert_eq!(monitor.snapshot().day.high, None);
+        assert_eq!(monitor.snapshot().day.low, None);
+        // 08:45가 되면 그때부터 수집
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084500", "day", 350.0)
+                .is_none()
+        );
+        assert_eq!(monitor.snapshot().day.high, Some(350.0));
+    }
+
+    #[test]
+    fn invalid_date_time_and_price_are_ignored() {
+        let mut monitor = monitor("2026-11-18T23:00:00Z");
+        assert!(
+            monitor
+                .on_tick("101W9000", "2026-11-19", "084500", "day", 350.0)
+                .is_none()
+        ); // 날짜 형식 오류
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "84500", "day", 350.0)
+                .is_none()
+        ); // 시간 형식 오류
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084500", "day", 0.0)
+                .is_none()
+        ); // 0원
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084500", "day", -1.0)
+                .is_none()
+        ); // 음수
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084500", "day", f64::NAN)
+                .is_none()
+        );
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "084500", "unknown", 350.0)
+                .is_none()
+        ); // 모르는 세션
+        assert_eq!(monitor.snapshot().day.high, None);
+    }
+
+    #[test]
+    fn night_session_boundary_is_1800_to_1845() {
+        let mut monitor = monitor("2026-11-19T08:00:00Z"); // KST 17:00
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "175959", "night", 350.0)
+                .is_none()
+        );
+        assert_eq!(monitor.snapshot().night.high, None);
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "180000", "night", 350.0)
+                .is_none()
+        );
+        assert_eq!(monitor.snapshot().night.high, Some(350.0));
+        // 18:45부터는 수집이 아니라 돌파 감시
+        assert!(
+            monitor
+                .on_tick("101W9000", "20261119", "184459", "night", 349.0)
+                .is_none()
+        );
+        assert_eq!(monitor.snapshot().night.low, Some(349.0));
+    }
 }

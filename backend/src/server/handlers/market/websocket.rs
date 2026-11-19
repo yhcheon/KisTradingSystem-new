@@ -73,4 +73,3 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     tracing::info!("브라우저 WebSocket 연결 종료");
 }
-
